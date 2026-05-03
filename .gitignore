@@ -1,0 +1,34 @@
+node_modules
+.next
+out
+build
+dist
+.DS_Store
+*.log
+
+# Env
+.env
+.env.local
+.env*.local
+
+# Database (dev only)
+*.db
+*.db-journal
+prisma/dev.db
+prisma/migrations/dev.db*
+
+# Vercel
+.vercel
+
+# Test
+coverage
+.nyc_output
+
+# Editor
+.vscode
+.idea
+
+# Next
+next-env.d.ts
+.next/
+tsconfig.tsbuildinfo

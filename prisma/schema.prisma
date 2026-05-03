@@ -1,0 +1,126 @@
+// Prisma schema — SQLite for dev, swap provider to "postgresql" for production.
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model AdminUser {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String
+  role         String   @default("MANAGER") // OWNER | MANAGER
+  createdAt    DateTime @default(now())
+}
+
+model Guard {
+  id            String    @id @default(cuid())
+  firstName     String
+  lastName      String
+  phone         String    @unique
+  email         String?
+  licenceNumber String?
+  licenceExpiry DateTime?
+  payRate       Decimal?
+  notes         String?
+  active        Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  shifts        Shift[]
+  smsLogs       SmsLog[]
+}
+
+model Site {
+  id           String   @id @default(cuid())
+  name         String
+  address      String
+  contactName  String?
+  contactPhone String?
+  notes        String?
+  active       Boolean  @default(true)
+  shifts       Shift[]
+}
+
+model Roster {
+  id          String    @id @default(cuid())
+  name        String
+  startDate   DateTime
+  endDate     DateTime
+  status      String    @default("DRAFT") // DRAFT | PUBLISHED | ARCHIVED
+  publishedAt DateTime?
+  createdAt   DateTime  @default(now())
+  shifts      Shift[]
+}
+
+model Shift {
+  id              String    @id @default(cuid())
+  rosterId        String
+  guardId         String
+  siteId          String
+  startAt         DateTime
+  endAt           DateTime
+  role            String?
+  notes           String?
+  status          String    @default("PENDING") // PENDING|CONFIRMED|REJECTED|WORKED|NO_SHOW|CANCELLED
+  confirmCode     String    @unique
+  confirmedAt     DateTime?
+  rejectedAt      DateTime?
+  rejectionReason String?
+  workedStart     DateTime?
+  workedEnd       DateTime?
+  createdAt       DateTime  @default(now())
+
+  roster  Roster   @relation(fields: [rosterId], references: [id], onDelete: Cascade)
+  guard   Guard    @relation(fields: [guardId], references: [id])
+  site    Site     @relation(fields: [siteId], references: [id])
+  smsLogs SmsLog[]
+
+  @@index([guardId])
+  @@index([siteId])
+  @@index([rosterId])
+  @@index([startAt])
+}
+
+model SmsLog {
+  id          String   @id @default(cuid())
+  guardId     String?
+  shiftId     String?
+  direction   String   // OUTBOUND | INBOUND
+  fromNumber  String
+  toNumber    String
+  body        String
+  providerSid String?
+  status      String?  // queued|sent|delivered|failed|mock
+  errorCode   String?
+  receivedAt  DateTime @default(now())
+
+  guard Guard? @relation(fields: [guardId], references: [id])
+  shift Shift? @relation(fields: [shiftId], references: [id])
+
+  @@index([guardId])
+  @@index([direction])
+  @@index([receivedAt])
+}
+
+model Timesheet {
+  id         String    @id @default(cuid())
+  guardId    String
+  weekStart  DateTime
+  weekEnd    DateTime
+  totalHours Decimal
+  totalPay   Decimal
+  status     String    @default("DRAFT") // DRAFT | APPROVED | PAID
+  approvedAt DateTime?
+  approvedBy String?
+  createdAt  DateTime  @default(now())
+
+  @@unique([guardId, weekStart])
+}
+
+model Setting {
+  key   String @id
+  value String
+}
