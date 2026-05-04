@@ -16,27 +16,26 @@ async function ensureUniqueCode(): Promise<string> {
 async function main() {
   console.log("\n🌱 Seeding database...\n");
 
-  // Admin
-  const adminEmail = "admin@vigilo.local";
-  const adminPassword = "admin123";
-  const passwordHash = await bcrypt.hash(adminPassword, 10);
+  const adminEmail = "info@auswidesecurityexperts.com.au";
+const adminPassword = "Auswide@2016";
+const passwordHash = await bcrypt.hash(adminPassword, 10);
 
-  const admin = await prisma.adminUser.upsert({
-    where: { email: adminEmail },
-    update: {},
-    create: {
-      email: adminEmail,
-      passwordHash,
-      name: "Owner",
-      role: "OWNER",
-    },
-  });
+const admin = await prisma.adminUser.upsert({
+  where: { email: adminEmail },
+  update: {},
+  create: {
+    email: adminEmail,
+    passwordHash,
+    name: "Admin",
+    role: "OWNER",
+  },
+});
 
-  console.log("=================================================");
-  console.log("  ADMIN LOGIN — CHANGE THIS BEFORE PRODUCTION!");
-  console.log(`  Email:    ${adminEmail}`);
-  console.log(`  Password: ${adminPassword}`);
-  console.log("=================================================\n");
+console.log("=================================================");
+console.log("  ADMIN LOGIN — CHANGE THIS BEFORE PRODUCTION!");
+console.log(`  Email:    ${adminEmail}`);
+console.log(`  Password: ${adminPassword}`);
+console.log("=================================================");
 
   // Guards
   const guardSeed = [
