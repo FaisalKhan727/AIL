@@ -24,6 +24,7 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
 
   const byGuard = new Map<string, { id: string; startAt: Date; endAt: Date }[]>();
   for (const s of roster.shifts) {
+    if (!s.guardId) continue; // unassigned placeholder shifts can't conflict yet
     const list = byGuard.get(s.guardId) ?? [];
     list.push({ id: s.id, startAt: s.startAt, endAt: s.endAt });
     byGuard.set(s.guardId, list);

@@ -15,7 +15,7 @@ export async function GET(req: Request) {
   const weekStart = startOfWeekMon(baseDate);
   const weekEnd = endOfWeekSun(baseDate);
 
-  const shifts = await prisma.shift.findMany({
+  const allShifts = await prisma.shift.findMany({
     where: {
       roster: { companyId: auth.companyId },
       startAt: { gte: weekStart, lte: weekEnd },
@@ -24,6 +24,12 @@ export async function GET(req: Request) {
     include: { guard: true, site: true },
     orderBy: { startAt: "asc" },
   });
+  // Unassigned placeholder shifts can't be in CONFIRMED/WORKED status, but
+  // narrow the type so the rest of this function can treat guard as non-null.
+  const shifts = allShifts.filter(
+    (s): s is typeof s & { guardId: string; guard: NonNullable<typeof s.guard> } =>
+      s.guardId != null && s.guard != null,
+  );
 
   const byGuard = new Map<string, typeof shifts>();
   for (const s of shifts) {

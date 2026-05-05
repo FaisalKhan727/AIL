@@ -127,6 +127,49 @@ async function main() {
 
   const sites = await prisma.site.findMany({ where: { companyId: auswide.id } });
 
+  // Shift templates per site. Crown Casino has the canonical 3-template
+  // pattern (Morning/Afternoon/Overnight, including a midnight-crossing one),
+  // QV Square has 2 patrol templates, Marvel Stadium intentionally has none
+  // so the empty-state UI has somewhere to render.
+  const templateSeed: Record<
+    string,
+    { name: string; startTime: string; endTime: string; role?: string; daysOfWeek?: string; sortOrder?: number }[]
+  > = {
+    "Crown Casino": [
+      { name: "Morning",   startTime: "08:00", endTime: "14:00", role: "Static Guard", sortOrder: 0 },
+      { name: "Afternoon", startTime: "14:00", endTime: "19:00", role: "Static Guard", sortOrder: 1 },
+      { name: "Overnight", startTime: "19:00", endTime: "08:00", role: "Static Guard", sortOrder: 2 },
+    ],
+    "QV Square": [
+      { name: "Day Patrol",   startTime: "09:00", endTime: "17:00", role: "Patrol", daysOfWeek: "MON,TUE,WED,THU,FRI", sortOrder: 0 },
+      { name: "Night Patrol", startTime: "21:00", endTime: "05:00", role: "Patrol", sortOrder: 1 },
+    ],
+  };
+
+  for (const site of sites) {
+    const tpls = templateSeed[site.name];
+    if (!tpls) continue;
+    for (const t of tpls) {
+      const exists = await prisma.shiftTemplate.findFirst({
+        where: { siteId: site.id, name: t.name },
+      });
+      if (exists) continue;
+      const crossesMidnight = t.endTime <= t.startTime;
+      await prisma.shiftTemplate.create({
+        data: {
+          siteId: site.id,
+          name: t.name,
+          startTime: t.startTime,
+          endTime: t.endTime,
+          crossesMidnight,
+          role: t.role,
+          daysOfWeek: t.daysOfWeek ?? "MON,TUE,WED,THU,FRI,SAT,SUN",
+          sortOrder: t.sortOrder ?? 0,
+        },
+      });
+    }
+  }
+
   const now = new Date();
   const day = now.getDay();
   const monOffset = day === 0 ? -6 : 1 - day;

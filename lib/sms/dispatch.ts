@@ -61,6 +61,7 @@ export async function dispatchRosterSms(
   for (const s of roster.shifts) {
     if (s.status !== "PENDING") continue;
     if (opts.onlyUnpublished && s.publishedAt) continue;
+    if (!s.guardId) continue; // unassigned placeholder, can't SMS yet
     const list = byGuard.get(s.guardId) ?? [];
     list.push(s);
     byGuard.set(s.guardId, list);
@@ -71,7 +72,7 @@ export async function dispatchRosterSms(
   for (const [guardId, shifts] of byGuard) {
     if (shifts.length === 0) continue;
     const guard = shifts[0].guard;
-    if (!guard.active) continue;
+    if (!guard || !guard.active) continue;
 
     const lines: ShiftLineInput[] = shifts.map((s, idx) => ({
       index: idx + 1,
@@ -141,6 +142,11 @@ export async function resendShiftSms(shiftId: string) {
     include: { guard: true, site: true, roster: true },
   });
   if (!shift) throw new Error("shift not found");
+  if (!shift.guard || !shift.guardId) {
+    throw new Error("shift has no assigned guard yet — assign a guard before sending SMS");
+  }
+  const guard = shift.guard;
+  const guardId = shift.guardId;
 
   const tz = (await getCompanySetting(shift.roster.companyId, "timezone")) ?? APP_TZ;
   const template = await getCompanySetting(shift.roster.companyId, "sms_template_roster");
@@ -150,7 +156,7 @@ export async function resendShiftSms(shiftId: string) {
   ];
 
   const body = buildRosterMessage({
-    firstName: shift.guard.firstName,
+    firstName: guard.firstName,
     rosterName: shift.roster.name,
     shifts: lines,
     firstConfirmCode: shift.confirmCode,
@@ -158,8 +164,8 @@ export async function resendShiftSms(shiftId: string) {
     timezone: tz,
   });
 
-  const result = await adapter.sendSms(shift.guard.phone, body, {
-    guardId: shift.guardId,
+  const result = await adapter.sendSms(guard.phone, body, {
+    guardId,
     shiftId: shift.id,
   });
 

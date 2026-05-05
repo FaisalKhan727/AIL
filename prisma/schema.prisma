@@ -56,18 +56,41 @@ model Guard {
 }
 
 model Site {
-  id           String   @id @default(cuid())
-  name         String
-  address      String
-  contactName  String?
-  contactPhone String?
-  notes        String?
-  active       Boolean  @default(true)
-  companyId    String
-  company      Company  @relation(fields: [companyId], references: [id])
-  shifts       Shift[]
+  id             String          @id @default(cuid())
+  name           String
+  address        String
+  contactName    String?
+  contactPhone   String?
+  notes          String?
+  active         Boolean         @default(true)
+  companyId      String
+  company        Company         @relation(fields: [companyId], references: [id])
+  shifts         Shift[]
+  shiftTemplates ShiftTemplate[]
 
   @@index([companyId])
+}
+
+model ShiftTemplate {
+  id                String   @id @default(cuid())
+  siteId            String
+  name              String
+  startTime         String   // "HH:mm" 24-hour
+  endTime           String   // "HH:mm" 24-hour
+  crossesMidnight   Boolean  @default(false)
+  role              String?
+  notes             String?
+  daysOfWeek        String   @default("MON,TUE,WED,THU,FRI,SAT,SUN")
+  active            Boolean  @default(true)
+  sortOrder         Int      @default(0)
+  payRateMultiplier Decimal?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  site   Site    @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  shifts Shift[]
+
+  @@index([siteId])
 }
 
 model Roster {
@@ -88,8 +111,9 @@ model Roster {
 model Shift {
   id              String    @id @default(cuid())
   rosterId        String
-  guardId         String
+  guardId         String?
   siteId          String
+  templateId      String?
   startAt         DateTime
   endAt           DateTime
   role            String?
@@ -104,14 +128,16 @@ model Shift {
   publishedAt     DateTime?
   createdAt       DateTime  @default(now())
 
-  roster  Roster   @relation(fields: [rosterId], references: [id], onDelete: Cascade)
-  guard   Guard    @relation(fields: [guardId], references: [id])
-  site    Site     @relation(fields: [siteId], references: [id])
-  smsLogs SmsLog[]
+  roster   Roster         @relation(fields: [rosterId], references: [id], onDelete: Cascade)
+  guard    Guard?         @relation(fields: [guardId], references: [id])
+  site     Site           @relation(fields: [siteId], references: [id])
+  template ShiftTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  smsLogs  SmsLog[]
 
   @@index([guardId])
   @@index([siteId])
   @@index([rosterId])
+  @@index([templateId])
   @@index([startAt])
 }
 
