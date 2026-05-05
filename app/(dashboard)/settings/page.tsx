@@ -15,7 +15,7 @@ import { api } from "@/lib/fetcher";
 
 interface SettingsResp {
   settings: Record<string, string>;
-  sms: { mode: "mock" | "twilio"; twilioSidMasked: string; twilioFromNumber: string };
+  sms: { configured: boolean; twilioSidMasked: string; twilioFromNumber: string };
 }
 interface Admin { id: string; email: string; name: string; role: string; createdAt: string; }
 
@@ -69,26 +69,27 @@ export default function SettingsPage() {
           <CardHeader>
             <div className="flex items-center justify-between gap-2 flex-wrap">
               <CardTitle>SMS Provider</CardTitle>
-              {data?.sms.mode === "twilio"
+              {data?.sms.configured
                 ? <Badge className="bg-emerald-100 text-emerald-800 border-emerald-300">LIVE — Twilio</Badge>
-                : <Badge className="bg-amber-100 text-amber-800 border-amber-300">MOCK MODE</Badge>}
+                : <Badge className="bg-rose-100 text-rose-800 border-rose-300">NOT CONFIGURED</Badge>}
             </div>
-            <CardDescription>Outbound and inbound SMS use the configured provider.</CardDescription>
+            <CardDescription>Outbound and inbound SMS run through Twilio.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-2">
             <div className="text-sm">
               <div><span className="text-muted-foreground">SID:</span> <span className="font-mono">{data?.sms.twilioSidMasked || "—"}</span></div>
               <div><span className="text-muted-foreground">From:</span> <span className="font-mono">{data?.sms.twilioFromNumber || "—"}</span></div>
             </div>
-            <div className="text-xs text-muted-foreground bg-muted/40 rounded p-3 space-y-1">
-              <p><strong>To switch to live SMS:</strong></p>
-              <ol className="list-decimal pl-5 space-y-1">
-                <li>In <code>.env</code>, set <code>SMS_MODE=twilio</code></li>
-                <li>Set <code>TWILIO_ACCOUNT_SID</code>, <code>TWILIO_AUTH_TOKEN</code>, <code>TWILIO_FROM_NUMBER</code></li>
-                <li>Implement the TODOs in <code>lib/sms/twilio-adapter.ts</code></li>
-                <li>Restart the server. This badge will switch to <em>LIVE — Twilio</em>.</li>
-              </ol>
-            </div>
+            {!data?.sms.configured && (
+              <div className="text-xs text-muted-foreground bg-muted/40 rounded p-3 space-y-1">
+                <p><strong>Twilio credentials are missing.</strong></p>
+                <ol className="list-decimal pl-5 space-y-1">
+                  <li>Set <code>TWILIO_ACCOUNT_SID</code>, <code>TWILIO_AUTH_TOKEN</code>, <code>TWILIO_FROM_NUMBER</code> in the environment.</li>
+                  <li>Set <code>PUBLIC_BASE_URL</code> to your live HTTPS origin (e.g. <code>https://roster.example.com</code>).</li>
+                  <li>In Twilio Console, point your number&apos;s messaging webhook to <code>/api/sms/webhook</code> (POST) and the status callback to <code>/api/sms/status</code>.</li>
+                </ol>
+              </div>
+            )}
           </CardContent>
         </Card>
 

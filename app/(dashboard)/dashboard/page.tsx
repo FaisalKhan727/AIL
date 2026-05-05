@@ -2,7 +2,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
-import { Plus, Users, Building2, Calendar, ClipboardList, MessageSquare, PlayCircle } from "lucide-react";
+import { Plus, Users, Building2, Calendar, ClipboardList, MessageSquare } from "lucide-react";
 import { PageHeader } from "@/components/shell/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -50,7 +50,6 @@ export default function DashboardPage() {
             <Button asChild variant="outline"><Link href="/guards"><Users className="h-4 w-4" /> Add Guard</Link></Button>
             <Button asChild variant="outline"><Link href="/sites"><Building2 className="h-4 w-4" /> Add Site</Link></Button>
             <Button asChild><Link href="/rosters"><Plus className="h-4 w-4" /> New Roster</Link></Button>
-            <Button asChild variant="amber"><Link href="/sms-simulator"><PlayCircle className="h-4 w-4" /> Simulate SMS</Link></Button>
           </>
         }
       />

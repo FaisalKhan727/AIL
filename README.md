@@ -3,8 +3,7 @@
 Production-grade rostering web app for security services. Publish shifts, get
 guards to confirm via SMS, generate timesheets for payroll.
 
-**Build mode:** local SQLite + mock SMS adapter so you can use the full
-workflow today. Wiring up Twilio and Postgres later only changes config.
+Live SMS runs through Twilio. Database is Postgres via Prisma.
 
 ---
 
@@ -12,112 +11,92 @@ workflow today. Wiring up Twilio and Postgres later only changes config.
 
 ```bash
 npm install
+# Set DATABASE_URL, NEXTAUTH_SECRET, NEXTAUTH_URL, PUBLIC_BASE_URL,
+# TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM_NUMBER in .env
 npm run db:setup
 npm run dev
 ```
 
-Open http://localhost:3000 and log in with the seed admin printed to the
-console (default: `admin@vigilo.local` / `admin123` — **change before
-production**).
-
-The seed creates 5 sample guards, 3 sites, and 1 published roster for the
-current week with 8 PENDING shifts so you can test the SMS flow immediately.
+Open the app and log in with the seed admin printed to the console
+(default: `admin@vigilo.local` / `admin123` — **change before production**).
 
 ```bash
-npm test            # run parser + hours unit tests
+npm test            # parser + hours unit tests
 npm run db:reset    # wipe DB and reseed
 ```
 
 ---
 
-## What's stubbed vs real
+## Feature status
 
-| Feature                          | Status |
-|----------------------------------|--------|
-| Database (SQLite, dev)           | ✅ real |
-| Auth (NextAuth credentials)      | ✅ real |
-| Guards / Sites / Rosters / Shifts CRUD | ✅ real |
-| Roster builder + week grid       | ✅ real |
-| Conflict detection               | ✅ real |
-| Outbound SMS message builder     | ✅ real |
-| **SMS sending (Twilio)**         | ⚠️ stubbed (`MockSmsAdapter` writes to `SmsLog` + console) |
-| **Inbound SMS webhook**          | ✅ real route, exercised by the SMS Simulator UI |
-| Inbound reply parser             | ✅ real (24 unit tests cover ALL YES, numbered pairs, codes, synonyms, garbage) |
-| Timesheets + CSV/PDF export      | ✅ real |
-| SMS Log viewer                   | ✅ real |
-| Settings + admin user management | ✅ real |
+| Feature                                   | Status |
+|-------------------------------------------|--------|
+| Database (Postgres + Prisma)              | ✅ |
+| Auth (NextAuth credentials)               | ✅ |
+| Guards / Sites / Rosters / Shifts CRUD    | ✅ |
+| Roster builder + week grid                | ✅ |
+| Conflict detection                        | ✅ |
+| Outbound SMS (Twilio)                     | ✅ |
+| Inbound SMS webhook (signature validated) | ✅ |
+| Status callback (delivery receipts)       | ✅ |
+| Inbound reply parser                      | ✅ |
+| Timesheets + CSV/PDF export               | ✅ |
+| SMS Log viewer                            | ✅ |
+| Settings + admin user management          | ✅ |
 
 ---
 
-## Try the workflow
+## Twilio setup
+
+1. Buy a long-code number that supports two-way SMS (Australian numbers via
+   Twilio).
+2. Set environment variables:
+   ```
+   TWILIO_ACCOUNT_SID=ACxxxx
+   TWILIO_AUTH_TOKEN=xxxx
+   TWILIO_FROM_NUMBER=+61xxx
+   PUBLIC_BASE_URL=https://your-subdomain.example.com
+   ```
+3. In Twilio Console, configure your number's messaging:
+   - **A MESSAGE COMES IN** → `https://<your-domain>/api/sms/webhook` (HTTP POST)
+   - **STATUS CALLBACK URL** → `https://<your-domain>/api/sms/status` (HTTP POST)
+4. Both webhooks verify the `X-Twilio-Signature` header. Requests without a
+   valid signature are rejected with HTTP 403.
+
+---
+
+## Workflow
 
 1. **Log in** at `/login`.
 2. **Dashboard** shows KPIs and today's shifts.
 3. **Guards / Sites / Rosters** — full CRUD.
-4. Open the seeded roster in **Rosters** → click into it. The week grid shows
-   all shifts. Click a shift to edit, or click **+ add** in any cell.
-5. **Publish** a roster — every guard with PENDING shifts in it gets a
-   numbered SMS via the mock adapter. Watch the server console for the
-   formatted block, and check `/sms-log` for the entries marked `MOCK`.
-6. **SMS Simulator** (`/sms-simulator`) — pick a guard, see their published
-   shifts with their indices and confirm codes, type or quick-fill a reply
-   like `1 YES, 2 NO, 3 YES` or `ALL YES`. The simulator POSTs to
-   `/api/sms/webhook` exactly the way Twilio will. Shift statuses update
-   live; an auto-reply is logged.
-7. **Timesheets** — current week defaults; only CONFIRMED/WORKED shifts
+4. **Publish** a roster — every guard with PENDING shifts gets a numbered SMS
+   from your Twilio number. Delivery status updates appear in `/sms-log`.
+5. Guards reply with `1 YES, 2 NO, 3 YES` or `ALL YES` etc. The webhook parses
+   the reply, applies decisions, and texts back a confirmation summary.
+6. **Timesheets** — current week defaults; only CONFIRMED/WORKED shifts
    contribute to hours and pay. **Mark all worked** promotes CONFIRMED →
    WORKED. **Export CSV** or per-row **PDF** (browser print).
-8. **Settings** — edit company name, timezone, default pay rate, and SMS
+7. **Settings** — edit company name, timezone, default pay rate, and SMS
    templates with placeholders. Add more admin users (OWNER only).
 
 ---
 
-## Wiring up later
-
-### Switch from mock to live SMS (Twilio)
-
-1. Sign up for Twilio, buy an Australian long-code number that supports
-   two-way SMS.
-2. In `.env`, set:
-   ```
-   SMS_MODE=twilio
-   TWILIO_ACCOUNT_SID=ACxxxx
-   TWILIO_AUTH_TOKEN=xxxx
-   TWILIO_FROM_NUMBER=+61xxx
-   ```
-3. Implement the TODOs in `lib/sms/twilio-adapter.ts` — the class skeleton,
-   imports, and constructor are already in place. You only need to fill in
-   the `messages.create` call and signature verification.
-4. Restart the server. The Settings page badge will switch from
-   `MOCK MODE` to `LIVE — Twilio`.
-5. In Twilio Console, set the messaging webhook for your number to:
-   - `https://<your-subdomain>/api/sms/webhook` (HTTP POST)
-   - `https://<your-subdomain>/api/sms/status` (status callback)
-
-### Switch from SQLite to Postgres
-
-1. Provision a Postgres DB (Neon, Supabase, Railway).
-2. In `prisma/schema.prisma`, change `provider = "sqlite"` to
-   `provider = "postgresql"`.
-3. Update `DATABASE_URL` in `.env`.
-4. Delete the existing `prisma/migrations` folder (SQLite-specific) and run
-   `npx prisma migrate dev --name init` against the new DB.
-
-### Deploy to a subdomain (Vercel)
+## Deploy (Vercel)
 
 1. Push to GitHub, import to Vercel.
 2. Add the subdomain in Vercel's Domains tab.
-3. Set all env vars in Vercel Project Settings.
+3. Set all env vars in Vercel Project Settings (including `PUBLIC_BASE_URL`
+   pointing at the live HTTPS URL).
 4. Run `prisma migrate deploy` on first deploy.
 
 ---
 
 ## Tech stack
 
-Next.js 14 App Router · TypeScript · Tailwind CSS · Prisma + SQLite ·
+Next.js 14 App Router · TypeScript · Tailwind CSS · Prisma + Postgres ·
 NextAuth.js (credentials) · Zod · TanStack Query · TanStack Table ·
-React Hook Form · date-fns + date-fns-tz · Twilio Node SDK (installed,
-unwired) · Vitest.
+React Hook Form · date-fns + date-fns-tz · Twilio Node SDK · Vitest.
 
 ---
 
@@ -127,7 +106,7 @@ unwired) · Vitest.
 /app
   /(auth)/login            — sign-in page
   /(dashboard)/...         — protected admin app
-  /api/...                 — REST routes
+  /api/...                 — REST routes, including /api/sms/webhook + /api/sms/status
 /components
   /ui                      — Button, Card, Dialog, Table, Toast, etc.
   /shell                   — Sidebar, PageHeader
@@ -137,8 +116,7 @@ unwired) · Vitest.
   prisma.ts auth.ts api.ts utils.ts date.ts validators.ts hours.ts codes.ts fetcher.ts
   /sms
     types.ts               — SmsAdapter interface
-    mock-adapter.ts        — default in dev
-    twilio-adapter.ts      — STUB; flip SMS_MODE=twilio + fill TODOs
+    twilio-adapter.ts      — Twilio client (sendSms + signature verification)
     index.ts               — factory
     templates.ts           — outbound message builders
     parser.ts              — inbound reply parser

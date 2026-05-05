@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { jsonError, requireAdmin } from "@/lib/api";
-import { getSmsMode } from "@/lib/sms";
 
 export async function GET() {
   const auth = await requireAdmin();
@@ -10,14 +9,14 @@ export async function GET() {
   const rows = await prisma.setting.findMany();
   const map: Record<string, string> = {};
   for (const r of rows) map[r.key] = r.value;
-  // Add read-only environment view (mask Twilio creds).
   const sid = process.env.TWILIO_ACCOUNT_SID || "";
   const from = process.env.TWILIO_FROM_NUMBER || "";
   const masked = sid ? `${sid.slice(0, 6)}…${sid.slice(-4)}` : "";
+  const configured = Boolean(sid && process.env.TWILIO_AUTH_TOKEN && from);
   return NextResponse.json({
     settings: map,
     sms: {
-      mode: getSmsMode(),
+      configured,
       twilioSidMasked: masked,
       twilioFromNumber: from,
     },

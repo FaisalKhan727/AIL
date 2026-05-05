@@ -11,7 +11,6 @@ import {
   Calendar,
   ClipboardList,
   MessageSquare,
-  PlayCircle,
   Settings,
   ShieldCheck,
   LogOut,
@@ -26,7 +25,6 @@ const NAV = [
   { href: "/rosters", label: "Rosters", icon: Calendar },
   { href: "/timesheets", label: "Timesheets", icon: ClipboardList },
   { href: "/sms-log", label: "SMS Log", icon: MessageSquare },
-  { href: "/sms-simulator", label: "SMS Simulator", icon: PlayCircle },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
@@ -100,7 +98,7 @@ export function Sidebar({ companyName }: { companyName: string }) {
           })}
         </nav>
         <div className="p-3 border-t border-white/10 text-xs text-white/50">
-          {process.env.NEXT_PUBLIC_SMS_MODE === "twilio" ? "LIVE — Twilio" : "MOCK MODE"}
+          LIVE — Twilio
         </div>
       </aside>
     </>

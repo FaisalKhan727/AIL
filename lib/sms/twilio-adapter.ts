@@ -1,44 +1,99 @@
-import type { OutboundMeta, SmsAdapter } from "./types";
-// NOTE: import is left in place so the dependency stays resolved and the
-// wiring point is obvious. Do not remove.
 import twilio from "twilio";
-// Reference to keep linters quiet without installing extra rule plugins.
-const _twilioRef = twilio;
-void _twilioRef;
+import { prisma } from "@/lib/prisma";
+import type { OutboundMeta, SmsAdapter } from "./types";
 
-/**
- * STUB — not wired up. Switch SMS_MODE=twilio and fill in the TODOs to enable.
- *
- * To enable live SMS:
- *   1. In .env, set SMS_MODE=twilio plus TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN,
- *      TWILIO_FROM_NUMBER.
- *   2. Implement the TODOs below.
- *   3. In Twilio Console, point your number's messaging webhook at
- *      https://<your-domain>/api/sms/webhook (POST) and the status callback
- *      at /api/sms/status.
- *   4. Restart the server. The Settings page will show "LIVE — Twilio".
- */
+function publicBaseUrl(): string {
+  return (
+    process.env.PUBLIC_BASE_URL ||
+    process.env.NEXTAUTH_URL ||
+    ""
+  ).replace(/\/+$/, "");
+}
+
 export class TwilioSmsAdapter implements SmsAdapter {
   readonly mode = "twilio" as const;
+  private readonly client: ReturnType<typeof twilio>;
+  private readonly fromNumber: string;
+  private readonly authToken: string;
 
   constructor() {
-    throw new Error(
-      "TwilioSmsAdapter not configured. Set SMS_MODE=twilio and fill TWILIO_* env vars, then implement the TODOs in lib/sms/twilio-adapter.ts.",
-    );
+    const sid = process.env.TWILIO_ACCOUNT_SID;
+    const token = process.env.TWILIO_AUTH_TOKEN;
+    const from = process.env.TWILIO_FROM_NUMBER;
+    if (!sid || !token || !from) {
+      throw new Error(
+        "Twilio is not configured. Set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, and TWILIO_FROM_NUMBER in the environment.",
+      );
+    }
+    this.client = twilio(sid, token);
+    this.fromNumber = from;
+    this.authToken = token;
   }
 
-  async sendSms(_to: string, _body: string, _meta?: OutboundMeta): Promise<{ providerSid: string | null; status: string }> {
-    // TODO: read TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM_NUMBER
-    // const client = twilio(process.env.TWILIO_ACCOUNT_SID!, process.env.TWILIO_AUTH_TOKEN!);
-    // TODO: call client.messages.create({ to, from: process.env.TWILIO_FROM_NUMBER!, body, statusCallback: ".../api/sms/status" });
-    // TODO: write OUTBOUND SmsLog with providerSid + status
-    // TODO: return { providerSid: msg.sid, status: msg.status }
-    throw new Error("TwilioSmsAdapter.sendSms not implemented");
+  async sendSms(to: string, body: string, meta?: OutboundMeta) {
+    const base = publicBaseUrl();
+    const statusCallback = base ? `${base}/api/sms/status` : undefined;
+
+    try {
+      const msg = await this.client.messages.create({
+        to,
+        from: this.fromNumber,
+        body,
+        ...(statusCallback ? { statusCallback } : {}),
+      });
+
+      await prisma.smsLog.create({
+        data: {
+          guardId: meta?.guardId,
+          shiftId: meta?.shiftId,
+          direction: "OUTBOUND",
+          fromNumber: this.fromNumber,
+          toNumber: to,
+          body,
+          providerSid: msg.sid,
+          status: msg.status ?? "queued",
+        },
+      });
+
+      return { providerSid: msg.sid, status: msg.status ?? "queued" };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      const code =
+        err && typeof err === "object" && "code" in err
+          ? String((err as { code: unknown }).code ?? "")
+          : "";
+
+      await prisma.smsLog.create({
+        data: {
+          guardId: meta?.guardId,
+          shiftId: meta?.shiftId,
+          direction: "OUTBOUND",
+          fromNumber: this.fromNumber,
+          toNumber: to,
+          body,
+          providerSid: null,
+          status: "failed",
+          errorCode: code || null,
+        },
+      });
+
+      throw new Error(`Twilio sendSms failed: ${message}`);
+    }
   }
 
-  async verifyInboundSignature(_req: Request): Promise<boolean> {
-    // TODO: use twilio.validateRequest with auth token, x-twilio-signature header,
-    // full request URL, and the parsed form body.
-    throw new Error("TwilioSmsAdapter.verifyInboundSignature not implemented");
+  async verifyInboundSignature(req: Request): Promise<boolean> {
+    const signature = req.headers.get("x-twilio-signature");
+    if (!signature) return false;
+
+    const reqUrl = new URL(req.url);
+    const proto = req.headers.get("x-forwarded-proto") || reqUrl.protocol.replace(":", "");
+    const host = req.headers.get("x-forwarded-host") || req.headers.get("host") || reqUrl.host;
+    const url = `${proto}://${host}${reqUrl.pathname}${reqUrl.search}`;
+
+    const text = await req.text();
+    const params: Record<string, string> = {};
+    for (const [k, v] of new URLSearchParams(text)) params[k] = v;
+
+    return twilio.validateRequest(this.authToken, signature, url, params);
   }
 }
