@@ -37,7 +37,7 @@ model Guard {
   id            String    @id @default(cuid())
   firstName     String
   lastName      String
-  phone         String    @unique
+  phone         String
   email         String?
   licenceNumber String?
   licenceExpiry DateTime?
@@ -50,7 +50,9 @@ model Guard {
   shifts        Shift[]
   smsLogs       SmsLog[]
 
+  @@unique([companyId, phone])
   @@index([companyId])
+  @@index([phone])
 }
 
 model Site {
@@ -99,6 +101,7 @@ model Shift {
   rejectionReason String?
   workedStart     DateTime?
   workedEnd       DateTime?
+  publishedAt     DateTime?
   createdAt       DateTime  @default(now())
 
   roster  Roster   @relation(fields: [rosterId], references: [id], onDelete: Cascade)

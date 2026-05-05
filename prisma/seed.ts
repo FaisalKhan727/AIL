@@ -98,8 +98,8 @@ async function main() {
 
   for (const g of guardSeed) {
     await prisma.guard.upsert({
-      where: { phone: g.phone },
-      update: { companyId: auswide.id },
+      where: { companyId_phone: { companyId: auswide.id, phone: g.phone } },
+      update: {},
       create: {
         firstName: g.firstName,
         lastName: g.lastName,

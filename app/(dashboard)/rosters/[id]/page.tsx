@@ -22,6 +22,7 @@ interface Shift {
   status: string;
   role: string | null;
   notes: string | null;
+  publishedAt: string | null;
   guard: { id: string; firstName: string; lastName: string };
   site: { id: string; name: string };
 }
@@ -101,22 +102,39 @@ export default function RosterBuilderPage() {
     {} as Record<string, number>,
   );
 
-  async function publish() {
+  async function publishAll() {
     try {
       const r = await api<{ ok: boolean; sent: number; failedCount: number; failed: { to: string; error?: string }[] }>(
         `/api/rosters/${id}/publish`, { method: "POST" });
-      if (r.failedCount > 0) {
+      if (r.sent === 0 && r.failedCount === 0) {
+        toast({ title: "Nothing to publish — every shift already sent", variant: "default" });
+      } else if (r.failedCount > 0) {
         toast({
-          title: `Published — sent ${r.sent}, ${r.failedCount} failed`,
+          title: `Sent ${r.sent}, ${r.failedCount} failed`,
           description: r.failed.map((f) => `${f.to}: ${f.error ?? "failed"}`).join("\n"),
           variant: "error",
         });
       } else {
-        toast({ title: `Published — sent ${r.sent} SMS`, variant: "success" });
+        toast({ title: `Sent ${r.sent} SMS`, variant: "success" });
       }
       refetch();
     } catch (e: unknown) {
       toast({ title: "Publish failed", description: e instanceof Error ? e.message : "", variant: "error" });
+    }
+  }
+
+  async function publishSingle(shift: Shift) {
+    try {
+      await api(`/api/shifts/${shift.id}/resend`, { method: "POST" });
+      toast({
+        title: shift.publishedAt
+          ? `SMS re-sent to ${shift.guard.firstName} ${shift.guard.lastName}`
+          : `SMS sent to ${shift.guard.firstName} ${shift.guard.lastName}`,
+        variant: "success",
+      });
+      refetch();
+    } catch (e: unknown) {
+      toast({ title: "Send failed", description: e instanceof Error ? e.message : "", variant: "error" });
     }
   }
 
@@ -173,19 +191,22 @@ export default function RosterBuilderPage() {
     setShiftOpen(true);
   }
 
+  const unsentCount = data.shifts.filter((s) => !s.publishedAt).length;
+
   return (
     <>
       <PageHeader
         title={data.name}
-        description={`${data.shifts.length} shifts · ${totalCounts.CONFIRMED ?? 0} confirmed · ${totalCounts.PENDING ?? 0} pending · ${totalCounts.REJECTED ?? 0} rejected`}
+        description={`${data.shifts.length} shifts · ${totalCounts.CONFIRMED ?? 0} confirmed · ${totalCounts.PENDING ?? 0} pending · ${totalCounts.REJECTED ?? 0} rejected${unsentCount > 0 ? ` · ${unsentCount} unsent` : ""}`}
         actions={
           <>
             <Button variant="outline" onClick={() => openNewShift()}><Plus className="h-4 w-4" /> Add Shift</Button>
-            {data.status === "PUBLISHED" ? (
-              <Button variant="outline" onClick={resendAll}><RefreshCcw className="h-4 w-4" /> Resend all</Button>
-            ) : (
-              <Button onClick={publish} disabled={data.shifts.length === 0}><Send className="h-4 w-4" /> Publish</Button>
-            )}
+            <Button onClick={publishAll} disabled={unsentCount === 0}>
+              <Send className="h-4 w-4" /> Publish all{unsentCount > 0 ? ` (${unsentCount})` : ""}
+            </Button>
+            <Button variant="outline" onClick={resendAll} disabled={data.shifts.length === 0}>
+              <RefreshCcw className="h-4 w-4" /> Resend all
+            </Button>
             <Button variant="destructive" onClick={deleteRoster}><Trash2 className="h-4 w-4" /> Delete</Button>
           </>
         }
@@ -228,22 +249,39 @@ export default function RosterBuilderPage() {
                       <td key={d.toISOString()} className="p-1 border-b border-l align-top">
                         <div className="flex flex-col gap-1">
                           {cellShifts.map((s) => (
-                            <button
+                            <div
                               key={s.id}
-                              onClick={() => openEdit(s)}
                               className={cn(
-                                "text-left rounded border px-2 py-1 hover:shadow-sm transition-shadow",
+                                "rounded border hover:shadow-sm transition-shadow relative",
                                 statusCellClass(s.status),
                                 conflicts.has(s.id) && "ring-2 ring-amber-500",
                               )}
                             >
-                              <div className="font-medium truncate">{s.site.name}</div>
-                              <div className="flex items-center justify-between gap-1">
-                                <span className="text-muted-foreground">{fmtTime(s.startAt)}–{fmtTime(s.endAt)}</span>
-                                <StatusBadge status={s.status} />
-                              </div>
-                              {s.role && <div className="text-[10px] text-muted-foreground">{s.role}</div>}
-                            </button>
+                              <button
+                                onClick={() => openEdit(s)}
+                                className="text-left w-full px-2 py-1 pr-7"
+                              >
+                                <div className="font-medium truncate">{s.site.name}</div>
+                                <div className="flex items-center justify-between gap-1">
+                                  <span className="text-muted-foreground">{fmtTime(s.startAt)}–{fmtTime(s.endAt)}</span>
+                                  <StatusBadge status={s.status} />
+                                </div>
+                                {s.role && <div className="text-[10px] text-muted-foreground">{s.role}</div>}
+                              </button>
+                              <button
+                                onClick={(e) => { e.stopPropagation(); publishSingle(s); }}
+                                title={s.publishedAt ? "Resend SMS" : "Publish (send SMS)"}
+                                aria-label={s.publishedAt ? "Resend SMS" : "Publish shift"}
+                                className={cn(
+                                  "absolute top-1 right-1 rounded p-0.5 hover:bg-white/60",
+                                  s.publishedAt ? "text-emerald-700" : "text-blue-700",
+                                )}
+                              >
+                                {s.publishedAt
+                                  ? <RefreshCcw className="h-3 w-3" />
+                                  : <Send className="h-3 w-3" />}
+                              </button>
+                            </div>
                           ))}
                           <button onClick={() => openNewShift(g.id, d)} className="text-[10px] text-muted-foreground hover:text-foreground border border-dashed rounded px-1 py-0.5">
                             + add

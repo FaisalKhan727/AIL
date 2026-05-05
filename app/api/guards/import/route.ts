@@ -44,11 +44,9 @@ export async function POST(req: Request) {
     }
     const data = result.data;
     try {
-      const existing = await prisma.guard.findUnique({ where: { phone: data.phone } });
-      if (existing && existing.companyId !== auth.companyId) {
-        errors.push({ row: i, message: `phone ${data.phone} already belongs to another company` });
-        continue;
-      }
+      const existing = await prisma.guard.findFirst({
+        where: { phone: data.phone, companyId: auth.companyId },
+      });
       if (existing) {
         await prisma.guard.update({
           where: { id: existing.id },

@@ -42,7 +42,26 @@ export async function POST(req: Request) {
 
   if (!from) return NextResponse.json({ error: "missing From" }, { status: 400 });
 
-  const guard = await prisma.guard.findUnique({ where: { phone: from } });
+  // The same phone may exist as separate Guard records in multiple companies
+  // (Auswide and ACS can both roster the same person). When that happens, route
+  // the reply to whichever company most recently sent that phone an outbound
+  // SMS — that's almost always the message they're replying to.
+  const candidates = await prisma.guard.findMany({ where: { phone: from } });
+  let guard: typeof candidates[number] | null = candidates[0] ?? null;
+  if (candidates.length > 1) {
+    let bestTime = -1;
+    for (const c of candidates) {
+      const lastOut = await prisma.smsLog.findFirst({
+        where: { guardId: c.id, direction: "OUTBOUND" },
+        orderBy: { receivedAt: "desc" },
+      });
+      const t = lastOut?.receivedAt.getTime() ?? 0;
+      if (t > bestTime) {
+        bestTime = t;
+        guard = c;
+      }
+    }
+  }
 
   // Always log the inbound, even if guard is unknown.
   await prisma.smsLog.create({

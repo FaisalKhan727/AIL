@@ -46,7 +46,8 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
     data: { status: "PUBLISHED", publishedAt: new Date() },
   });
 
-  const dispatched = await dispatchRosterSms(params.id);
+  // "Publish all" sends only to shifts that have not been sent yet.
+  const dispatched = await dispatchRosterSms(params.id, { onlyUnpublished: true });
   const sent = dispatched.filter((d) => d.ok).length;
   const failed = dispatched.filter((d) => !d.ok);
 

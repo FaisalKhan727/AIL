@@ -3,7 +3,6 @@ import { prisma } from "@/lib/prisma";
 import { jsonError, requireAdmin } from "@/lib/api";
 import { shiftCreateSchema, shiftBatchCreateSchema } from "@/lib/validators";
 import { generateConfirmCode } from "@/lib/codes";
-import { resendShiftSms } from "@/lib/sms/dispatch";
 
 async function newConfirmCode(): Promise<string> {
   for (let i = 0; i < 25; i++) {
@@ -55,7 +54,6 @@ export async function POST(req: Request) {
   }
 
   const createdShifts: { id: string; guardId: string }[] = [];
-  const sms: { shiftId: string; guardId: string; sent: boolean; status?: string; error?: string }[] = [];
 
   for (const guardId of dedupedGuardIds) {
     const code = await newConfirmCode();
@@ -72,33 +70,10 @@ export async function POST(req: Request) {
       },
     });
     createdShifts.push({ id: shift.id, guardId });
-
-    if (roster.status === "PUBLISHED") {
-      try {
-        const r = await resendShiftSms(shift.id);
-        sms.push({ shiftId: shift.id, guardId, sent: true, status: r.status });
-      } catch (e: unknown) {
-        sms.push({
-          shiftId: shift.id,
-          guardId,
-          sent: false,
-          error: e instanceof Error ? e.message : "send failed",
-        });
-      }
-    }
   }
 
-  const sentCount = sms.filter((s) => s.sent).length;
-  const failedCount = sms.length - sentCount;
-
   return NextResponse.json(
-    {
-      count: createdShifts.length,
-      shifts: createdShifts,
-      sms,
-      sentCount,
-      failedCount,
-    },
+    { count: createdShifts.length, shifts: createdShifts },
     { status: 201 },
   );
 }
