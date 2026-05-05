@@ -40,6 +40,13 @@ export const rosterUpdateSchema = rosterCreateSchema.partial().extend({
   status: z.enum(["DRAFT", "PUBLISHED", "ARCHIVED"]).optional(),
 });
 
+const dowEnum = z.enum(["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"]);
+
+export const recurrenceSchema = z.object({
+  daysOfWeek: z.array(dowEnum).min(1),
+  untilDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "untilDate must be yyyy-MM-dd"),
+});
+
 export const shiftCreateSchema = z.object({
   rosterId: z.string().min(1),
   guardId: z.string().min(1),
@@ -48,6 +55,7 @@ export const shiftCreateSchema = z.object({
   endAt: z.string().min(1),
   role: z.string().optional().or(z.literal("").transform(() => undefined)),
   notes: z.string().optional().or(z.literal("").transform(() => undefined)),
+  recurrence: recurrenceSchema.optional(),
 });
 
 export const shiftBatchCreateSchema = z.object({
