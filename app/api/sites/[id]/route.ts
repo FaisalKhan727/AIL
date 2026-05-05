@@ -39,6 +39,11 @@ export async function DELETE(_req: Request, { params }: { params: { id: string }
   const auth = await requireAdmin();
   if ("error" in auth) return auth.error;
   if (!(await ensureSiteInCompany(params.id, auth.companyId))) return jsonError("not found", 404);
+  const shiftCount = await prisma.shift.count({ where: { siteId: params.id } });
+  if (shiftCount === 0) {
+    await prisma.site.delete({ where: { id: params.id } });
+    return NextResponse.json({ ok: true, hardDeleted: true });
+  }
   await prisma.site.update({ where: { id: params.id }, data: { active: false } });
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true, hardDeleted: false, shiftCount });
 }

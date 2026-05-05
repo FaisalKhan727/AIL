@@ -2,7 +2,7 @@
 import * as React from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useParams, useRouter } from "next/navigation";
-import { Pencil } from "lucide-react";
+import { Pencil, Trash2 } from "lucide-react";
 import { PageHeader } from "@/components/shell/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -57,17 +57,25 @@ export default function GuardDetailPage() {
             <Button
               variant="destructive"
               onClick={async () => {
-                if (!confirm("Mark this guard inactive?")) return;
+                if (!confirm("Delete this guard? Guards with shift history are kept as inactive instead of fully removed.")) return;
                 try {
-                  await api(`/api/guards/${id}`, { method: "DELETE" });
-                  toast({ title: "Guard deactivated", variant: "success" });
+                  const r = await api<{ hardDeleted: boolean; shiftCount?: number }>(
+                    `/api/guards/${id}`,
+                    { method: "DELETE" },
+                  );
+                  toast({
+                    title: r.hardDeleted
+                      ? "Guard deleted"
+                      : `Guard deactivated (${r.shiftCount ?? 0} shifts in history)`,
+                    variant: "success",
+                  });
                   router.push("/guards");
                 } catch (e: unknown) {
                   toast({ title: "Failed", description: e instanceof Error ? e.message : "", variant: "error" });
                 }
               }}
             >
-              Deactivate
+              <Trash2 className="h-4 w-4" /> Delete
             </Button>
           </>
         }

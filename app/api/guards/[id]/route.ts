@@ -61,8 +61,16 @@ export async function DELETE(_req: Request, { params }: { params: { id: string }
   if ("error" in auth) return auth.error;
   if (!(await ensureGuardInCompany(params.id, auth.companyId))) return jsonError("not found", 404);
   try {
+    const shiftCount = await prisma.shift.count({ where: { guardId: params.id } });
+    if (shiftCount === 0) {
+      // No history — safe to hard delete (also clean up any orphaned SmsLog rows).
+      await prisma.smsLog.deleteMany({ where: { guardId: params.id } });
+      await prisma.guard.delete({ where: { id: params.id } });
+      return NextResponse.json({ ok: true, hardDeleted: true });
+    }
+    // Has shift history — soft delete to preserve timesheets and audit trail.
     await prisma.guard.update({ where: { id: params.id }, data: { active: false } });
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true, hardDeleted: false, shiftCount });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "delete failed";
     return jsonError(msg, 500);

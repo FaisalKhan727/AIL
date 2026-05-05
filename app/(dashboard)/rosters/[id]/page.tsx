@@ -1,8 +1,8 @@
 "use client";
 import * as React from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, Send, RefreshCcw, AlertTriangle } from "lucide-react";
+import { Plus, Send, RefreshCcw, AlertTriangle, Trash2 } from "lucide-react";
 import { PageHeader } from "@/components/shell/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -68,6 +68,7 @@ function detectConflicts(shifts: Shift[]): Set<string> {
 
 export default function RosterBuilderPage() {
   const { id } = useParams<{ id: string }>();
+  const router = useRouter();
   const qc = useQueryClient();
   const { toast } = useToast();
   const [shiftOpen, setShiftOpen] = React.useState(false);
@@ -116,6 +117,21 @@ export default function RosterBuilderPage() {
       refetch();
     } catch (e: unknown) {
       toast({ title: "Publish failed", description: e instanceof Error ? e.message : "", variant: "error" });
+    }
+  }
+
+  async function deleteRoster() {
+    const shiftSuffix = data && data.shifts.length > 0
+      ? ` and all ${data.shifts.length} shift${data.shifts.length === 1 ? "" : "s"}`
+      : "";
+    if (!confirm(`Delete roster "${data?.name}"${shiftSuffix}? This cannot be undone.`)) return;
+    try {
+      await api(`/api/rosters/${id}`, { method: "DELETE" });
+      toast({ title: "Roster deleted", variant: "success" });
+      qc.invalidateQueries({ queryKey: ["rosters"] });
+      router.push("/rosters");
+    } catch (e: unknown) {
+      toast({ title: "Delete failed", description: e instanceof Error ? e.message : "", variant: "error" });
     }
   }
 
@@ -170,6 +186,7 @@ export default function RosterBuilderPage() {
             ) : (
               <Button onClick={publish} disabled={data.shifts.length === 0}><Send className="h-4 w-4" /> Publish</Button>
             )}
+            <Button variant="destructive" onClick={deleteRoster}><Trash2 className="h-4 w-4" /> Delete</Button>
           </>
         }
       />

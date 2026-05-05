@@ -2,7 +2,7 @@
 import * as React from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Pencil } from "lucide-react";
+import { Pencil, Trash2 } from "lucide-react";
 import { PageHeader } from "@/components/shell/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -45,23 +45,29 @@ export default function SiteDetailPage() {
         actions={
           <>
             <Button variant="outline" onClick={() => setEdit(true)}><Pencil className="h-4 w-4" /> Edit</Button>
-            {data.active && (
-              <Button
-                variant="destructive"
-                onClick={async () => {
-                  if (!confirm("Mark this site inactive? It will no longer appear when adding shifts.")) return;
-                  try {
-                    await api(`/api/sites/${id}`, { method: "DELETE" });
-                    toast({ title: "Site deactivated", variant: "success" });
-                    router.push("/sites");
-                  } catch (e: unknown) {
-                    toast({ title: "Failed", description: e instanceof Error ? e.message : "", variant: "error" });
-                  }
-                }}
-              >
-                Deactivate
-              </Button>
-            )}
+            <Button
+              variant="destructive"
+              onClick={async () => {
+                if (!confirm("Delete this site? Sites with shift history are kept as inactive instead of fully removed.")) return;
+                try {
+                  const r = await api<{ hardDeleted: boolean; shiftCount?: number }>(
+                    `/api/sites/${id}`,
+                    { method: "DELETE" },
+                  );
+                  toast({
+                    title: r.hardDeleted
+                      ? "Site deleted"
+                      : `Site deactivated (${r.shiftCount ?? 0} shifts in history)`,
+                    variant: "success",
+                  });
+                  router.push("/sites");
+                } catch (e: unknown) {
+                  toast({ title: "Failed", description: e instanceof Error ? e.message : "", variant: "error" });
+                }
+              }}
+            >
+              <Trash2 className="h-4 w-4" /> Delete
+            </Button>
           </>
         }
       />
