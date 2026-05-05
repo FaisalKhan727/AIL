@@ -160,12 +160,13 @@ export function parseInboundReply(body: string, pendingShifts: ParserShift[]): P
     if (decisions.length > 0) return { status: "ok", decisions };
   }
 
-  // 4. Bare YES/NO — only if exactly one pending shift.
-  if (pendingShifts.length === 1) {
-    const bare = matchBare(text);
-    if (bare) {
-      return { status: "ok", decisions: [{ shiftId: pendingShifts[0].shiftId, decision: bare }] };
-    }
+  // 4. Bare YES/NO — apply to all pending shifts (treat as ALL YES / ALL NO).
+  const bare = matchBare(text);
+  if (bare) {
+    return {
+      status: "ok",
+      decisions: pendingShifts.map((s) => ({ shiftId: s.shiftId, decision: bare })),
+    };
   }
 
   return { status: "unparsed", reason: "no recognised pattern" };

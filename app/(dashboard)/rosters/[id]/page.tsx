@@ -102,8 +102,17 @@ export default function RosterBuilderPage() {
 
   async function publish() {
     try {
-      const r = await api<{ ok: boolean; sent: number }>(`/api/rosters/${id}/publish`, { method: "POST" });
-      toast({ title: `Published — sent ${r.sent} SMS (mock)`, variant: "success" });
+      const r = await api<{ ok: boolean; sent: number; failedCount: number; failed: { to: string; error?: string }[] }>(
+        `/api/rosters/${id}/publish`, { method: "POST" });
+      if (r.failedCount > 0) {
+        toast({
+          title: `Published — sent ${r.sent}, ${r.failedCount} failed`,
+          description: r.failed.map((f) => `${f.to}: ${f.error ?? "failed"}`).join("\n"),
+          variant: "error",
+        });
+      } else {
+        toast({ title: `Published — sent ${r.sent} SMS`, variant: "success" });
+      }
       refetch();
     } catch (e: unknown) {
       toast({ title: "Publish failed", description: e instanceof Error ? e.message : "", variant: "error" });
@@ -112,8 +121,17 @@ export default function RosterBuilderPage() {
 
   async function resendAll() {
     try {
-      const r = await api<{ sent: number }>(`/api/rosters/${id}/resend`, { method: "POST" });
-      toast({ title: `Re-sent ${r.sent} SMS (mock)`, variant: "success" });
+      const r = await api<{ sent: number; failedCount: number; failed: { to: string; error?: string }[] }>(
+        `/api/rosters/${id}/resend`, { method: "POST" });
+      if (r.failedCount > 0) {
+        toast({
+          title: `Re-sent ${r.sent}, ${r.failedCount} failed`,
+          description: r.failed.map((f) => `${f.to}: ${f.error ?? "failed"}`).join("\n"),
+          variant: "error",
+        });
+      } else {
+        toast({ title: `Re-sent ${r.sent} SMS`, variant: "success" });
+      }
     } catch (e: unknown) {
       toast({ title: "Resend failed", description: e instanceof Error ? e.message : "", variant: "error" });
     }

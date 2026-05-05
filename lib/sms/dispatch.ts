@@ -8,6 +8,8 @@ interface DispatchResult {
   shiftIds: string[];
   to: string;
   status: string;
+  ok: boolean;
+  error?: string;
 }
 
 async function getSetting(key: string): Promise<string | undefined> {
@@ -62,13 +64,26 @@ export async function dispatchRosterSms(rosterId: string): Promise<DispatchResul
       timezone: tz,
     });
 
-    const sendRes = await adapter.sendSms(guard.phone, body, { guardId });
-    results.push({
-      guardId,
-      shiftIds: shifts.map((s) => s.id),
-      to: guard.phone,
-      status: sendRes.status,
-    });
+    try {
+      const sendRes = await adapter.sendSms(guard.phone, body, { guardId });
+      results.push({
+        guardId,
+        shiftIds: shifts.map((s) => s.id),
+        to: guard.phone,
+        status: sendRes.status,
+        ok: true,
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      results.push({
+        guardId,
+        shiftIds: shifts.map((s) => s.id),
+        to: guard.phone,
+        status: "failed",
+        ok: false,
+        error: message,
+      });
+    }
   }
 
   return results;

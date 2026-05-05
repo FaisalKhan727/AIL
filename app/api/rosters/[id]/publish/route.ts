@@ -47,6 +47,14 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
   });
 
   const dispatched = await dispatchRosterSms(params.id);
+  const sent = dispatched.filter((d) => d.ok).length;
+  const failed = dispatched.filter((d) => !d.ok);
 
-  return NextResponse.json({ ok: true, sent: dispatched.length, dispatched });
+  return NextResponse.json({
+    ok: true,
+    sent,
+    failedCount: failed.length,
+    failed,
+    dispatched,
+  });
 }

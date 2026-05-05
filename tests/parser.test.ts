@@ -121,9 +121,19 @@ describe("parseInboundReply", () => {
     expect(d).toEqual([{ shiftId: "s1", decision: "NO" }]);
   });
 
-  it("bare YES with 3 pending — unparsed (ambiguous)", () => {
-    const r = parseInboundReply("YES", threeShifts);
-    expect(r.status).toBe("unparsed");
+  it("bare YES with 3 pending — applies to all", () => {
+    const d = expectOk(parseInboundReply("YES", threeShifts));
+    expect(d).toEqual([
+      { shiftId: "s1", decision: "YES" },
+      { shiftId: "s2", decision: "YES" },
+      { shiftId: "s3", decision: "YES" },
+    ]);
+  });
+
+  it("bare NO with 3 pending — applies to all", () => {
+    const d = expectOk(parseInboundReply("no", threeShifts));
+    expect(d.every((x) => x.decision === "NO")).toBe(true);
+    expect(d).toHaveLength(3);
   });
 
   it("garbage text — unparsed", () => {

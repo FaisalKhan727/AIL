@@ -7,7 +7,9 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
   if ("error" in auth) return auth.error;
   try {
     const dispatched = await dispatchRosterSms(params.id);
-    return NextResponse.json({ ok: true, sent: dispatched.length, dispatched });
+    const sent = dispatched.filter((d) => d.ok).length;
+    const failed = dispatched.filter((d) => !d.ok);
+    return NextResponse.json({ ok: true, sent, failedCount: failed.length, failed, dispatched });
   } catch (e: unknown) {
     return jsonError(e instanceof Error ? e.message : "resend failed", 500);
   }
