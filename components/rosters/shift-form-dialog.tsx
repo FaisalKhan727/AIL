@@ -42,6 +42,14 @@ interface Props {
   onDeleted?: () => void;
 }
 
+interface SmsResult { sent: boolean; error?: string }
+interface CreateResp {
+  count: number;
+  sentCount: number;
+  failedCount: number;
+  sms: (SmsResult & { guardId: string })[];
+}
+
 export function ShiftFormDialog({ open, onOpenChange, rosterId, initial, onSaved, onDeleted }: Props) {
   const { toast } = useToast();
   const isEdit = Boolean(initial?.id);
@@ -59,6 +67,11 @@ export function ShiftFormDialog({ open, onOpenChange, rosterId, initial, onSaved
 
   const { register, handleSubmit, reset, formState: { isSubmitting } } = useForm<FormValues>();
 
+  // Multi-guard selection used only for create. Edit mode keeps a single
+  // guard id in the form state since one shift = one guard in the schema.
+  const [guardIds, setGuardIds] = React.useState<string[]>([]);
+  const [guardFilter, setGuardFilter] = React.useState("");
+
   React.useEffect(() => {
     if (!open) return;
     reset({
@@ -70,34 +83,72 @@ export function ShiftFormDialog({ open, onOpenChange, rosterId, initial, onSaved
       notes: initial?.notes ?? "",
       status: initial?.status ?? "PENDING",
     });
+    setGuardIds(initial?.guardId ? [initial.guardId] : []);
+    setGuardFilter("");
   }, [open, initial, reset]);
+
+  const filteredGuards = React.useMemo(() => {
+    const q = guardFilter.trim().toLowerCase();
+    if (!q) return guards;
+    return guards.filter((g) => `${g.firstName} ${g.lastName}`.toLowerCase().includes(q));
+  }, [guards, guardFilter]);
+
+  function toggleGuard(id: string) {
+    setGuardIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  }
+
+  function selectAllVisible() {
+    setGuardIds((prev) => Array.from(new Set([...prev, ...filteredGuards.map((g) => g.id)])));
+  }
+
+  function clearAll() {
+    setGuardIds([]);
+  }
 
   const onSubmit = async (values: FormValues) => {
     try {
-      const payload: Record<string, unknown> = {
+      const basePayload = {
         rosterId,
-        guardId: values.guardId,
         siteId: values.siteId,
         startAt: localInputToUtc(values.startAt).toISOString(),
         endAt: localInputToUtc(values.endAt).toISOString(),
         role: values.role || undefined,
         notes: values.notes || undefined,
       };
+
       if (isEdit) {
+        const payload: Record<string, unknown> = { ...basePayload, guardId: values.guardId };
         if (values.status) payload.status = values.status;
         await api(`/api/shifts/${initial!.id}`, { method: "PATCH", body: JSON.stringify(payload) });
         toast({ title: "Shift updated", variant: "success" });
       } else {
-        const created = await api<{ sms?: { sent: boolean; error?: string } }>(`/api/shifts`, {
+        if (guardIds.length === 0) {
+          toast({ title: "Pick at least one guard", variant: "error" });
+          return;
+        }
+        const payload = { ...basePayload, guardIds };
+        const created = await api<CreateResp>(`/api/shifts`, {
           method: "POST",
           body: JSON.stringify(payload),
         });
-        if (created.sms?.sent) {
-          toast({ title: "Shift created — SMS sent to guard", variant: "success" });
-        } else if (created.sms?.error) {
-          toast({ title: "Shift created — SMS failed", description: created.sms.error, variant: "error" });
+
+        const total = created.count;
+        if (created.sms.length === 0) {
+          toast({ title: total === 1 ? "Shift created" : `Created ${total} shifts`, variant: "success" });
+        } else if (created.failedCount === 0) {
+          toast({
+            title: total === 1
+              ? "Shift created — SMS sent"
+              : `Created ${total} shifts — SMS sent to all ${created.sentCount} guards`,
+            variant: "success",
+          });
         } else {
-          toast({ title: "Shift created", variant: "success" });
+          const failed = created.sms.filter((s) => !s.sent);
+          toast({
+            title: `Created ${total} shifts — ${created.sentCount} SMS sent, ${created.failedCount} failed`,
+            description: failed.map((f) => f.error ?? "send failed").join("\n"),
+            variant: "error",
+          });
         }
       }
       onOpenChange(false);
@@ -132,17 +183,65 @@ export function ShiftFormDialog({ open, onOpenChange, rosterId, initial, onSaved
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
-        <DialogHeader><DialogTitle>{isEdit ? "Edit shift" : "Add shift"}</DialogTitle></DialogHeader>
+        <DialogHeader>
+          <DialogTitle>{isEdit ? "Edit shift" : "Add shift"}</DialogTitle>
+        </DialogHeader>
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-3">
-          <div className="space-y-1">
-            <Label>Guard</Label>
-            <Select {...register("guardId", { required: true })}>
-              <option value="">Select guard…</option>
-              {guards.map((g) => (
-                <option key={g.id} value={g.id}>{g.firstName} {g.lastName}</option>
-              ))}
-            </Select>
-          </div>
+          {isEdit ? (
+            <div className="space-y-1">
+              <Label>Guard</Label>
+              <Select {...register("guardId", { required: true })}>
+                <option value="">Select guard…</option>
+                {guards.map((g) => (
+                  <option key={g.id} value={g.id}>{g.firstName} {g.lastName}</option>
+                ))}
+              </Select>
+            </div>
+          ) : (
+            <div className="space-y-1">
+              <div className="flex items-baseline justify-between gap-2">
+                <Label>Guards</Label>
+                <span className="text-xs text-muted-foreground">
+                  {guardIds.length} selected — one shift will be created per guard
+                </span>
+              </div>
+              <Input
+                placeholder="Filter by name"
+                value={guardFilter}
+                onChange={(e) => setGuardFilter(e.target.value)}
+              />
+              <div className="border rounded-md max-h-48 overflow-y-auto divide-y">
+                {filteredGuards.length === 0 && (
+                  <div className="text-sm text-muted-foreground p-3">No matching guards.</div>
+                )}
+                {filteredGuards.map((g) => {
+                  const checked = guardIds.includes(g.id);
+                  return (
+                    <label
+                      key={g.id}
+                      className="flex items-center gap-2 px-3 py-2 text-sm cursor-pointer hover:bg-muted/40"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => toggleGuard(g.id)}
+                      />
+                      <span>{g.firstName} {g.lastName}</span>
+                    </label>
+                  );
+                })}
+              </div>
+              <div className="flex gap-2 text-xs">
+                <Button type="button" variant="outline" size="sm" onClick={selectAllVisible}>
+                  Select all{guardFilter ? " (filtered)" : ""}
+                </Button>
+                <Button type="button" variant="outline" size="sm" onClick={clearAll}>
+                  Clear
+                </Button>
+              </div>
+            </div>
+          )}
+
           <div className="space-y-1">
             <Label>Site</Label>
             <Select {...register("siteId", { required: true })}>
@@ -173,7 +272,9 @@ export function ShiftFormDialog({ open, onOpenChange, rosterId, initial, onSaved
             )}
             <div className="flex-1" />
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-            <Button type="submit" disabled={isSubmitting}>{isEdit ? "Save" : "Create"}</Button>
+            <Button type="submit" disabled={isSubmitting}>
+              {isEdit ? "Save" : guardIds.length > 1 ? `Create ${guardIds.length} shifts` : "Create"}
+            </Button>
           </DialogFooter>
         </form>
       </DialogContent>

@@ -50,6 +50,16 @@ export const shiftCreateSchema = z.object({
   notes: z.string().optional().or(z.literal("").transform(() => undefined)),
 });
 
+export const shiftBatchCreateSchema = z.object({
+  rosterId: z.string().min(1),
+  guardIds: z.array(z.string().min(1)).min(1),
+  siteId: z.string().min(1),
+  startAt: z.string().min(1),
+  endAt: z.string().min(1),
+  role: z.string().optional().or(z.literal("").transform(() => undefined)),
+  notes: z.string().optional().or(z.literal("").transform(() => undefined)),
+});
+
 export const shiftUpdateSchema = shiftCreateSchema.partial().extend({
   status: z.enum(["PENDING", "CONFIRMED", "REJECTED", "WORKED", "NO_SHOW", "CANCELLED"]).optional(),
   workedStart: z.string().optional().or(z.literal("").transform(() => undefined)),
