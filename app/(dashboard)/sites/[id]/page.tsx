@@ -60,9 +60,11 @@ export default function SiteDetailPage() {
                       : `Site deactivated (${r.shiftCount ?? 0} shifts in history)`,
                     variant: "success",
                   });
+                  qc.invalidateQueries({ queryKey: ["sites"] });
+                  qc.invalidateQueries({ queryKey: ["site", id] });
                   router.push("/sites");
                 } catch (e: unknown) {
-                  toast({ title: "Failed", description: e instanceof Error ? e.message : "", variant: "error" });
+                  toast({ title: "Delete failed", description: e instanceof Error ? e.message : "", variant: "error" });
                 }
               }}
             >

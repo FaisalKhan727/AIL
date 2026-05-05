@@ -69,9 +69,11 @@ export default function GuardDetailPage() {
                       : `Guard deactivated (${r.shiftCount ?? 0} shifts in history)`,
                     variant: "success",
                   });
+                  qc.invalidateQueries({ queryKey: ["guards"] });
+                  qc.invalidateQueries({ queryKey: ["guard", id] });
                   router.push("/guards");
                 } catch (e: unknown) {
-                  toast({ title: "Failed", description: e instanceof Error ? e.message : "", variant: "error" });
+                  toast({ title: "Delete failed", description: e instanceof Error ? e.message : "", variant: "error" });
                 }
               }}
             >

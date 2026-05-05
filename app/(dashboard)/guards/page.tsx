@@ -1,7 +1,7 @@
 "use client";
 import * as React from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, Search, Upload } from "lucide-react";
+import { Plus, Search, Upload, Trash2 } from "lucide-react";
 import { PageHeader } from "@/components/shell/page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,6 +12,7 @@ import { api } from "@/lib/fetcher";
 import { formatPhoneAU } from "@/lib/utils";
 import { GuardFormDialog } from "@/components/guards/guard-form-dialog";
 import { ImportGuardsDialog } from "@/components/guards/import-guards-dialog";
+import { useToast } from "@/components/ui/toast";
 import Link from "next/link";
 
 interface Guard {
@@ -28,8 +29,12 @@ interface Guard {
 
 export default function GuardsPage() {
   const qc = useQueryClient();
+  const { toast } = useToast();
   const [q, setQ] = React.useState("");
-  const [active, setActive] = React.useState<"all" | "true" | "false">("all");
+  // Default to active-only so soft-deleted guards (those with shift history)
+  // disappear from view immediately after delete. Switch to "all" or "false"
+  // to reveal deactivated guards.
+  const [active, setActive] = React.useState<"all" | "true" | "false">("true");
   const [openNew, setOpenNew] = React.useState(false);
   const [openImport, setOpenImport] = React.useState(false);
 
@@ -42,6 +47,26 @@ export default function GuardsPage() {
       return api(`/api/guards?${params.toString()}`);
     },
   });
+
+  async function deleteGuard(g: Guard) {
+    if (!confirm(`Delete ${g.firstName} ${g.lastName}? Guards with shift history are kept as inactive instead of fully removed.`)) return;
+    try {
+      const r = await api<{ hardDeleted: boolean; shiftCount?: number }>(
+        `/api/guards/${g.id}`,
+        { method: "DELETE" },
+      );
+      toast({
+        title: r.hardDeleted
+          ? "Guard deleted"
+          : `Guard deactivated (${r.shiftCount ?? 0} shifts in history)`,
+        variant: "success",
+      });
+      qc.invalidateQueries({ queryKey: ["guards"] });
+      qc.invalidateQueries({ queryKey: ["guard", g.id] });
+    } catch (e: unknown) {
+      toast({ title: "Delete failed", description: e instanceof Error ? e.message : "", variant: "error" });
+    }
+  }
 
   function expiryBadge(exp: string | null) {
     if (!exp) return null;
@@ -98,14 +123,15 @@ export default function GuardsPage() {
                 <TableHead>Expiry</TableHead>
                 <TableHead>Pay Rate</TableHead>
                 <TableHead>Status</TableHead>
+                <TableHead className="w-12"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading && (
-                <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">Loading…</TableCell></TableRow>
+                <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">Loading…</TableCell></TableRow>
               )}
               {!isLoading && guards.length === 0 && (
-                <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">No guards yet.</TableCell></TableRow>
+                <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">No guards yet.</TableCell></TableRow>
               )}
               {guards.map((g) => (
                 <TableRow key={g.id}>
@@ -125,6 +151,17 @@ export default function GuardsPage() {
                     ) : (
                       <Badge className="bg-zinc-100 text-zinc-700 border-zinc-300">Inactive</Badge>
                     )}
+                  </TableCell>
+                  <TableCell>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      aria-label="Delete guard"
+                      onClick={() => deleteGuard(g)}
+                      className="text-red-600 hover:bg-red-50"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
                   </TableCell>
                 </TableRow>
               ))}
