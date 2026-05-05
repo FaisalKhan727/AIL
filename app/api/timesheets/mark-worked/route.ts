@@ -12,7 +12,11 @@ export async function POST(req: Request) {
   const parsed = schema.safeParse(body);
   if (!parsed.success) return jsonError("validation", 400, parsed.error.flatten());
   const r = await prisma.shift.updateMany({
-    where: { id: { in: parsed.data.shiftIds }, status: "CONFIRMED" },
+    where: {
+      id: { in: parsed.data.shiftIds },
+      status: "CONFIRMED",
+      roster: { companyId: auth.companyId },
+    },
     data: { status: "WORKED" },
   });
   return NextResponse.json({ ok: true, updated: r.count });

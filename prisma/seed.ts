@@ -4,6 +4,9 @@ import { generateConfirmCode } from "../lib/codes";
 
 const prisma = new PrismaClient();
 
+const AUSWIDE_ID = "co_auswide";
+const ACS_ID = "co_acs";
+
 async function ensureUniqueCode(): Promise<string> {
   for (let i = 0; i < 25; i++) {
     const code = generateConfirmCode();
@@ -13,31 +16,78 @@ async function ensureUniqueCode(): Promise<string> {
   throw new Error("Failed to generate unique confirm code");
 }
 
+async function ensureCompany(id: string, name: string, slug: string) {
+  return prisma.company.upsert({
+    where: { id },
+    update: { name, slug },
+    create: { id, name, slug },
+  });
+}
+
+async function ensureAdmin(email: string, password: string, companyId: string, displayName: string) {
+  const passwordHash = await bcrypt.hash(password, 10);
+  return prisma.adminUser.upsert({
+    where: { email },
+    update: { companyId, name: displayName },
+    create: { email, passwordHash, name: displayName, role: "OWNER", companyId },
+  });
+}
+
+const defaultSettings = (companyName: string): Record<string, string> => ({
+  company_name: companyName,
+  timezone: process.env.APP_TIMEZONE ?? "Australia/Melbourne",
+  default_pay_rate: "38.50",
+  sms_template_roster: `Hi {firstName}, your shifts for {rosterName}:
+
+{shiftList}
+
+Reply with shift # + YES/NO for each.
+E.g. "1 YES, 2 NO, 3 YES"
+Or reply ALL YES / ALL NO.
+
+Ref: {firstConfirmCode}`,
+  sms_template_reply_summary: `Thanks {firstName}. Confirmed: {confirmedCount}, Rejected: {rejectedCount}, Pending: {pendingCount}.`,
+  sms_template_unparsed: `Hi {firstName}, we couldn't read your reply. Please reply with shift # then YES or NO (e.g. "1 YES, 2 NO") or ALL YES / ALL NO.`,
+});
+
+async function seedSettings(companyId: string, companyName: string) {
+  for (const [key, value] of Object.entries(defaultSettings(companyName))) {
+    await prisma.setting.upsert({
+      where: { companyId_key: { companyId, key } },
+      update: {},
+      create: { companyId, key, value },
+    });
+  }
+}
+
 async function main() {
   console.log("\n🌱 Seeding database...\n");
 
-  const adminEmail = "info@auswidesecurityexperts.com.au";
-const adminPassword = "Auswide@2016";
-const passwordHash = await bcrypt.hash(adminPassword, 10);
+  // 1. Companies.
+  const auswide = await ensureCompany(AUSWIDE_ID, "Auswide Security", "auswide");
+  const acs = await ensureCompany(ACS_ID, "ACS Security", "acs");
 
-const admin = await prisma.adminUser.upsert({
-  where: { email: adminEmail },
-  update: {},
-  create: {
-    email: adminEmail,
-    passwordHash,
-    name: "Admin",
-    role: "OWNER",
-  },
-});
+  // 2. Admin users — one OWNER per company.
+  const auswideAdminEmail = "info@auswidesecurityexperts.com.au";
+  const auswideAdminPassword = "Auswide@2016";
+  await ensureAdmin(auswideAdminEmail, auswideAdminPassword, auswide.id, "Auswide Admin");
 
-console.log("=================================================");
-console.log("  ADMIN LOGIN — CHANGE THIS BEFORE PRODUCTION!");
-console.log(`  Email:    ${adminEmail}`);
-console.log(`  Password: ${adminPassword}`);
-console.log("=================================================");
+  const acsAdminEmail = "info@alliedcs.com.au";
+  const acsAdminPassword = "Allied@2026";
+  await ensureAdmin(acsAdminEmail, acsAdminPassword, acs.id, "ACS Admin");
 
-  // Guards
+  console.log("=================================================");
+  console.log("  ADMIN LOGINS — CHANGE BEFORE PRODUCTION");
+  console.log(`  Auswide: ${auswideAdminEmail} / ${auswideAdminPassword}`);
+  console.log(`  ACS:     ${acsAdminEmail} / ${acsAdminPassword}`);
+  console.log("=================================================");
+
+  // 3. Settings for both companies.
+  await seedSettings(auswide.id, "Auswide Security");
+  await seedSettings(acs.id, "ACS Security");
+
+  // 4. Sample guards/sites/roster only for Auswide (preserve dev workflow).
+  //    ACS starts empty — operators add their own.
   const guardSeed = [
     { firstName: "Liam",     lastName: "Nguyen",   phone: "+61400000001", licenceNumber: "VIC-001234", payRate: "38.50" },
     { firstName: "Aaliyah",  lastName: "Patel",    phone: "+61400000002", licenceNumber: "VIC-001235", payRate: "38.50" },
@@ -49,7 +99,7 @@ console.log("=================================================");
   for (const g of guardSeed) {
     await prisma.guard.upsert({
       where: { phone: g.phone },
-      update: {},
+      update: { companyId: auswide.id },
       create: {
         firstName: g.firstName,
         lastName: g.lastName,
@@ -57,13 +107,13 @@ console.log("=================================================");
         licenceNumber: g.licenceNumber,
         payRate: g.payRate,
         active: true,
+        companyId: auswide.id,
       },
     });
   }
 
-  const guards = await prisma.guard.findMany();
+  const guards = await prisma.guard.findMany({ where: { companyId: auswide.id } });
 
-  // Sites
   const siteSeed = [
     { name: "Crown Casino",    address: "8 Whiteman St, Southbank VIC" },
     { name: "QV Square",       address: "210 Lonsdale St, Melbourne VIC" },
@@ -71,15 +121,14 @@ console.log("=================================================");
   ];
 
   for (const s of siteSeed) {
-    const exists = await prisma.site.findFirst({ where: { name: s.name } });
-    if (!exists) await prisma.site.create({ data: s });
+    const exists = await prisma.site.findFirst({ where: { name: s.name, companyId: auswide.id } });
+    if (!exists) await prisma.site.create({ data: { ...s, companyId: auswide.id } });
   }
 
-  const sites = await prisma.site.findMany();
+  const sites = await prisma.site.findMany({ where: { companyId: auswide.id } });
 
-  // Roster — current week, Mon..Sun
   const now = new Date();
-  const day = now.getDay(); // 0=Sun
+  const day = now.getDay();
   const monOffset = day === 0 ? -6 : 1 - day;
   const weekStart = new Date(now);
   weekStart.setDate(now.getDate() + monOffset);
@@ -89,7 +138,7 @@ console.log("=================================================");
   weekEnd.setHours(23, 59, 59, 999);
 
   const existingRoster = await prisma.roster.findFirst({
-    where: { startDate: weekStart, status: "PUBLISHED" },
+    where: { startDate: weekStart, status: "PUBLISHED", companyId: auswide.id },
   });
 
   if (!existingRoster) {
@@ -100,10 +149,10 @@ console.log("=================================================");
         endDate: weekEnd,
         status: "PUBLISHED",
         publishedAt: new Date(),
+        companyId: auswide.id,
       },
     });
 
-    // Build 8 PENDING shifts across guards/sites
     const plan = [
       { dayOffset: 0, hour: 18, len: 8, guardIdx: 0, siteIdx: 0, role: "Static" },
       { dayOffset: 0, hour: 22, len: 8, guardIdx: 1, siteIdx: 1, role: "Patrol" },
@@ -138,33 +187,7 @@ console.log("=================================================");
     }
   }
 
-  // Default settings
-  const defaults: Record<string, string> = {
-    company_name: process.env.COMPANY_NAME ?? "My Security Co",
-    timezone: process.env.APP_TIMEZONE ?? "Australia/Melbourne",
-    default_pay_rate: "38.50",
-    sms_template_roster: `Hi {firstName}, your shifts for {rosterName}:
-
-{shiftList}
-
-Reply with shift # + YES/NO for each.
-E.g. "1 YES, 2 NO, 3 YES"
-Or reply ALL YES / ALL NO.
-
-Ref: {firstConfirmCode}`,
-    sms_template_reply_summary: `Thanks {firstName}. Confirmed: {confirmedCount}, Rejected: {rejectedCount}, Pending: {pendingCount}.`,
-    sms_template_unparsed: `Hi {firstName}, we couldn't read your reply. Please reply with shift # then YES or NO (e.g. "1 YES, 2 NO") or ALL YES / ALL NO.`,
-  };
-
-  for (const [key, value] of Object.entries(defaults)) {
-    await prisma.setting.upsert({
-      where: { key },
-      update: {},
-      create: { key, value },
-    });
-  }
-
-  console.log(`✅ Seeded admin (${admin.email}), ${guards.length} guards, ${sites.length} sites, 1 roster.\n`);
+  console.log(`✅ Seeded Auswide (${guards.length} guards, ${sites.length} sites, 1 roster) and ACS (empty).\n`);
 }
 
 main()

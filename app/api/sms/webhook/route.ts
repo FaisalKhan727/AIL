@@ -4,8 +4,10 @@ import { getSmsAdapter } from "@/lib/sms";
 import { parseInboundReply, type ParserShift } from "@/lib/sms/parser";
 import { buildReplySummary, buildUnparsedReply } from "@/lib/sms/templates";
 
-async function getSetting(key: string): Promise<string | undefined> {
-  const row = await prisma.setting.findUnique({ where: { key } });
+async function getSetting(companyId: string, key: string): Promise<string | undefined> {
+  const row = await prisma.setting.findUnique({
+    where: { companyId_key: { companyId, key } },
+  });
   return row?.value;
 }
 
@@ -59,9 +61,11 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true, note: "unknown sender" });
   }
 
-  // Find this guard's pending shifts in the most recent published roster.
+  // Find this guard's pending shifts in the most recent published roster
+  // (within the guard's own company — multi-tenant safety).
   const latestRoster = await prisma.roster.findFirst({
     where: {
+      companyId: guard.companyId,
       status: "PUBLISHED",
       shifts: { some: { guardId: guard.id } },
     },
@@ -85,7 +89,7 @@ export async function POST(req: Request) {
   const result = parseInboundReply(body, pendingShifts);
 
   if (result.status === "unparsed") {
-    const reply = buildUnparsedReply(guard.firstName, await getSetting("sms_template_unparsed"));
+    const reply = buildUnparsedReply(guard.firstName, await getSetting(guard.companyId, "sms_template_unparsed"));
     await adapter.sendSms(guard.phone, reply, { guardId: guard.id });
     return NextResponse.json({ ok: true, parsed: false, reason: result.reason });
   }
@@ -119,7 +123,7 @@ export async function POST(req: Request) {
     confirmedCount,
     rejectedCount,
     pendingCount,
-    template: await getSetting("sms_template_reply_summary"),
+    template: await getSetting(guard.companyId, "sms_template_reply_summary"),
   });
   await adapter.sendSms(guard.phone, summary, { guardId: guard.id });
 

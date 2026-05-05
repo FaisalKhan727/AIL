@@ -6,9 +6,11 @@ import { prisma } from "@/lib/prisma";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const session = await getServerSession(authOptions);
-  if (!session) redirect("/login");
+  if (!session?.user?.companyId) redirect("/login");
 
-  const setting = await prisma.setting.findUnique({ where: { key: "company_name" } });
+  const setting = await prisma.setting.findUnique({
+    where: { companyId_key: { companyId: session.user.companyId, key: "company_name" } },
+  });
   const companyName = setting?.value || process.env.COMPANY_NAME || "Vigilo";
 
   return (

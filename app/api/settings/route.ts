@@ -6,7 +6,7 @@ import { jsonError, requireAdmin } from "@/lib/api";
 export async function GET() {
   const auth = await requireAdmin();
   if ("error" in auth) return auth.error;
-  const rows = await prisma.setting.findMany();
+  const rows = await prisma.setting.findMany({ where: { companyId: auth.companyId } });
   const map: Record<string, string> = {};
   for (const r of rows) map[r.key] = r.value;
   const sid = process.env.TWILIO_ACCOUNT_SID || "";
@@ -33,7 +33,11 @@ export async function PATCH(req: Request) {
   if (!parsed.success) return jsonError("validation", 400, parsed.error.flatten());
   const entries = Object.entries(parsed.data);
   for (const [key, value] of entries) {
-    await prisma.setting.upsert({ where: { key }, update: { value }, create: { key, value } });
+    await prisma.setting.upsert({
+      where: { companyId_key: { companyId: auth.companyId, key } },
+      update: { value },
+      create: { companyId: auth.companyId, key, value },
+    });
   }
   return NextResponse.json({ ok: true, updated: entries.length });
 }

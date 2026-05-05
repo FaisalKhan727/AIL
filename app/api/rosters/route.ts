@@ -7,6 +7,7 @@ export async function GET() {
   const auth = await requireAdmin();
   if ("error" in auth) return auth.error;
   const rosters = await prisma.roster.findMany({
+    where: { companyId: auth.companyId },
     orderBy: { startDate: "desc" },
     include: { _count: { select: { shifts: true } } },
   });
@@ -45,6 +46,7 @@ export async function POST(req: Request) {
       name: data.name,
       startDate: new Date(data.startDate),
       endDate: new Date(data.endDate),
+      companyId: auth.companyId,
     },
   });
   return NextResponse.json(roster, { status: 201 });

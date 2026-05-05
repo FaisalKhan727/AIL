@@ -3,11 +3,16 @@ import { prisma } from "@/lib/prisma";
 import { jsonError, requireAdmin } from "@/lib/api";
 import { guardUpdateSchema } from "@/lib/validators";
 
+async function ensureGuardInCompany(id: string, companyId: string) {
+  const g = await prisma.guard.findFirst({ where: { id, companyId } });
+  return g;
+}
+
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
   const auth = await requireAdmin();
   if ("error" in auth) return auth.error;
-  const guard = await prisma.guard.findUnique({
-    where: { id: params.id },
+  const guard = await prisma.guard.findFirst({
+    where: { id: params.id, companyId: auth.companyId },
     include: {
       shifts: {
         orderBy: { startAt: "desc" },
@@ -24,6 +29,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
   const auth = await requireAdmin();
   if ("error" in auth) return auth.error;
+  if (!(await ensureGuardInCompany(params.id, auth.companyId))) return jsonError("not found", 404);
   const body = await req.json().catch(() => null);
   const parsed = guardUpdateSchema.safeParse(body);
   if (!parsed.success) return jsonError("validation", 400, parsed.error.flatten());
@@ -53,7 +59,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 export async function DELETE(_req: Request, { params }: { params: { id: string } }) {
   const auth = await requireAdmin();
   if ("error" in auth) return auth.error;
-  // Soft delete: mark inactive instead of hard-deleting (preserves shift history).
+  if (!(await ensureGuardInCompany(params.id, auth.companyId))) return jsonError("not found", 404);
   try {
     await prisma.guard.update({ where: { id: params.id }, data: { active: false } });
     return NextResponse.json({ ok: true });

@@ -12,8 +12,10 @@ interface DispatchResult {
   error?: string;
 }
 
-async function getSetting(key: string): Promise<string | undefined> {
-  const row = await prisma.setting.findUnique({ where: { key } });
+async function getCompanySetting(companyId: string, key: string): Promise<string | undefined> {
+  const row = await prisma.setting.findUnique({
+    where: { companyId_key: { companyId, key } },
+  });
   return row?.value;
 }
 
@@ -23,14 +25,15 @@ async function getSetting(key: string): Promise<string | undefined> {
  */
 export async function dispatchRosterSms(rosterId: string): Promise<DispatchResult[]> {
   const adapter = getSmsAdapter();
-  const tz = (await getSetting("timezone")) ?? APP_TZ;
-  const template = await getSetting("sms_template_roster");
 
   const roster = await prisma.roster.findUnique({
     where: { id: rosterId },
     include: { shifts: { include: { guard: true, site: true }, orderBy: { startAt: "asc" } } },
   });
   if (!roster) throw new Error("roster not found");
+
+  const tz = (await getCompanySetting(roster.companyId, "timezone")) ?? APP_TZ;
+  const template = await getCompanySetting(roster.companyId, "sms_template_roster");
 
   const byGuard = new Map<string, typeof roster.shifts>();
   for (const s of roster.shifts) {
@@ -92,14 +95,15 @@ export async function dispatchRosterSms(rosterId: string): Promise<DispatchResul
 /** Re-send SMS for a single shift (or to a guard for a specific shift). */
 export async function resendShiftSms(shiftId: string) {
   const adapter = getSmsAdapter();
-  const tz = (await getSetting("timezone")) ?? APP_TZ;
-  const template = await getSetting("sms_template_roster");
 
   const shift = await prisma.shift.findUnique({
     where: { id: shiftId },
     include: { guard: true, site: true, roster: true },
   });
   if (!shift) throw new Error("shift not found");
+
+  const tz = (await getCompanySetting(shift.roster.companyId, "timezone")) ?? APP_TZ;
+  const template = await getCompanySetting(shift.roster.companyId, "sms_template_roster");
 
   const lines: ShiftLineInput[] = [
     { index: 1, startAt: shift.startAt, endAt: shift.endAt, siteName: shift.site.name, role: shift.role },

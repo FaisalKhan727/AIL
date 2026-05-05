@@ -15,17 +15,20 @@ export async function GET() {
   const dayEnd = new Date(now);
   dayEnd.setHours(23, 59, 59, 999);
 
+  const companyId = auth.companyId;
+  const rosterScope = { roster: { companyId } };
   const [shiftsThisWeek, pendingCount, rejectedCount, activeGuards, todayShifts, recentSms] = await Promise.all([
-    prisma.shift.count({ where: { startAt: { gte: weekStart, lte: weekEnd } } }),
-    prisma.shift.count({ where: { status: "PENDING", startAt: { gte: now } } }),
-    prisma.shift.count({ where: { status: "REJECTED", startAt: { gte: now } } }),
-    prisma.guard.count({ where: { active: true } }),
+    prisma.shift.count({ where: { ...rosterScope, startAt: { gte: weekStart, lte: weekEnd } } }),
+    prisma.shift.count({ where: { ...rosterScope, status: "PENDING", startAt: { gte: now } } }),
+    prisma.shift.count({ where: { ...rosterScope, status: "REJECTED", startAt: { gte: now } } }),
+    prisma.guard.count({ where: { companyId, active: true } }),
     prisma.shift.findMany({
-      where: { startAt: { gte: dayStart, lte: dayEnd } },
+      where: { ...rosterScope, startAt: { gte: dayStart, lte: dayEnd } },
       orderBy: { startAt: "asc" },
       include: { guard: true, site: true },
     }),
     prisma.smsLog.findMany({
+      where: { guard: { companyId } },
       orderBy: { receivedAt: "desc" },
       take: 20,
       include: { guard: true },

@@ -8,6 +8,7 @@ export async function GET() {
   const auth = await requireAdmin();
   if ("error" in auth) return auth.error;
   const admins = await prisma.adminUser.findMany({
+    where: { companyId: auth.companyId },
     select: { id: true, email: true, name: true, role: true, createdAt: true },
     orderBy: { createdAt: "asc" },
   });
@@ -24,9 +25,7 @@ const createSchema = z.object({
 export async function POST(req: Request) {
   const auth = await requireAdmin();
   if ("error" in auth) return auth.error;
-  // OWNER only.
-  const role = (auth.session.user as { role?: string }).role;
-  if (role !== "OWNER") return jsonError("OWNER role required", 403);
+  if (auth.role !== "OWNER") return jsonError("OWNER role required", 403);
 
   const body = await req.json().catch(() => null);
   const parsed = createSchema.safeParse(body);
@@ -39,6 +38,7 @@ export async function POST(req: Request) {
         name,
         passwordHash: await bcrypt.hash(password, 10),
         role: newRole,
+        companyId: auth.companyId,
       },
       select: { id: true, email: true, name: true, role: true, createdAt: true },
     });

@@ -12,6 +12,7 @@ export async function GET(req: Request) {
 
   const logs = await prisma.smsLog.findMany({
     where: {
+      guard: { companyId: auth.companyId },
       ...(guardId ? { guardId } : {}),
       ...(direction ? { direction } : {}),
     },

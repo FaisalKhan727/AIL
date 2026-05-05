@@ -12,6 +12,7 @@ export async function GET(req: Request) {
 
   const guards = await prisma.guard.findMany({
     where: {
+      companyId: auth.companyId,
       ...(activeFilter === "true" ? { active: true } : activeFilter === "false" ? { active: false } : {}),
       ...(q
         ? {
@@ -49,6 +50,7 @@ export async function POST(req: Request) {
         payRate: data.payRate?.toString(),
         notes: data.notes,
         active: data.active ?? true,
+        companyId: auth.companyId,
       },
     });
     return NextResponse.json(guard, { status: 201 });

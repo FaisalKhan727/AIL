@@ -3,11 +3,15 @@ import { prisma } from "@/lib/prisma";
 import { jsonError, requireAdmin } from "@/lib/api";
 import { siteUpdateSchema } from "@/lib/validators";
 
+async function ensureSiteInCompany(id: string, companyId: string) {
+  return prisma.site.findFirst({ where: { id, companyId } });
+}
+
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
   const auth = await requireAdmin();
   if ("error" in auth) return auth.error;
-  const site = await prisma.site.findUnique({
-    where: { id: params.id },
+  const site = await prisma.site.findFirst({
+    where: { id: params.id, companyId: auth.companyId },
     include: {
       shifts: {
         orderBy: { startAt: "desc" },
@@ -23,6 +27,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
   const auth = await requireAdmin();
   if ("error" in auth) return auth.error;
+  if (!(await ensureSiteInCompany(params.id, auth.companyId))) return jsonError("not found", 404);
   const body = await req.json().catch(() => null);
   const parsed = siteUpdateSchema.safeParse(body);
   if (!parsed.success) return jsonError("validation", 400, parsed.error.flatten());
@@ -33,6 +38,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 export async function DELETE(_req: Request, { params }: { params: { id: string } }) {
   const auth = await requireAdmin();
   if ("error" in auth) return auth.error;
+  if (!(await ensureSiteInCompany(params.id, auth.companyId))) return jsonError("not found", 404);
   await prisma.site.update({ where: { id: params.id }, data: { active: false } });
   return NextResponse.json({ ok: true });
 }

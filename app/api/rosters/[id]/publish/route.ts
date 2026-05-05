@@ -7,8 +7,8 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
   const auth = await requireAdmin();
   if ("error" in auth) return auth.error;
 
-  const roster = await prisma.roster.findUnique({
-    where: { id: params.id },
+  const roster = await prisma.roster.findFirst({
+    where: { id: params.id, companyId: auth.companyId },
     include: { shifts: true },
   });
   if (!roster) return jsonError("not found", 404);

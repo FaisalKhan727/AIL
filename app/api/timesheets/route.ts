@@ -17,6 +17,7 @@ export async function GET(req: Request) {
 
   const shifts = await prisma.shift.findMany({
     where: {
+      roster: { companyId: auth.companyId },
       startAt: { gte: weekStart, lte: weekEnd },
       status: { in: ["CONFIRMED", "WORKED"] },
     },

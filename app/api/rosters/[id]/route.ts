@@ -3,11 +3,15 @@ import { prisma } from "@/lib/prisma";
 import { jsonError, requireAdmin } from "@/lib/api";
 import { rosterUpdateSchema } from "@/lib/validators";
 
+async function ensureRoster(id: string, companyId: string) {
+  return prisma.roster.findFirst({ where: { id, companyId } });
+}
+
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
   const auth = await requireAdmin();
   if ("error" in auth) return auth.error;
-  const roster = await prisma.roster.findUnique({
-    where: { id: params.id },
+  const roster = await prisma.roster.findFirst({
+    where: { id: params.id, companyId: auth.companyId },
     include: {
       shifts: {
         orderBy: { startAt: "asc" },
@@ -22,6 +26,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
   const auth = await requireAdmin();
   if ("error" in auth) return auth.error;
+  if (!(await ensureRoster(params.id, auth.companyId))) return jsonError("not found", 404);
   const body = await req.json().catch(() => null);
   const parsed = rosterUpdateSchema.safeParse(body);
   if (!parsed.success) return jsonError("validation", 400, parsed.error.flatten());
@@ -41,6 +46,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 export async function DELETE(_req: Request, { params }: { params: { id: string } }) {
   const auth = await requireAdmin();
   if ("error" in auth) return auth.error;
+  if (!(await ensureRoster(params.id, auth.companyId))) return jsonError("not found", 404);
   await prisma.roster.delete({ where: { id: params.id } });
   return NextResponse.json({ ok: true });
 }

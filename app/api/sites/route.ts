@@ -9,9 +9,10 @@ export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const q = searchParams.get("q")?.trim().toLowerCase();
   const sites = await prisma.site.findMany({
-    where: q
-      ? { OR: [{ name: { contains: q } }, { address: { contains: q } }] }
-      : undefined,
+    where: {
+      companyId: auth.companyId,
+      ...(q ? { OR: [{ name: { contains: q } }, { address: { contains: q } }] } : {}),
+    },
     orderBy: [{ active: "desc" }, { name: "asc" }],
   });
   return NextResponse.json(sites);
@@ -23,6 +24,6 @@ export async function POST(req: Request) {
   const body = await req.json().catch(() => null);
   const parsed = siteCreateSchema.safeParse(body);
   if (!parsed.success) return jsonError("validation", 400, parsed.error.flatten());
-  const site = await prisma.site.create({ data: parsed.data });
+  const site = await prisma.site.create({ data: { ...parsed.data, companyId: auth.companyId } });
   return NextResponse.json(site, { status: 201 });
 }

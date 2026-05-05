@@ -16,8 +16,18 @@ export async function POST(req: Request) {
   const endAt = new Date(data.endAt);
   if (endAt <= startAt) return jsonError("end must be after start", 400);
 
-  const roster = await prisma.roster.findUnique({ where: { id: data.rosterId } });
+  const roster = await prisma.roster.findFirst({
+    where: { id: data.rosterId, companyId: auth.companyId },
+  });
   if (!roster) return jsonError("roster not found", 404);
+
+  // Make sure the chosen guard and site also belong to this company.
+  const [guardOk, siteOk] = await Promise.all([
+    prisma.guard.findFirst({ where: { id: data.guardId, companyId: auth.companyId } }),
+    prisma.site.findFirst({ where: { id: data.siteId, companyId: auth.companyId } }),
+  ]);
+  if (!guardOk) return jsonError("guard not in this company", 400);
+  if (!siteOk) return jsonError("site not in this company", 400);
 
   let code = "";
   for (let i = 0; i < 25; i++) {
