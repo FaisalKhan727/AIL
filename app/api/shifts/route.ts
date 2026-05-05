@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { jsonError, requireAdmin } from "@/lib/api";
 import { shiftCreateSchema } from "@/lib/validators";
 import { generateConfirmCode } from "@/lib/codes";
+import { resendShiftSms } from "@/lib/sms/dispatch";
 
 export async function POST(req: Request) {
   const auth = await requireAdmin();
@@ -15,7 +16,9 @@ export async function POST(req: Request) {
   const endAt = new Date(data.endAt);
   if (endAt <= startAt) return jsonError("end must be after start", 400);
 
-  // Generate unique confirm code
+  const roster = await prisma.roster.findUnique({ where: { id: data.rosterId } });
+  if (!roster) return jsonError("roster not found", 404);
+
   let code = "";
   for (let i = 0; i < 25; i++) {
     code = generateConfirmCode();
@@ -35,5 +38,16 @@ export async function POST(req: Request) {
       confirmCode: code,
     },
   });
-  return NextResponse.json(shift, { status: 201 });
+
+  let sms: { sent: boolean; status?: string; error?: string } = { sent: false };
+  if (roster.status === "PUBLISHED") {
+    try {
+      const r = await resendShiftSms(shift.id);
+      sms = { sent: true, status: r.status };
+    } catch (e: unknown) {
+      sms = { sent: false, error: e instanceof Error ? e.message : "send failed" };
+    }
+  }
+
+  return NextResponse.json({ ...shift, sms }, { status: 201 });
 }

@@ -1,6 +1,6 @@
 "use client";
 import * as React from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Pencil } from "lucide-react";
 import { PageHeader } from "@/components/shell/page-header";
@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { SiteFormDialog } from "@/components/sites/site-form-dialog";
 import { StatusBadge } from "@/components/shared/status-badge";
+import { useToast } from "@/components/ui/toast";
 import { api } from "@/lib/fetcher";
 import { fmtDateTime } from "@/lib/date";
 
@@ -25,7 +26,9 @@ interface SiteDetail {
 
 export default function SiteDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const router = useRouter();
   const qc = useQueryClient();
+  const { toast } = useToast();
   const [edit, setEdit] = React.useState(false);
   const { data, isLoading } = useQuery<SiteDetail>({
     queryKey: ["site", id],
@@ -39,7 +42,28 @@ export default function SiteDetailPage() {
       <PageHeader
         title={data.name}
         description={data.address}
-        actions={<Button variant="outline" onClick={() => setEdit(true)}><Pencil className="h-4 w-4" /> Edit</Button>}
+        actions={
+          <>
+            <Button variant="outline" onClick={() => setEdit(true)}><Pencil className="h-4 w-4" /> Edit</Button>
+            {data.active && (
+              <Button
+                variant="destructive"
+                onClick={async () => {
+                  if (!confirm("Mark this site inactive? It will no longer appear when adding shifts.")) return;
+                  try {
+                    await api(`/api/sites/${id}`, { method: "DELETE" });
+                    toast({ title: "Site deactivated", variant: "success" });
+                    router.push("/sites");
+                  } catch (e: unknown) {
+                    toast({ title: "Failed", description: e instanceof Error ? e.message : "", variant: "error" });
+                  }
+                }}
+              >
+                Deactivate
+              </Button>
+            )}
+          </>
+        }
       />
       {data.notes && <Card className="mb-4"><CardContent className="pt-6 text-sm text-muted-foreground">{data.notes}</CardContent></Card>}
       <Card>

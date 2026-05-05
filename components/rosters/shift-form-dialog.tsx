@@ -88,8 +88,17 @@ export function ShiftFormDialog({ open, onOpenChange, rosterId, initial, onSaved
         await api(`/api/shifts/${initial!.id}`, { method: "PATCH", body: JSON.stringify(payload) });
         toast({ title: "Shift updated", variant: "success" });
       } else {
-        await api(`/api/shifts`, { method: "POST", body: JSON.stringify(payload) });
-        toast({ title: "Shift created", variant: "success" });
+        const created = await api<{ sms?: { sent: boolean; error?: string } }>(`/api/shifts`, {
+          method: "POST",
+          body: JSON.stringify(payload),
+        });
+        if (created.sms?.sent) {
+          toast({ title: "Shift created — SMS sent to guard", variant: "success" });
+        } else if (created.sms?.error) {
+          toast({ title: "Shift created — SMS failed", description: created.sms.error, variant: "error" });
+        } else {
+          toast({ title: "Shift created", variant: "success" });
+        }
       }
       onOpenChange(false);
       onSaved?.();
@@ -114,7 +123,7 @@ export function ShiftFormDialog({ open, onOpenChange, rosterId, initial, onSaved
     if (!initial?.id) return;
     try {
       await api(`/api/shifts/${initial.id}/resend`, { method: "POST" });
-      toast({ title: "SMS sent (mock)", variant: "success" });
+      toast({ title: "SMS sent", variant: "success" });
     } catch (e: unknown) {
       toast({ title: "Failed", description: e instanceof Error ? e.message : "", variant: "error" });
     }
