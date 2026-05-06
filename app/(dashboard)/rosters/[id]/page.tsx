@@ -2,7 +2,7 @@
 import * as React from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, Send, RefreshCcw, AlertTriangle, Trash2 } from "lucide-react";
+import { Plus, Send, RefreshCcw, AlertTriangle, Trash2, RotateCw } from "lucide-react";
 import { PageHeader } from "@/components/shell/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -39,13 +39,29 @@ interface Roster {
   shifts: Shift[];
 }
 
-function statusCellClass(status: string) {
-  switch (status) {
-    case "CONFIRMED": case "WORKED": return "bg-emerald-50 border-emerald-300";
-    case "REJECTED": case "NO_SHOW": return "bg-red-50 border-red-300";
-    case "PENDING": return "bg-amber-50 border-amber-300";
-    case "CANCELLED": return "bg-zinc-100 border-zinc-300";
-    default: return "bg-slate-50 border-slate-300";
+/**
+ * Cell tint per shift status. Takes the full shift so PENDING can split into
+ * "awaiting reply" (SMS sent) vs "unsent" (publishedAt still null) — those
+ * two cases are the same status but call for different operator action.
+ */
+function statusCellClass(s: Shift): string {
+  switch (s.status) {
+    case "CONFIRMED":
+      return "bg-emerald-50 border-emerald-300";
+    case "WORKED":
+      return "bg-emerald-100 border-emerald-500";
+    case "REJECTED":
+      return "bg-red-50 border-red-300";
+    case "NO_SHOW":
+      return "bg-rose-200 border-rose-500";
+    case "CANCELLED":
+      return "bg-zinc-100 border-zinc-300 opacity-60";
+    case "PENDING":
+      return s.publishedAt
+        ? "bg-blue-50 border-blue-300"  // sent, awaiting reply
+        : "bg-amber-50 border-amber-300"; // unsent
+    default:
+      return "bg-slate-50 border-slate-300";
   }
 }
 
@@ -93,10 +109,14 @@ export default function RosterBuilderPage() {
     if (typeof window !== "undefined") window.localStorage.setItem("roster.viewMode", m);
   };
 
-  const { data, refetch } = useQuery<Roster>({
+  const { data, refetch, isFetching } = useQuery<Roster>({
     queryKey: ["roster", id],
     queryFn: () => api(`/api/rosters/${id}`),
-    refetchInterval: 5000, // live status updates
+    // Poll every 10s. Keep polling when the tab is in background so when the
+    // operator switches back, the grid is already up to date with any SMS
+    // replies that came in while they were elsewhere.
+    refetchInterval: 10_000,
+    refetchIntervalInBackground: true,
   });
 
   if (!data) return <div className="text-muted-foreground">Loading…</div>;
@@ -130,13 +150,48 @@ export default function RosterBuilderPage() {
 
   const conflicts = detectConflicts(data.shifts);
 
-  const totalCounts = data.shifts.reduce(
+  // Mutually-exclusive buckets: every shift in the roster lands in exactly
+  // one of these so the counts on the summary line always sum to total.
+  // pendingUnsent is the only bucket Publish actually acts on (status PENDING,
+  // assigned to a guard, never sent before) — keeping the count and the
+  // action in sync was the bug from the previous version.
+  const summary = data.shifts.reduce(
     (acc, s) => {
-      acc[s.status] = (acc[s.status] ?? 0) + 1;
+      switch (s.status) {
+        case "CONFIRMED": acc.confirmed++; break;
+        case "REJECTED":  acc.rejected++; break;
+        case "WORKED":    acc.worked++; break;
+        case "NO_SHOW":   acc.noShow++; break;
+        case "CANCELLED": acc.cancelled++; break;
+        case "PENDING":
+          if (!s.guardId) acc.unassigned++;
+          else if (s.publishedAt) acc.awaitingReply++;
+          else acc.pendingUnsent++;
+          break;
+        default: acc.other++;
+      }
       return acc;
     },
-    {} as Record<string, number>,
+    {
+      confirmed: 0, rejected: 0, worked: 0, noShow: 0, cancelled: 0,
+      pendingUnsent: 0, awaitingReply: 0, unassigned: 0, other: 0,
+    },
   );
+
+  const summaryParts: string[] = [`${data.shifts.length} shifts`];
+  if (summary.confirmed)     summaryParts.push(`${summary.confirmed} confirmed`);
+  if (summary.awaitingReply) summaryParts.push(`${summary.awaitingReply} awaiting reply`);
+  if (summary.pendingUnsent) summaryParts.push(`${summary.pendingUnsent} unsent`);
+  if (summary.unassigned)    summaryParts.push(`${summary.unassigned} unassigned`);
+  if (summary.rejected)      summaryParts.push(`${summary.rejected} rejected`);
+  if (summary.worked)        summaryParts.push(`${summary.worked} worked`);
+  if (summary.noShow)        summaryParts.push(`${summary.noShow} no-show`);
+  if (summary.cancelled)     summaryParts.push(`${summary.cancelled} cancelled`);
+  const summaryText = summaryParts.join(" · ");
+
+  /** What Publish will actually act on: PENDING, assigned to a guard,
+   *  not yet SMS-dispatched. Mirrors the filter in dispatchRosterSms. */
+  const publishableCount = summary.pendingUnsent;
 
   async function publishAll() {
     try {
@@ -228,18 +283,26 @@ export default function RosterBuilderPage() {
     setShiftOpen(true);
   }
 
-  const unsentCount = data.shifts.filter((s) => !s.publishedAt).length;
-
   return (
     <>
       <PageHeader
         title={data.name}
-        description={`${data.shifts.length} shifts · ${totalCounts.CONFIRMED ?? 0} confirmed · ${totalCounts.PENDING ?? 0} pending · ${totalCounts.REJECTED ?? 0} rejected${unsentCount > 0 ? ` · ${unsentCount} unsent` : ""}`}
+        description={summaryText}
         actions={
           <>
+            <Button
+              variant="outline"
+              size="icon"
+              aria-label="Refresh"
+              title="Refresh"
+              onClick={() => refetch()}
+              disabled={isFetching}
+            >
+              <RotateCw className={cn("h-4 w-4", isFetching && "animate-spin")} />
+            </Button>
             <Button variant="outline" onClick={() => openNewShift()}><Plus className="h-4 w-4" /> Add Shift</Button>
-            <Button onClick={publishAll} disabled={unsentCount === 0}>
-              <Send className="h-4 w-4" /> Publish all{unsentCount > 0 ? ` (${unsentCount})` : ""}
+            <Button onClick={publishAll} disabled={publishableCount === 0}>
+              <Send className="h-4 w-4" /> Publish{publishableCount > 0 ? ` (${publishableCount})` : ""}
             </Button>
             <Button variant="outline" onClick={resendAll} disabled={data.shifts.length === 0}>
               <RefreshCcw className="h-4 w-4" /> Resend all
@@ -322,18 +385,22 @@ export default function RosterBuilderPage() {
                               : s.guard
                                 ? `${s.guard.firstName} ${s.guard.lastName}`
                                 : "Unassigned";
+                            const cancelled = s.status === "CANCELLED";
                             return (
                               <div
                                 key={s.id}
                                 className={cn(
                                   "rounded border hover:shadow-sm transition-shadow relative",
-                                  statusCellClass(s.status),
+                                  statusCellClass(s),
                                   conflicts.has(s.id) && "ring-2 ring-amber-500",
                                 )}
                               >
                                 <button
                                   onClick={() => openEdit(s)}
-                                  className="text-left w-full px-2 py-1 pr-7"
+                                  className={cn(
+                                    "text-left w-full px-2 py-1 pr-7",
+                                    cancelled && "line-through",
+                                  )}
                                 >
                                   <div className="font-medium truncate">{cardTitle}</div>
                                   <div className="flex items-center justify-between gap-1">

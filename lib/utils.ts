@@ -16,18 +16,24 @@ export function formatPhoneAU(p: string): string {
 export function statusBadgeClass(status: string): string {
   switch (status) {
     case "CONFIRMED":
-    case "WORKED":
     case "APPROVED":
     case "PAID":
     case "PUBLISHED":
       return "bg-emerald-100 text-emerald-800 border-emerald-300";
+    case "WORKED":
+      // Darker green so it's distinct from CONFIRMED at a glance.
+      return "bg-emerald-200 text-emerald-900 border-emerald-400";
     case "REJECTED":
-    case "NO_SHOW":
-    case "CANCELLED":
       return "bg-red-100 text-red-800 border-red-300";
+    case "NO_SHOW":
+      // Stronger / more saturated so the operator's eye lands on no-shows
+      // first when scanning the timesheet view.
+      return "bg-rose-200 text-rose-900 border-rose-400 font-semibold";
+    case "CANCELLED":
+      return "bg-zinc-100 text-zinc-600 border-zinc-300 line-through";
     case "PENDING":
     case "DRAFT":
-      return "bg-slate-100 text-slate-700 border-slate-300";
+      return "bg-amber-100 text-amber-800 border-amber-300";
     case "ARCHIVED":
       return "bg-zinc-100 text-zinc-600 border-zinc-300";
     default:
