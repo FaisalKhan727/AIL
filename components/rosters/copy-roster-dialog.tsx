@@ -1,6 +1,7 @@
 "use client";
 import * as React from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useRouter } from "next/navigation";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -9,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
 import { api } from "@/lib/fetcher";
 import { planCopy, calendarDayDiff, shiftDateInTz } from "@/lib/copy-roster";
-import { APP_TZ, fmtDate, fmtIso } from "@/lib/date";
+import { APP_TZ, fmtDate, fmtDateTime, fmtTime, fmtIso } from "@/lib/date";
 
 interface RosterRow {
   id: string;
@@ -69,6 +70,12 @@ interface Props {
 
 export function CopyRosterDialog({ open, onOpenChange, initialSourceId }: Props) {
   const { toast } = useToast();
+  const router = useRouter();
+  const qc = useQueryClient();
+
+  type Step = "form" | "preview";
+  const [step, setStep] = React.useState<Step>("form");
+  const [creating, setCreating] = React.useState(false);
 
   const [sourceId, setSourceId] = React.useState<string>("");
   const [newName, setNewName] = React.useState<string>("");
@@ -84,6 +91,8 @@ export function CopyRosterDialog({ open, onOpenChange, initialSourceId }: Props)
   // doesn't bleed into the next copy.
   React.useEffect(() => {
     if (!open) return;
+    setStep("form");
+    setCreating(false);
     setSourceId(initialSourceId ?? "");
     setKeepGuards(true);
     setKeepNotes(true);
@@ -212,26 +221,158 @@ export function CopyRosterDialog({ open, onOpenChange, initialSourceId }: Props)
   }, [source, guards, sites]);
 
   const emptySource = source && source.shifts.length === 0;
-  const canPreview = Boolean(source && plan && plan.plannedCount > 0);
+  const canPreview = Boolean(source && plan && plan.plannedCount > 0 && newName.trim() && newStartDate);
 
-  function handlePreview() {
-    if (!plan) return;
-    // Step 3 will replace this with an actual preview screen + confirm flow.
-    toast({
-      title: `Plan ready: ${plan.plannedCount} to create, ${plan.skippedCount} skipped, ${plan.unassignedCount} unassigned`,
-      description: "Preview & confirm screen coming in step 3.",
-      variant: "success",
-    });
+  function fmtRange(startIso: Date | string, endIso: Date | string): string {
+    const sameDay = fmtIso(startIso) === fmtIso(endIso);
+    if (sameDay) {
+      return `${fmtDate(startIso)} ${fmtTime(startIso)}–${fmtTime(endIso)}`;
+    }
+    return `${fmtDateTime(startIso)} → ${fmtDateTime(endIso)}`;
+  }
+
+  async function create(openAfter: boolean) {
+    if (!plan || !sourceId || !newName.trim() || !newStartDate) return;
+    setCreating(true);
+    try {
+      const res = await api<{ rosterId: string; plan: { plannedCount: number } }>(`/api/rosters/copy`, {
+        method: "POST",
+        body: JSON.stringify({
+          sourceRosterId: sourceId,
+          newName: newName.trim(),
+          newStartDate,
+          options: { keepGuards, keepNotes, skipInactiveGuards, skipInactiveSites },
+        }),
+      });
+      qc.invalidateQueries({ queryKey: ["rosters"] });
+      toast({
+        title: `Created draft roster — ${res.plan.plannedCount} shift${res.plan.plannedCount === 1 ? "" : "s"}`,
+        variant: "success",
+      });
+      onOpenChange(false);
+      if (openAfter) router.push(`/rosters/${res.rosterId}`);
+    } catch (e: unknown) {
+      toast({ title: "Create failed", description: e instanceof Error ? e.message : "", variant: "error" });
+    } finally {
+      setCreating(false);
+    }
+  }
+
+  // Helpers to render one shift row in the preview lists.
+  const guardName = React.useMemo(
+    () => new Map(guards.map((g) => [g.id, `${g.firstName} ${g.lastName}`])),
+    [guards],
+  );
+  const siteName = React.useMemo(
+    () => new Map(sites.map((s) => [s.id, s.name])),
+    [sites],
+  );
+  function plannedRowLabel(p: { guardId: string | null; siteId: string; startAt: Date; endAt: Date }) {
+    const who = p.guardId ? guardName.get(p.guardId) ?? "?" : "Unassigned";
+    return `${who} · ${siteName.get(p.siteId) ?? "?"} · ${fmtRange(p.startAt, p.endAt)}`;
   }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Copy roster from previous week</DialogTitle>
+          <DialogTitle>
+            {step === "form" ? "Copy roster from previous week" : "Preview new roster"}
+          </DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-3">
+        {step === "preview" && plan && source ? (
+          <div className="space-y-3">
+            <div className="rounded border bg-muted/40 p-2 text-xs">
+              <div><strong>{newName}</strong></div>
+              <div className="text-muted-foreground">
+                {fmtDate(newStartDate)} – {fmtDate(newEndDate)} · copying from <em>{source.name}</em>
+              </div>
+              <div className="mt-1">
+                {plan.plannedCount} to create
+                {plan.skippedCount > 0 && <> · {plan.skippedCount} skipped</>}
+                {plan.unassignedCount > 0 && <> · {plan.unassignedCount} unassigned</>}
+              </div>
+            </div>
+
+            <section className="space-y-1">
+              <h3 className="text-sm font-semibold">
+                Shifts to create ({plan.planned.filter((p) => p.guardId).length})
+              </h3>
+              <div className="rounded border max-h-56 overflow-y-auto">
+                {plan.planned.filter((p) => p.guardId).length === 0 ? (
+                  <p className="text-xs text-muted-foreground p-2">No assigned shifts.</p>
+                ) : (
+                  <ul className="divide-y text-xs">
+                    {plan.planned
+                      .filter((p) => p.guardId)
+                      .map((p) => (
+                        <li key={p.sourceShiftId} className="px-2 py-1.5">
+                          {plannedRowLabel(p)}
+                        </li>
+                      ))}
+                  </ul>
+                )}
+              </div>
+            </section>
+
+            {plan.unassignedCount > 0 && (
+              <section className="space-y-1">
+                <h3 className="text-sm font-semibold text-amber-900">
+                  Unassigned placeholders ({plan.unassignedCount})
+                </h3>
+                <div className="rounded border bg-amber-50 max-h-40 overflow-y-auto">
+                  <ul className="divide-y text-xs">
+                    {plan.planned
+                      .filter((p) => !p.guardId)
+                      .map((p) => (
+                        <li key={p.sourceShiftId} className="px-2 py-1.5">
+                          <div>{plannedRowLabel(p)}</div>
+                          {p.warnings.length > 0 && (
+                            <div className="text-amber-900/80 mt-0.5">
+                              {p.warnings.join("; ")}
+                            </div>
+                          )}
+                        </li>
+                      ))}
+                  </ul>
+                </div>
+              </section>
+            )}
+
+            {plan.skipped.length > 0 && (
+              <section className="space-y-1">
+                <h3 className="text-sm font-semibold text-red-900">
+                  Skipped ({plan.skipped.length})
+                </h3>
+                <div className="rounded border bg-red-50 max-h-40 overflow-y-auto">
+                  <ul className="divide-y text-xs">
+                    {plan.skipped.map((s) => (
+                      <li key={s.sourceShiftId} className="px-2 py-1.5">
+                        <div>{shiftLabel.get(s.sourceShiftId) ?? s.sourceShiftId}</div>
+                        <div className="text-red-900/80 mt-0.5">{s.reason}</div>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </section>
+            )}
+
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setStep("form")} disabled={creating}>
+                Back
+              </Button>
+              <div className="flex-1" />
+              <Button variant="outline" onClick={() => create(false)} disabled={creating}>
+                {creating ? "Creating…" : "Create as draft"}
+              </Button>
+              <Button onClick={() => create(true)} disabled={creating}>
+                {creating ? "Creating…" : "Create and open"}
+              </Button>
+            </DialogFooter>
+          </div>
+        ) : (
+          <div className="space-y-3">
           <div className="space-y-1">
             <Label>Copy from</Label>
             <Select value={sourceId} onChange={(e) => setSourceId(e.target.value)}>
@@ -331,14 +472,15 @@ export function CopyRosterDialog({ open, onOpenChange, initialSourceId }: Props)
               )}
             </div>
           )}
-        </div>
 
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button onClick={handlePreview} disabled={!canPreview}>
-            Preview &amp; confirm
-          </Button>
-        </DialogFooter>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+              <Button onClick={() => setStep("preview")} disabled={!canPreview}>
+                Preview &amp; confirm
+              </Button>
+            </DialogFooter>
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   );
