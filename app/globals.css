@@ -41,6 +41,46 @@
   .label {
     @apply text-sm font-medium leading-none;
   }
+
+  /*
+   * Dialog content: hand-rolled in plain CSS instead of Tailwind utilities so
+   * the breakpoint behaviour can't be reshuffled by tailwind-merge. Mobile
+   * gets an edge-to-edge full-screen sheet; sm+ gets a centred modal.
+   */
+  .dialog-content {
+    position: fixed;
+    z-index: 50;
+    display: grid;
+    gap: 1rem;
+    border-width: 1px;
+    border-color: hsl(var(--border));
+    background-color: hsl(var(--background));
+    box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+    overflow-y: auto;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    max-width: none;
+    max-height: none;
+    border-radius: 0;
+    padding: 1rem;
+    padding-top: max(1rem, env(safe-area-inset-top));
+    padding-bottom: max(1rem, env(safe-area-inset-bottom));
+  }
+  @media (min-width: 640px) {
+    .dialog-content {
+      inset: auto;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      width: 100%;
+      max-width: 32rem;
+      height: auto;
+      max-height: 95vh;
+      border-radius: 0.5rem;
+      padding: 1.5rem;
+    }
+  }
 }
 
 @layer utilities {

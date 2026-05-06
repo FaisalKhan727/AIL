@@ -32,17 +32,7 @@ export const DialogContent = React.forwardRef<
     <DialogOverlay />
     <DialogPrimitive.Content
       ref={ref}
-      className={cn(
-        // Desktop base: centered modal (sm and up).
-        "fixed z-50 left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2",
-        "w-full max-w-lg max-h-[95vh] rounded-lg p-6",
-        "grid gap-4 border bg-background shadow-lg overflow-y-auto",
-        // Mobile overrides (<sm): edge-to-edge full-height sheet with safe-area.
-        "max-sm:left-0 max-sm:top-0 max-sm:translate-x-0 max-sm:translate-y-0",
-        "max-sm:max-w-none max-sm:h-full max-sm:max-h-none max-sm:rounded-none",
-        "max-sm:p-4 max-sm:pt-safe max-sm:pb-safe",
-        className,
-      )}
+      className={cn("dialog-content", className)}
       {...props}
     >
       {children}
