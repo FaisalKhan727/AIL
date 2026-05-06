@@ -14,8 +14,6 @@ import {
   Settings,
   ShieldCheck,
   LogOut,
-  Menu,
-  X,
 } from "lucide-react";
 
 const NAV = [
@@ -29,24 +27,29 @@ const NAV = [
 ];
 
 export function Sidebar({ companyName }: { companyName: string }) {
-  const [open, setOpen] = React.useState(false);
   const pathname = usePathname();
-
-  React.useEffect(() => {
-    setOpen(false);
-  }, [pathname]);
 
   return (
     <>
-      {/* Top bar */}
-      <header className="sticky top-0 z-40 flex h-14 items-center justify-between border-b bg-brand-navy text-white px-4 md:pl-64">
-        <div className="flex items-center gap-2 md:hidden">
-          <button onClick={() => setOpen(true)} aria-label="Open menu" className="p-1 rounded hover:bg-white/10">
-            <Menu className="h-5 w-5" />
-          </button>
-          <span className="font-semibold">{companyName}</span>
+      {/* Mobile: compact app bar with company name and sign-out (nav lives in
+          the bottom tab bar). */}
+      <header className="md:hidden sticky top-0 z-30 flex h-12 items-center justify-between border-b bg-brand-navy text-white px-4 pt-safe">
+        <div className="flex items-center gap-2 font-semibold truncate">
+          <ShieldCheck className="h-5 w-5 text-brand-amber shrink-0" />
+          <span className="truncate">{companyName}</span>
         </div>
-        <div className="hidden md:flex items-center gap-2">
+        <button
+          onClick={() => signOut({ callbackUrl: "/login" })}
+          aria-label="Sign out"
+          className="p-2 -mr-2 rounded hover:bg-white/10"
+        >
+          <LogOut className="h-5 w-5" />
+        </button>
+      </header>
+
+      {/* Desktop top bar */}
+      <header className="hidden md:flex sticky top-0 z-40 h-14 items-center justify-between border-b bg-brand-navy text-white px-4 md:pl-64">
+        <div className="flex items-center gap-2">
           <span className="font-semibold">{companyName}</span>
         </div>
         <button
@@ -57,26 +60,15 @@ export function Sidebar({ companyName }: { companyName: string }) {
         </button>
       </header>
 
-      {/* Mobile drawer overlay */}
-      {open && (
-        <div className="fixed inset-0 z-50 bg-black/60 md:hidden" onClick={() => setOpen(false)} aria-hidden />
-      )}
-
-      {/* Sidebar */}
+      {/* Desktop sidebar */}
       <aside
-        className={cn(
-          "fixed inset-y-0 left-0 z-50 w-64 bg-brand-navy text-white flex flex-col transition-transform md:translate-x-0",
-          open ? "translate-x-0" : "-translate-x-full",
-        )}
+        className="hidden md:flex fixed inset-y-0 left-0 z-50 w-64 bg-brand-navy text-white flex-col"
       >
-        <div className="flex h-14 items-center justify-between px-4 border-b border-white/10">
+        <div className="flex h-14 items-center px-4 border-b border-white/10">
           <Link href="/dashboard" className="flex items-center gap-2 font-semibold">
             <ShieldCheck className="h-5 w-5 text-brand-amber" />
             <span>Vigilo</span>
           </Link>
-          <button onClick={() => setOpen(false)} className="md:hidden p-1 rounded hover:bg-white/10" aria-label="Close menu">
-            <X className="h-5 w-5" />
-          </button>
         </div>
         <nav className="flex-1 overflow-y-auto p-3 space-y-1">
           {NAV.map((item) => {

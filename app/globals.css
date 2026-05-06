@@ -42,3 +42,20 @@
     @apply text-sm font-medium leading-none;
   }
 }
+
+@layer utilities {
+  /* iOS safe-area helpers — keep bottom tab bar above the home indicator and
+     the top app bar below the notch. */
+  .pt-safe { padding-top: env(safe-area-inset-top); }
+  .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
+  .pl-safe { padding-left: env(safe-area-inset-left); }
+  .pr-safe { padding-right: env(safe-area-inset-right); }
+  .h-safe-bottom { height: env(safe-area-inset-bottom); }
+  /* Reserve space at the bottom for the mobile tab bar (h-16 + safe area). */
+  .pb-tabbar { padding-bottom: calc(4rem + env(safe-area-inset-bottom)); }
+}
+
+/* Disable native iOS double-tap zoom on interactive elements but allow pinch
+   on long content (dialogs, scrollers handle their own pan). */
+html { -webkit-tap-highlight-color: transparent; }
+button, [role="button"] { touch-action: manipulation; }

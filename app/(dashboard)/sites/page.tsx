@@ -63,7 +63,45 @@ export default function SitesPage() {
           <Input className="pl-8" placeholder="Search name or address" value={q} onChange={(e) => setQ(e.target.value)} />
         </div>
       </CardContent></Card>
-      <Card><CardContent className="p-0">
+      {/* Mobile: card list */}
+      <div className="md:hidden space-y-2">
+        {isLoading && <Card><CardContent className="py-8 text-center text-muted-foreground">Loading…</CardContent></Card>}
+        {!isLoading && sites.length === 0 && (
+          <Card><CardContent className="py-8 text-center text-muted-foreground">No sites yet.</CardContent></Card>
+        )}
+        {sites.map((s) => (
+          <Card key={s.id}>
+            <CardContent className="p-3 flex items-start gap-3">
+              <Link href={`/sites/${s.id}`} className="flex-1 min-w-0 active:opacity-70">
+                <div className="font-semibold text-base truncate">{s.name}</div>
+                <div className="text-sm text-muted-foreground truncate">{s.address}</div>
+                <div className="mt-1 flex items-center gap-2 flex-wrap text-xs">
+                  {s.active
+                    ? <Badge className="bg-emerald-100 text-emerald-800 border-emerald-300">Active</Badge>
+                    : <Badge className="bg-zinc-100 text-zinc-700 border-zinc-300">Inactive</Badge>}
+                  {s.contactName && (
+                    <span className="text-muted-foreground truncate">
+                      {s.contactName}{s.contactPhone ? ` · ${s.contactPhone}` : ""}
+                    </span>
+                  )}
+                </div>
+              </Link>
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label="Delete site"
+                onClick={() => deleteSite(s)}
+                className="text-red-600 hover:bg-red-50 -mr-1"
+              >
+                <Trash2 className="h-5 w-5" />
+              </Button>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {/* Desktop: table */}
+      <Card className="hidden md:block"><CardContent className="p-0">
         <Table>
           <TableHeader><TableRow>
             <TableHead>Name</TableHead><TableHead>Address</TableHead><TableHead>Contact</TableHead><TableHead>Status</TableHead>

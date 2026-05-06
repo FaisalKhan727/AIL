@@ -112,7 +112,43 @@ export default function GuardsPage() {
         </CardContent>
       </Card>
 
-      <Card>
+      {/* Mobile: card list */}
+      <div className="md:hidden space-y-2">
+        {isLoading && <Card><CardContent className="py-8 text-center text-muted-foreground">Loading…</CardContent></Card>}
+        {!isLoading && guards.length === 0 && (
+          <Card><CardContent className="py-8 text-center text-muted-foreground">No guards yet.</CardContent></Card>
+        )}
+        {guards.map((g) => (
+          <Card key={g.id}>
+            <CardContent className="p-3 flex items-start gap-3">
+              <Link href={`/guards/${g.id}`} className="flex-1 min-w-0 active:opacity-70">
+                <div className="font-semibold text-base truncate">{g.firstName} {g.lastName}</div>
+                <div className="text-sm font-mono text-muted-foreground truncate">{formatPhoneAU(g.phone)}</div>
+                <div className="mt-1 flex items-center gap-2 flex-wrap text-xs">
+                  {g.active
+                    ? <Badge className="bg-emerald-100 text-emerald-800 border-emerald-300">Active</Badge>
+                    : <Badge className="bg-zinc-100 text-zinc-700 border-zinc-300">Inactive</Badge>}
+                  {g.licenceNumber && <span className="text-muted-foreground">Lic {g.licenceNumber}</span>}
+                  {g.payRate && <span className="text-muted-foreground">${Number(g.payRate).toFixed(2)}/hr</span>}
+                  {expiryBadge(g.licenceExpiry)}
+                </div>
+              </Link>
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label="Delete guard"
+                onClick={() => deleteGuard(g)}
+                className="text-red-600 hover:bg-red-50 -mr-1"
+              >
+                <Trash2 className="h-5 w-5" />
+              </Button>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {/* Desktop: table */}
+      <Card className="hidden md:block">
         <CardContent className="p-0">
           <Table>
             <TableHeader>

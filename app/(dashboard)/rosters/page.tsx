@@ -54,7 +54,46 @@ export default function RostersPage() {
         description={`${rosters.length} roster${rosters.length === 1 ? "" : "s"}`}
         actions={<Button onClick={() => setOpen(true)}><Plus className="h-4 w-4" /> New Roster</Button>}
       />
-      <Card><CardContent className="p-0">
+      {/* Mobile: card list */}
+      <div className="md:hidden space-y-2">
+        {isLoading && <Card><CardContent className="py-8 text-center text-muted-foreground">Loading…</CardContent></Card>}
+        {!isLoading && rosters.length === 0 && (
+          <Card><CardContent className="py-8 text-center text-muted-foreground">No rosters yet.</CardContent></Card>
+        )}
+        {rosters.map((r) => (
+          <Card key={r.id}>
+            <CardContent className="p-3 flex items-start gap-3">
+              <Link href={`/rosters/${r.id}`} className="flex-1 min-w-0 active:opacity-70">
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold text-base truncate">{r.name}</span>
+                  <StatusBadge status={r.status} />
+                </div>
+                <div className="text-xs text-muted-foreground mt-0.5">
+                  {fmtDate(r.startDate)} — {fmtDate(r.endDate)}
+                </div>
+                <div className="mt-1 flex items-center gap-3 text-xs">
+                  <span>{r.shiftCount} shifts</span>
+                  <span className="text-emerald-700 font-medium">{r.confirmedCount} confirmed</span>
+                  {r.rejectedCount > 0 && <span className="text-red-700">{r.rejectedCount} rej</span>}
+                  <span className="text-muted-foreground">({r.confirmationPct}%)</span>
+                </div>
+              </Link>
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label="Delete roster"
+                onClick={() => deleteRoster(r)}
+                className="text-red-600 hover:bg-red-50 -mr-1"
+              >
+                <Trash2 className="h-5 w-5" />
+              </Button>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {/* Desktop: table */}
+      <Card className="hidden md:block"><CardContent className="p-0">
         <Table>
           <TableHeader><TableRow>
             <TableHead>Name</TableHead><TableHead>Start</TableHead><TableHead>End</TableHead>
