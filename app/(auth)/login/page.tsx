@@ -21,8 +21,8 @@ function LoginInner() {
   const router = useRouter();
   const search = useSearchParams();
   const callbackUrl = search.get("callbackUrl") || "/dashboard";
-  const [email, setEmail] = React.useState("admin@vigilo.local");
-  const [password, setPassword] = React.useState("admin123");
+  const [email, setEmail] = React.useState("");
+  const [password, setPassword] = React.useState("");
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
@@ -64,9 +64,6 @@ function LoginInner() {
             <Button type="submit" className="w-full" disabled={loading}>
               {loading ? "Signing in…" : "Sign in"}
             </Button>
-            <p className="text-xs text-muted-foreground text-center">
-              Default seed: <span className="font-mono">admin@vigilo.local / admin123</span>
-            </p>
           </form>
         </CardContent>
       </Card>

@@ -3,8 +3,21 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 
+// Session lasts ~1 year and is refreshed once per active day. The JWT cookie
+// is set with the same maxAge, so it survives browser/app restarts on mobile
+// — the user stays signed in until they explicitly tap Sign out.
+const ONE_YEAR_SECONDS = 60 * 60 * 24 * 365;
+const ONE_DAY_SECONDS = 60 * 60 * 24;
+
 export const authOptions: NextAuthOptions = {
-  session: { strategy: "jwt" },
+  session: {
+    strategy: "jwt",
+    maxAge: ONE_YEAR_SECONDS,
+    updateAge: ONE_DAY_SECONDS,
+  },
+  jwt: {
+    maxAge: ONE_YEAR_SECONDS,
+  },
   pages: { signIn: "/login" },
   providers: [
     CredentialsProvider({
