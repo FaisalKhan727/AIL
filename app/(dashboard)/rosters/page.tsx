@@ -2,13 +2,14 @@
 import * as React from "react";
 import Link from "next/link";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2, Copy } from "lucide-react";
 import { PageHeader } from "@/components/shell/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { RosterFormDialog } from "@/components/rosters/roster-form-dialog";
+import { CopyRosterDialog } from "@/components/rosters/copy-roster-dialog";
 import { useToast } from "@/components/ui/toast";
 import { api } from "@/lib/fetcher";
 import { fmtDate } from "@/lib/date";
@@ -30,6 +31,7 @@ export default function RostersPage() {
   const qc = useQueryClient();
   const { toast } = useToast();
   const [open, setOpen] = React.useState(false);
+  const [copyOpen, setCopyOpen] = React.useState(false);
   const { data: rosters = [], isLoading } = useQuery<RosterRow[]>({
     queryKey: ["rosters"],
     queryFn: () => api(`/api/rosters`),
@@ -52,7 +54,14 @@ export default function RostersPage() {
       <PageHeader
         title="Rosters"
         description={`${rosters.length} roster${rosters.length === 1 ? "" : "s"}`}
-        actions={<Button onClick={() => setOpen(true)}><Plus className="h-4 w-4" /> New Roster</Button>}
+        actions={
+          <>
+            <Button variant="outline" onClick={() => setCopyOpen(true)}>
+              <Copy className="h-4 w-4" /> New from last week
+            </Button>
+            <Button onClick={() => setOpen(true)}><Plus className="h-4 w-4" /> New Roster</Button>
+          </>
+        }
       />
       {/* Mobile: card list */}
       <div className="md:hidden space-y-2">
@@ -132,6 +141,7 @@ export default function RostersPage() {
         </Table>
       </CardContent></Card>
       <RosterFormDialog open={open} onOpenChange={setOpen} />
+      <CopyRosterDialog open={copyOpen} onOpenChange={setCopyOpen} />
     </>
   );
 }
