@@ -33,18 +33,21 @@ export const DialogContent = React.forwardRef<
     <DialogPrimitive.Content
       ref={ref}
       className={cn(
-        // Mobile: full-screen sheet anchored to the edges with safe-area
-        // padding. Desktop (sm+): classic centered modal.
-        "fixed z-50 grid gap-4 border bg-background shadow-lg overflow-y-auto",
-        "inset-0 w-full h-full p-4 pb-safe pt-safe rounded-none",
-        "sm:left-1/2 sm:top-1/2 sm:inset-auto sm:h-auto sm:max-w-lg sm:-translate-x-1/2 sm:-translate-y-1/2 sm:max-h-[95vh] sm:p-6 sm:rounded-lg",
+        // Desktop base: centered modal (sm and up).
+        "fixed z-50 left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2",
+        "w-full max-w-lg max-h-[95vh] rounded-lg p-6",
+        "grid gap-4 border bg-background shadow-lg overflow-y-auto",
+        // Mobile overrides (<sm): edge-to-edge full-height sheet with safe-area.
+        "max-sm:left-0 max-sm:top-0 max-sm:translate-x-0 max-sm:translate-y-0",
+        "max-sm:max-w-none max-sm:h-full max-sm:max-h-none max-sm:rounded-none",
+        "max-sm:p-4 max-sm:pt-safe max-sm:pb-safe",
         className,
       )}
       {...props}
     >
       {children}
-      <DialogPrimitive.Close className="absolute right-3 top-3 sm:right-4 sm:top-4 rounded-full p-2 -m-2 opacity-70 transition-opacity hover:opacity-100 hover:bg-muted focus:outline-none">
-        <X className="h-5 w-5 sm:h-4 sm:w-4" />
+      <DialogPrimitive.Close className="absolute right-3 top-3 rounded-full p-2 -m-2 opacity-70 transition-opacity hover:opacity-100 hover:bg-muted focus:outline-none">
+        <X className="h-5 w-5" />
         <span className="sr-only">Close</span>
       </DialogPrimitive.Close>
     </DialogPrimitive.Content>
