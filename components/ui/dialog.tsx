@@ -27,12 +27,26 @@ DialogOverlay.displayName = "DialogOverlay";
 export const DialogContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>
->(({ className, children, ...props }, ref) => (
+>(({ className, children, onPointerDownOutside, onInteractOutside, ...props }, ref) => (
   <DialogPortal>
     <DialogOverlay />
     <DialogPrimitive.Content
       ref={ref}
       className={cn("dialog-content", className)}
+      // Mobile native pickers (iOS datetime-local, select wheels, file
+      // pickers) live in the OS overlay layer outside the React tree. When
+      // the user dismisses the picker, Radix sees the pointer-up as
+      // "outside the dialog" and closes it — making the form vanish
+      // mid-edit. We always block close-on-outside; the X button and Cancel
+      // are still available, and Escape still works on desktop.
+      onPointerDownOutside={(e) => {
+        e.preventDefault();
+        onPointerDownOutside?.(e);
+      }}
+      onInteractOutside={(e) => {
+        e.preventDefault();
+        onInteractOutside?.(e);
+      }}
       {...props}
     >
       {children}
