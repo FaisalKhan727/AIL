@@ -113,22 +113,32 @@ export function ShiftFormDialog({ open, onOpenChange, rosterId, initial, onSaved
   // Duplicate state (edit mode only).
   const [duplicateDate, setDuplicateDate] = React.useState<string>("");
 
+  // Reset the form ONLY when the dialog opens. The parent (rosters page)
+  // polls every 10s and rebuilds a new `initial` object literal on every
+  // render, so depending on `initial` here would wipe the user's typed
+  // values on every poll cycle — exactly what looked like "everything
+  // disappears after I pick the date".
+  // We use a ref to capture the latest `initial` so the values used at the
+  // moment of opening are correct, but reference changes don't re-run.
+  const initialRef = React.useRef(initial);
+  React.useEffect(() => { initialRef.current = initial; });
   React.useEffect(() => {
     if (!open) return;
+    const i = initialRef.current;
     reset({
-      guardId: initial?.guardId ?? "",
-      siteId: initial?.siteId ?? "",
-      startAt: initial?.startAt ? utcToLocalInput(typeof initial.startAt === "string" ? new Date(initial.startAt) : initial.startAt) : "",
-      endAt: initial?.endAt ? utcToLocalInput(typeof initial.endAt === "string" ? new Date(initial.endAt) : initial.endAt) : "",
-      role: initial?.role ?? "",
-      notes: initial?.notes ?? "",
-      status: initial?.status ?? "PENDING",
+      guardId: i?.guardId ?? "",
+      siteId: i?.siteId ?? "",
+      startAt: i?.startAt ? utcToLocalInput(typeof i.startAt === "string" ? new Date(i.startAt) : i.startAt) : "",
+      endAt: i?.endAt ? utcToLocalInput(typeof i.endAt === "string" ? new Date(i.endAt) : i.endAt) : "",
+      role: i?.role ?? "",
+      notes: i?.notes ?? "",
+      status: i?.status ?? "PENDING",
     });
     setRecurEnabled(false);
     setRecurDays([]);
     setRecurUntil("");
     setDuplicateDate("");
-  }, [open, initial, reset]);
+  }, [open, reset]);
 
   // When the user edits the start date and recurrence is on, default the
   // selected day-of-week to that day so the toggle group has a sane initial
