@@ -358,16 +358,20 @@ export function ShiftFormDialog({ open, onOpenChange, rosterId, initial, onSaved
             </div>
           )}
 
-          <DialogFooter className="flex-row sm:flex-row gap-2">
+          <DialogFooter className="dialog-footer-sticky flex flex-wrap gap-2 sm:flex-row sm:flex-nowrap sm:justify-end">
             {isEdit && (
               <>
                 <Button type="button" variant="outline" onClick={onResend}>Resend SMS</Button>
                 <Button type="button" variant="destructive" onClick={onDelete}>Delete</Button>
               </>
             )}
-            <div className="flex-1" />
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-            <Button type="submit" disabled={isSubmitting}>{submitLabel}</Button>
+            <div className="hidden sm:block flex-1" />
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} className="flex-1 sm:flex-none">
+              Cancel
+            </Button>
+            <Button type="submit" disabled={isSubmitting} className="flex-1 sm:flex-none">
+              {submitLabel}
+            </Button>
           </DialogFooter>
         </form>
       </DialogContent>
