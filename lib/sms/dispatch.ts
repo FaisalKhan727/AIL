@@ -51,12 +51,16 @@ export async function dispatchRosterSms(
 
   const roster = await prisma.roster.findUnique({
     where: { id: rosterId },
-    include: { shifts: { include: { guard: true, site: true }, orderBy: { startAt: "asc" } } },
+    include: {
+      company: { select: { name: true } },
+      shifts: { include: { guard: true, site: true }, orderBy: { startAt: "asc" } },
+    },
   });
   if (!roster) throw new Error("roster not found");
 
   const tz = (await getCompanySetting(roster.companyId, "timezone")) ?? APP_TZ;
   const template = await getCompanySetting(roster.companyId, "sms_template_roster");
+  const companyName = roster.company.name;
 
   const byGuard = new Map<string, typeof roster.shifts>();
   for (const s of roster.shifts) {
@@ -93,38 +97,47 @@ export async function dispatchRosterSms(
     });
 
     // Channel decision: push if guard has the app, SMS otherwise.
-    // On push failure with active subscriptions, fall back to SMS for THIS send.
+    // ANY error in the push path (VAPID misconfig, network, dead subscription)
+    // falls through to SMS for THIS guard — never break the dispatch loop.
     const channel = await pickChannelForGuard(guardId);
     let pushDelivered = false;
 
     if (channel.channel === "PUSH") {
-      const pushRes = await sendPushToGuardAccount(channel.guardAccountId, {
-        title: `${roster.name}: ${shifts.length === 1 ? "New shift" : `${shifts.length} new shifts`}`,
-        body,
-        url: `/g/shifts/${shifts[0].id}`,
-        data: { type: "shift_dispatch", shiftIds: shifts.map((s) => s.id) },
-        tag: `roster-${rosterId}-${guardId}`,
-      });
-      if (pushRes.ok) {
-        pushDelivered = true;
-        const now = new Date();
-        const unpublishedIds = shifts.filter((s) => !s.publishedAt).map((s) => s.id);
-        if (unpublishedIds.length > 0) {
-          await prisma.shift.updateMany({
-            where: { id: { in: unpublishedIds } },
-            data: { publishedAt: now },
+      try {
+        const pushRes = await sendPushToGuardAccount(channel.guardAccountId, {
+          title: `${companyName}: ${shifts.length === 1 ? "New shift" : `${shifts.length} new shifts`}`,
+          body,
+          url: `/g/shifts/${shifts[0].id}`,
+          data: { type: "shift_dispatch", shiftIds: shifts.map((s) => s.id) },
+          tag: `roster-${rosterId}-${guardId}`,
+        });
+        if (pushRes.ok) {
+          pushDelivered = true;
+          const now = new Date();
+          const unpublishedIds = shifts.filter((s) => !s.publishedAt).map((s) => s.id);
+          if (unpublishedIds.length > 0) {
+            await prisma.shift.updateMany({
+              where: { id: { in: unpublishedIds } },
+              data: { publishedAt: now },
+            });
+          }
+          results.push({
+            guardId,
+            shiftIds: shifts.map((s) => s.id),
+            to: guard.phone,
+            status: "push_sent",
+            ok: true,
           });
         }
-        results.push({
-          guardId,
-          shiftIds: shifts.map((s) => s.id),
-          to: guard.phone,
-          status: "push_sent",
-          ok: true,
-        });
+        // pushRes.allFailed (no exception, just no subs delivered) → fall through
+      } catch (err) {
+        // Push infrastructure error (e.g., VAPID env vars missing on this env,
+        // network unreachable). Log and continue to SMS — never propagate.
+        console.error(
+          `[dispatch] push failed for guard ${guardId}, falling back to SMS:`,
+          err instanceof Error ? err.message : err,
+        );
       }
-      // pushRes.allFailed → sendPushToGuardAccount already marked appActivated=false
-      // and we fall through to SMS below.
     }
 
     if (pushDelivered) continue;
@@ -177,7 +190,11 @@ export async function resendShiftSms(shiftId: string) {
 
   const shift = await prisma.shift.findUnique({
     where: { id: shiftId },
-    include: { guard: true, site: true, roster: true },
+    include: {
+      guard: true,
+      site: true,
+      roster: { include: { company: { select: { name: true } } } },
+    },
   });
   if (!shift) throw new Error("shift not found");
   if (!shift.guard || !shift.guardId) {
@@ -185,6 +202,7 @@ export async function resendShiftSms(shiftId: string) {
   }
   const guard = shift.guard;
   const guardId = shift.guardId;
+  const companyName = shift.roster.company.name;
 
   const tz = (await getCompanySetting(shift.roster.companyId, "timezone")) ?? APP_TZ;
   const template = await getCompanySetting(shift.roster.companyId, "sms_template_roster");
@@ -204,21 +222,29 @@ export async function resendShiftSms(shiftId: string) {
 
   const channel = await pickChannelForGuard(guardId);
   if (channel.channel === "PUSH") {
-    const pushRes = await sendPushToGuardAccount(channel.guardAccountId, {
-      title: `${shift.roster.name}: New shift`,
-      body,
-      url: `/g/shifts/${shift.id}`,
-      data: { type: "shift_dispatch", shiftIds: [shift.id] },
-      tag: `shift-${shift.id}`,
-    });
-    if (pushRes.ok) {
-      if (!shift.publishedAt) {
-        await prisma.shift.update({ where: { id: shift.id }, data: { publishedAt: new Date() } });
+    try {
+      const pushRes = await sendPushToGuardAccount(channel.guardAccountId, {
+        title: `${companyName}: New shift`,
+        body,
+        url: `/g/shifts/${shift.id}`,
+        data: { type: "shift_dispatch", shiftIds: [shift.id] },
+        tag: `shift-${shift.id}`,
+      });
+      if (pushRes.ok) {
+        if (!shift.publishedAt) {
+          await prisma.shift.update({ where: { id: shift.id }, data: { publishedAt: new Date() } });
+        }
+        await ensureRosterPublished(shift.rosterId);
+        return { status: "push_sent" as const };
       }
-      await ensureRosterPublished(shift.rosterId);
-      return { status: "push_sent" as const };
+      // Subscriptions present but all failed → sendPushToGuardAccount already
+      // cleared appActivated. Fall through to SMS.
+    } catch (err) {
+      console.error(
+        `[resendShiftSms] push failed for guard ${guardId}, falling back to SMS:`,
+        err instanceof Error ? err.message : err,
+      );
     }
-    // fall through to SMS
   }
 
   const result = await adapter.sendSms(guard.phone, body, {
