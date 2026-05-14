@@ -8,16 +8,21 @@ datasource db {
 }
 
 model Company {
-  id        String   @id @default(cuid())
-  name      String
-  slug      String   @unique
-  createdAt DateTime @default(now())
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  brandColour String? // hex, e.g. "#0B1E3F" — used as company stripe/badge in guard app
+  createdAt   DateTime @default(now())
 
-  adminUsers AdminUser[]
-  guards     Guard[]
-  sites      Site[]
-  rosters    Roster[]
-  settings   Setting[]
+  adminUsers         AdminUser[]
+  guards             Guard[]
+  sites              Site[]
+  rosters            Roster[]
+  settings           Setting[]
+  clockEvents        ClockEvent[]
+  shiftCheckIns      ShiftCheckIn[]
+  incidentReports    IncidentReport[]
+  loneWorkerCheckIns LoneWorkerCheckIn[]
 }
 
 model AdminUser {
@@ -34,39 +39,49 @@ model AdminUser {
 }
 
 model Guard {
-  id            String    @id @default(cuid())
-  firstName     String
-  lastName      String
-  phone         String
-  email         String?
-  licenceNumber String?
-  licenceExpiry DateTime?
-  payRate       Decimal?
-  notes         String?
-  active        Boolean   @default(true)
-  createdAt     DateTime  @default(now())
-  companyId     String
-  company       Company   @relation(fields: [companyId], references: [id])
-  shifts        Shift[]
-  smsLogs       SmsLog[]
+  id                 String              @id @default(cuid())
+  firstName          String
+  lastName           String
+  phone              String
+  email              String?
+  licenceNumber      String?
+  licenceExpiry      DateTime?
+  payRate            Decimal?
+  notes              String?
+  active             Boolean             @default(true)
+  createdAt          DateTime            @default(now())
+  companyId          String
+  guardIdentityId    String? // links to cross-company GuardIdentity; nullable until backfill completes
+  company            Company             @relation(fields: [companyId], references: [id])
+  guardIdentity      GuardIdentity?      @relation(fields: [guardIdentityId], references: [id])
+  shifts             Shift[]
+  smsLogs            SmsLog[]
+  setupTokens        SetupToken[]
+  appDispatch        CompanyAppDispatch?
+  clockEvents        ClockEvent[]
+  shiftCheckIns      ShiftCheckIn[]
+  incidentReports    IncidentReport[]
+  loneWorkerCheckIns LoneWorkerCheckIn[]
 
   @@unique([companyId, phone])
   @@index([companyId])
   @@index([phone])
+  @@index([guardIdentityId])
 }
 
 model Site {
-  id             String          @id @default(cuid())
-  name           String
-  address        String
-  contactName    String?
-  contactPhone   String?
-  notes          String?
-  active         Boolean         @default(true)
-  companyId      String
-  company        Company         @relation(fields: [companyId], references: [id])
-  shifts         Shift[]
-  shiftTemplates ShiftTemplate[]
+  id              String           @id @default(cuid())
+  name            String
+  address         String
+  contactName     String?
+  contactPhone    String?
+  notes           String?
+  active          Boolean          @default(true)
+  companyId       String
+  company         Company          @relation(fields: [companyId], references: [id])
+  shifts          Shift[]
+  shiftTemplates  ShiftTemplate[]
+  incidentReports IncidentReport[]
 
   @@index([companyId])
 }
@@ -75,8 +90,8 @@ model ShiftTemplate {
   id                String   @id @default(cuid())
   siteId            String
   name              String
-  startTime         String   // "HH:mm" 24-hour
-  endTime           String   // "HH:mm" 24-hour
+  startTime         String // "HH:mm" 24-hour
+  endTime           String // "HH:mm" 24-hour
   crossesMidnight   Boolean  @default(false)
   role              String?
   notes             String?
@@ -128,11 +143,15 @@ model Shift {
   publishedAt     DateTime?
   createdAt       DateTime  @default(now())
 
-  roster   Roster         @relation(fields: [rosterId], references: [id], onDelete: Cascade)
-  guard    Guard?         @relation(fields: [guardId], references: [id])
-  site     Site           @relation(fields: [siteId], references: [id])
-  template ShiftTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
-  smsLogs  SmsLog[]
+  roster             Roster              @relation(fields: [rosterId], references: [id], onDelete: Cascade)
+  guard              Guard?              @relation(fields: [guardId], references: [id])
+  site               Site                @relation(fields: [siteId], references: [id])
+  template           ShiftTemplate?      @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  smsLogs            SmsLog[]
+  clockEvents        ClockEvent[]
+  shiftCheckIns      ShiftCheckIn[]
+  incidentReports    IncidentReport[]
+  loneWorkerCheckIns LoneWorkerCheckIn[]
 
   @@index([guardId])
   @@index([siteId])
@@ -145,12 +164,12 @@ model SmsLog {
   id          String   @id @default(cuid())
   guardId     String?
   shiftId     String?
-  direction   String   // OUTBOUND | INBOUND
+  direction   String // OUTBOUND | INBOUND
   fromNumber  String
   toNumber    String
   body        String
   providerSid String?
-  status      String?  // queued|sent|delivered|failed|mock
+  status      String? // queued|sent|delivered|failed|mock
   errorCode   String?
   receivedAt  DateTime @default(now())
 
@@ -184,4 +203,232 @@ model Setting {
   company   Company @relation(fields: [companyId], references: [id])
 
   @@id([companyId, key])
+}
+
+// ---------------------------------------------------------------------------
+// Guard PWA models (Phase 1 schema; behaviour gated per phase in application code)
+// ---------------------------------------------------------------------------
+
+// One human guard, regardless of which companies they work for.
+// Identified globally by phone (E.164). Immutable identity record.
+model GuardIdentity {
+  id        String   @id @default(cuid())
+  firstName String
+  lastName  String
+  phone     String   @unique
+  email     String?  @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  account     GuardAccount?
+  employments Guard[]
+  setupTokens SetupToken[]
+
+  @@index([phone])
+}
+
+// App credentials + activation state for a GuardIdentity. 1:1 with GuardIdentity.
+// Holds the PIN, T&C acceptance, last-seen, suspend state.
+model GuardAccount {
+  id                String        @id @default(cuid())
+  guardIdentityId   String        @unique
+  guardIdentity     GuardIdentity @relation(fields: [guardIdentityId], references: [id], onDelete: Cascade)
+  pinHash           String?
+  backupEmail       String?
+  termsAcceptedAt   DateTime?
+  privacyAcceptedAt DateTime?
+  appActivated      Boolean       @default(false)
+  activatedAt       DateTime?
+  lastSeenAt        DateTime?
+  suspendedAt       DateTime?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  sessions          GuardSession[]
+  pushSubscriptions PushSubscription[]
+  preferences       GuardPreferences?
+}
+
+// Long-lived opaque session tokens per device. Token stored hashed.
+model GuardSession {
+  id             String       @id @default(cuid())
+  guardAccountId String
+  guardAccount   GuardAccount @relation(fields: [guardAccountId], references: [id], onDelete: Cascade)
+  tokenHash      String       @unique
+  userAgent      String?
+  ipAddress      String?
+  expiresAt      DateTime
+  lastUsedAt     DateTime     @default(now())
+  revokedAt      DateTime?
+  createdAt      DateTime     @default(now())
+
+  @@index([guardAccountId])
+  @@index([expiresAt])
+}
+
+// Web Push subscription per device. Failures auto-prune in app code.
+model PushSubscription {
+  id                   String       @id @default(cuid())
+  guardAccountId       String
+  guardAccount         GuardAccount @relation(fields: [guardAccountId], references: [id], onDelete: Cascade)
+  endpoint             String       @unique
+  p256dhKey            String
+  authKey              String
+  deviceLabel          String?
+  lastSuccessfulPushAt DateTime?
+  lastFailedPushAt     DateTime?
+  failureCount         Int          @default(0)
+  createdAt            DateTime     @default(now())
+
+  @@index([guardAccountId])
+}
+
+// One-time setup token sent via SMS when admin clicks "Send app invite".
+// Scoped to a company's Guard record (who invited), optionally also to an
+// existing GuardIdentity (if the phone already had one).
+model SetupToken {
+  id              String         @id @default(cuid())
+  guardId         String
+  guard           Guard          @relation(fields: [guardId], references: [id], onDelete: Cascade)
+  guardIdentityId String?
+  guardIdentity   GuardIdentity? @relation(fields: [guardIdentityId], references: [id])
+  tokenHash       String         @unique
+  expiresAt       DateTime
+  consumedAt      DateTime?
+  ipAddress       String?
+  createdAt       DateTime       @default(now())
+
+  @@index([guardId])
+  @@index([expiresAt])
+}
+
+// Per-GuardAccount preferences (identity-level, not per company).
+// Per-company notification opt-out is the CompanyAppDispatch toggle.
+model GuardPreferences {
+  id                   String       @id @default(cuid())
+  guardAccountId       String       @unique
+  guardAccount         GuardAccount @relation(fields: [guardAccountId], references: [id], onDelete: Cascade)
+  notificationsEnabled Boolean      @default(true)
+  loneWorkerEnabled    Boolean      @default(true)
+  language             String       @default("en")
+  createdAt            DateTime     @default(now())
+  updatedAt            DateTime     @updatedAt
+}
+
+// Per-company toggle: does this company dispatch to the guard's app (vs SMS)?
+// Default true once the guard's GuardIdentity has app access; admin can flip.
+model CompanyAppDispatch {
+  id        String   @id @default(cuid())
+  guardId   String   @unique
+  guard     Guard    @relation(fields: [guardId], references: [id], onDelete: Cascade)
+  enabled   Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ClockEvent {
+  id               String   @id @default(cuid())
+  shiftId          String
+  shift            Shift    @relation(fields: [shiftId], references: [id], onDelete: Cascade)
+  guardId          String
+  guard            Guard    @relation(fields: [guardId], references: [id])
+  eventType        String // CLOCK_IN | CLOCK_OUT | BREAK_START | BREAK_END
+  timestamp        DateTime @default(now())
+  latitude         Decimal?
+  longitude        Decimal?
+  distanceFromSite Decimal? // metres
+  flaggedDistance  Boolean  @default(false)
+  photoUrl         String?
+  notes            String?
+  source           String   @default("GUARD_APP") // GUARD_APP | ADMIN_MANUAL | AUTO
+  companyId        String
+  company          Company  @relation(fields: [companyId], references: [id])
+  createdAt        DateTime @default(now())
+
+  @@index([shiftId])
+  @@index([guardId])
+  @@index([companyId])
+  @@index([timestamp])
+}
+
+model ShiftCheckIn {
+  id          String   @id @default(cuid())
+  shiftId     String
+  shift       Shift    @relation(fields: [shiftId], references: [id], onDelete: Cascade)
+  guardId     String
+  guard       Guard    @relation(fields: [guardId], references: [id])
+  checkInType String // PHOTO | TEXT | VOLUNTARY
+  prompt      String?
+  photoUrl    String?
+  notes       String?
+  latitude    Decimal?
+  longitude   Decimal?
+  timestamp   DateTime @default(now())
+  companyId   String
+  company     Company  @relation(fields: [companyId], references: [id])
+  createdAt   DateTime @default(now())
+
+  @@index([shiftId])
+  @@index([guardId])
+  @@index([companyId])
+}
+
+model IncidentReport {
+  id               String    @id @default(cuid())
+  shiftId          String?
+  shift            Shift?    @relation(fields: [shiftId], references: [id])
+  guardId          String
+  guard            Guard     @relation(fields: [guardId], references: [id])
+  siteId           String?
+  site             Site?     @relation(fields: [siteId], references: [id])
+  incidentType     String
+  severity         String // LOW | MEDIUM | HIGH | CRITICAL
+  occurredAt       DateTime
+  description      String
+  peopleInvolved   String?
+  witnessesPresent Boolean   @default(false)
+  policeCalled     Boolean   @default(false)
+  policeDetails    String?
+  ambulanceCalled  Boolean   @default(false)
+  ambulanceDetails String?
+  photoUrls        String? // JSON array of R2 URLs
+  latitude         Decimal?
+  longitude        Decimal?
+  status           String    @default("DRAFT") // DRAFT | SUBMITTED | UNDER_REVIEW | RESOLVED
+  reviewedBy       String?
+  reviewedAt       DateTime?
+  adminNotes       String?
+  companyId        String
+  company          Company   @relation(fields: [companyId], references: [id])
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@index([guardId])
+  @@index([companyId])
+  @@index([status])
+  @@index([severity])
+}
+
+model LoneWorkerCheckIn {
+  id                String    @id @default(cuid())
+  shiftId           String
+  shift             Shift     @relation(fields: [shiftId], references: [id], onDelete: Cascade)
+  guardId           String
+  guard             Guard     @relation(fields: [guardId], references: [id])
+  scheduledAt       DateTime
+  sentAt            DateTime?
+  respondedAt       DateTime?
+  response          String? // OK | HELP | SNOOZE | NO_RESPONSE
+  responseLatitude  Decimal?
+  responseLongitude Decimal?
+  escalatedAt       DateTime?
+  escalatedTo       String?
+  companyId         String
+  company           Company   @relation(fields: [companyId], references: [id])
+  createdAt         DateTime  @default(now())
+
+  @@index([shiftId])
+  @@index([guardId])
+  @@index([companyId])
+  @@index([scheduledAt])
 }

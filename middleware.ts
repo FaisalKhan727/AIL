@@ -7,8 +7,10 @@ export const config = {
      *   - /login
      *   - /api/auth/*
      *   - /api/sms/* (Twilio webhooks; verified by adapter)
+     *   - /g/* (guard PWA, has its own session cookie + per-route requireGuard)
+     *   - /api/g/* (guard API, validated by requireGuard())
      *   - static files
      */
-    "/((?!login|api/auth|api/sms|_next/static|_next/image|favicon.ico).*)",
+    "/((?!login|api/auth|api/sms|g(?:/|$)|api/g(?:/|$)|_next/static|_next/image|favicon.ico).*)",
   ],
 };

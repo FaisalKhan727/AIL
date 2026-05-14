@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { getSmsAdapter } from "./index";
 import { buildRosterMessage, type ShiftLineInput } from "./templates";
 import { APP_TZ } from "@/lib/date";
+import { pickChannelForGuard, sendPushToGuardAccount } from "@/lib/push/dispatch";
 
 interface DispatchResult {
   guardId: string;
@@ -91,6 +92,43 @@ export async function dispatchRosterSms(
       timezone: tz,
     });
 
+    // Channel decision: push if guard has the app, SMS otherwise.
+    // On push failure with active subscriptions, fall back to SMS for THIS send.
+    const channel = await pickChannelForGuard(guardId);
+    let pushDelivered = false;
+
+    if (channel.channel === "PUSH") {
+      const pushRes = await sendPushToGuardAccount(channel.guardAccountId, {
+        title: `${roster.name}: ${shifts.length === 1 ? "New shift" : `${shifts.length} new shifts`}`,
+        body,
+        url: `/g/shifts/${shifts[0].id}`,
+        data: { type: "shift_dispatch", shiftIds: shifts.map((s) => s.id) },
+        tag: `roster-${rosterId}-${guardId}`,
+      });
+      if (pushRes.ok) {
+        pushDelivered = true;
+        const now = new Date();
+        const unpublishedIds = shifts.filter((s) => !s.publishedAt).map((s) => s.id);
+        if (unpublishedIds.length > 0) {
+          await prisma.shift.updateMany({
+            where: { id: { in: unpublishedIds } },
+            data: { publishedAt: now },
+          });
+        }
+        results.push({
+          guardId,
+          shiftIds: shifts.map((s) => s.id),
+          to: guard.phone,
+          status: "push_sent",
+          ok: true,
+        });
+      }
+      // pushRes.allFailed → sendPushToGuardAccount already marked appActivated=false
+      // and we fall through to SMS below.
+    }
+
+    if (pushDelivered) continue;
+
     try {
       const sendRes = await adapter.sendSms(guard.phone, body, { guardId });
       const now = new Date();
@@ -163,6 +201,25 @@ export async function resendShiftSms(shiftId: string) {
     template,
     timezone: tz,
   });
+
+  const channel = await pickChannelForGuard(guardId);
+  if (channel.channel === "PUSH") {
+    const pushRes = await sendPushToGuardAccount(channel.guardAccountId, {
+      title: `${shift.roster.name}: New shift`,
+      body,
+      url: `/g/shifts/${shift.id}`,
+      data: { type: "shift_dispatch", shiftIds: [shift.id] },
+      tag: `shift-${shift.id}`,
+    });
+    if (pushRes.ok) {
+      if (!shift.publishedAt) {
+        await prisma.shift.update({ where: { id: shift.id }, data: { publishedAt: new Date() } });
+      }
+      await ensureRosterPublished(shift.rosterId);
+      return { status: "push_sent" as const };
+    }
+    // fall through to SMS
+  }
 
   const result = await adapter.sendSms(guard.phone, body, {
     guardId,

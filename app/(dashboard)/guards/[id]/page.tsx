@@ -2,7 +2,7 @@
 import * as React from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useParams, useRouter } from "next/navigation";
-import { Pencil, Trash2 } from "lucide-react";
+import { Pencil, Send, Trash2 } from "lucide-react";
 import { PageHeader } from "@/components/shell/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -35,11 +35,37 @@ export default function GuardDetailPage() {
   const router = useRouter();
   const { toast } = useToast();
   const [editOpen, setEditOpen] = React.useState(false);
+  const [inviting, setInviting] = React.useState(false);
 
   const { data, isLoading } = useQuery<GuardDetail>({
     queryKey: ["guard", id],
     queryFn: () => api(`/api/guards/${id}`),
   });
+
+  async function sendAppInvite() {
+    if (inviting) return;
+    setInviting(true);
+    try {
+      const r = await api<{ ok: true; alreadyActivated: boolean }>(
+        `/api/guards/${id}/send-app-invite`,
+        { method: "POST" },
+      );
+      toast({
+        title: r.alreadyActivated
+          ? "Reminder SMS sent — guard already activated the app"
+          : "Setup link sent via SMS (valid for 7 days)",
+        variant: "success",
+      });
+    } catch (e: unknown) {
+      toast({
+        title: "Failed to send invite",
+        description: e instanceof Error ? e.message : "",
+        variant: "error",
+      });
+    } finally {
+      setInviting(false);
+    }
+  }
 
   if (isLoading) return <div className="text-muted-foreground">Loading…</div>;
   if (!data) return <div className="text-muted-foreground">Not found.</div>;
@@ -51,6 +77,9 @@ export default function GuardDetailPage() {
         description={`${formatPhoneAU(data.phone)}${data.email ? ` · ${data.email}` : ""}`}
         actions={
           <>
+            <Button variant="outline" onClick={sendAppInvite} disabled={inviting}>
+              <Send className="h-4 w-4" /> {inviting ? "Sending…" : "Send app invite"}
+            </Button>
             <Button variant="outline" onClick={() => setEditOpen(true)}>
               <Pencil className="h-4 w-4" /> Edit
             </Button>
