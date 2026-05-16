@@ -98,11 +98,21 @@ export default function GuardHomePage() {
   }, [me, activeCompany]);
 
   // 4. Register service worker and subscribe to push.
+  const [pushDebug, setPushDebug] = React.useState<string | null>(null);
   React.useEffect(() => {
     if (!me) return;
     if (typeof window === "undefined") return;
     if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
       setPushState("unsupported");
+      setPushDebug("Browser lacks serviceWorker or PushManager.");
+      return;
+    }
+    if (!me.vapidPublicKey) {
+      setPushState("denied");
+      setPushDebug(
+        "Server returned no VAPID public key — env var likely missing on Vercel.",
+      );
+      console.error("[guard PWA] /api/g/me returned empty vapidPublicKey");
       return;
     }
     (async () => {
@@ -113,6 +123,7 @@ export default function GuardHomePage() {
           const permission = await Notification.requestPermission();
           if (permission !== "granted") {
             setPushState("denied");
+            setPushDebug(`Notification permission ${permission}.`);
             return;
           }
           sub = await reg.pushManager.subscribe({
@@ -124,7 +135,7 @@ export default function GuardHomePage() {
           endpoint?: string;
           keys?: { p256dh?: string; auth?: string };
         };
-        await fetch("/api/g/push/subscribe", {
+        const subRes = await fetch("/api/g/push/subscribe", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -133,9 +144,17 @@ export default function GuardHomePage() {
             deviceLabel: navigator.userAgent.slice(0, 80),
           }),
         });
+        if (!subRes.ok) {
+          const body = await subRes.text();
+          throw new Error(`POST /api/g/push/subscribe ${subRes.status}: ${body}`);
+        }
         setPushState("subscribed");
-      } catch {
+        setPushDebug(null);
+      } catch (err) {
         setPushState("denied");
+        const msg = err instanceof Error ? err.message : String(err);
+        setPushDebug(msg);
+        console.error("[guard PWA] subscribe failed:", err);
       }
     })();
   }, [me]);
@@ -208,13 +227,28 @@ export default function GuardHomePage() {
 
       {pushState === "denied" && (
         <div className="mb-4 rounded border border-amber-300 bg-amber-50 p-3 text-xs text-amber-800">
-          Notifications are blocked. You&apos;ll keep getting SMS until you enable them
-          in your browser settings.
+          <div className="font-medium">Push notifications not active.</div>
+          <div className="mt-1">
+            You&apos;ll keep getting SMS until this is fixed. On iPhone, the app must be added to the Home Screen via Safari Share first, then opened from the Home Screen icon.
+          </div>
+          {pushDebug && (
+            <div className="mt-2 font-mono text-[10px] break-all bg-amber-100 p-1.5 rounded">
+              {pushDebug}
+            </div>
+          )}
         </div>
       )}
       {pushState === "unsupported" && (
         <div className="mb-4 rounded border border-slate-300 bg-slate-50 p-3 text-xs text-slate-700">
-          Push notifications aren&apos;t supported in this browser. On iPhone, add this app to your home screen via the Safari share menu first.
+          <div className="font-medium">Push notifications aren&apos;t supported by this browser.</div>
+          <div className="mt-1">
+            On iPhone: add this app to your home screen via the Safari Share menu, then open it from the Home Screen icon.
+          </div>
+          {pushDebug && (
+            <div className="mt-2 font-mono text-[10px] break-all bg-slate-100 p-1.5 rounded">
+              {pushDebug}
+            </div>
+          )}
         </div>
       )}
 
