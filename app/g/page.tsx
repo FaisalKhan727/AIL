@@ -41,9 +41,9 @@ export default function GuardHomePage() {
   const [shifts, setShifts] = React.useState<Shift[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [activeCompany, setActiveCompany] = React.useState<string>("all");
-  const [pushState, setPushState] = React.useState<"unknown" | "subscribed" | "denied" | "unsupported">(
-    "unknown",
-  );
+  const [pushState, setPushState] = React.useState<
+    "unknown" | "subscribed" | "denied" | "unsupported" | "needs_permission"
+  >("unknown");
 
   // 1. Fetch identity + memberships; redirect to sign-in on 401.
   React.useEffect(() => {
@@ -97,8 +97,72 @@ export default function GuardHomePage() {
     if (me) localStorage.setItem(ACTIVE_COMPANY_KEY, activeCompany);
   }, [me, activeCompany]);
 
-  // 4. Register service worker and subscribe to push.
+  // 4. Register service worker and check existing push permission state.
+  //
+  // iOS Safari blocks Notification.requestPermission() unless it originates
+  // from a user gesture (button tap) — calling it auto in useEffect just
+  // returns "default" with no prompt shown. So this effect only registers
+  // the SW and inspects state. The actual permission request happens in
+  // enablePush() below, wired to a button.
   const [pushDebug, setPushDebug] = React.useState<string | null>(null);
+  const swRegRef = React.useRef<ServiceWorkerRegistration | null>(null);
+
+  const subscribeAndPost = React.useCallback(
+    async (reg: ServiceWorkerRegistration) => {
+      if (!me?.vapidPublicKey) throw new Error("vapidPublicKey missing");
+      let sub = await reg.pushManager.getSubscription();
+      if (!sub) {
+        sub = await reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(me.vapidPublicKey),
+        });
+      }
+      const subJson = sub.toJSON() as {
+        endpoint?: string;
+        keys?: { p256dh?: string; auth?: string };
+      };
+      const subRes = await fetch("/api/g/push/subscribe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          endpoint: subJson.endpoint,
+          keys: subJson.keys,
+          deviceLabel: navigator.userAgent.slice(0, 80),
+        }),
+      });
+      if (!subRes.ok) {
+        const body = await subRes.text();
+        throw new Error(`POST /api/g/push/subscribe ${subRes.status}: ${body}`);
+      }
+    },
+    [me],
+  );
+
+  const enablePush = React.useCallback(async () => {
+    // Must be called from a user-gesture (button onClick).
+    setPushDebug(null);
+    try {
+      const permission = await Notification.requestPermission();
+      if (permission !== "granted") {
+        setPushState("denied");
+        setPushDebug(
+          permission === "denied"
+            ? "You blocked notifications. Open iOS Settings → Notifications → Vigilo Guards to re-enable."
+            : `Permission state: ${permission}.`,
+        );
+        return;
+      }
+      const reg = swRegRef.current ?? (await navigator.serviceWorker.ready);
+      await subscribeAndPost(reg);
+      setPushState("subscribed");
+    } catch (err) {
+      setPushState("denied");
+      const msg = err instanceof Error ? err.message : String(err);
+      setPushDebug(msg);
+      console.error("[guard PWA] enablePush failed:", err);
+    }
+  }, [subscribeAndPost]);
+
   React.useEffect(() => {
     if (!me) return;
     if (typeof window === "undefined") return;
@@ -109,55 +173,36 @@ export default function GuardHomePage() {
     }
     if (!me.vapidPublicKey) {
       setPushState("denied");
-      setPushDebug(
-        "Server returned no VAPID public key — env var likely missing on Vercel.",
-      );
+      setPushDebug("Server returned no VAPID public key — env var missing on server.");
       console.error("[guard PWA] /api/g/me returned empty vapidPublicKey");
       return;
     }
     (async () => {
       try {
         const reg = await navigator.serviceWorker.register("/g/sw.js", { scope: "/g" });
-        let sub = await reg.pushManager.getSubscription();
-        if (!sub) {
-          const permission = await Notification.requestPermission();
-          if (permission !== "granted") {
-            setPushState("denied");
-            setPushDebug(`Notification permission ${permission}.`);
-            return;
-          }
-          sub = await reg.pushManager.subscribe({
-            userVisibleOnly: true,
-            applicationServerKey: urlBase64ToUint8Array(me.vapidPublicKey),
-          });
+        swRegRef.current = reg;
+        const perm = Notification.permission;
+        if (perm === "granted") {
+          // Already granted on a previous session — silently ensure subscription exists.
+          await subscribeAndPost(reg);
+          setPushState("subscribed");
+        } else if (perm === "denied") {
+          setPushState("denied");
+          setPushDebug(
+            "Notifications are blocked. Open iOS Settings → Notifications → Vigilo Guards.",
+          );
+        } else {
+          // "default" — needs the user to tap the Enable button.
+          setPushState("needs_permission");
         }
-        const subJson = sub.toJSON() as {
-          endpoint?: string;
-          keys?: { p256dh?: string; auth?: string };
-        };
-        const subRes = await fetch("/api/g/push/subscribe", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            endpoint: subJson.endpoint,
-            keys: subJson.keys,
-            deviceLabel: navigator.userAgent.slice(0, 80),
-          }),
-        });
-        if (!subRes.ok) {
-          const body = await subRes.text();
-          throw new Error(`POST /api/g/push/subscribe ${subRes.status}: ${body}`);
-        }
-        setPushState("subscribed");
-        setPushDebug(null);
       } catch (err) {
         setPushState("denied");
         const msg = err instanceof Error ? err.message : String(err);
         setPushDebug(msg);
-        console.error("[guard PWA] subscribe failed:", err);
+        console.error("[guard PWA] init failed:", err);
       }
     })();
-  }, [me]);
+  }, [me, subscribeAndPost]);
 
   async function respond(shiftId: string, action: "accept" | "reject", reason?: string) {
     const res = await fetch(`/api/g/shifts/${shiftId}/${action}`, {
@@ -225,6 +270,20 @@ export default function GuardHomePage() {
         </div>
       )}
 
+      {pushState === "needs_permission" && (
+        <div className="mb-4 rounded border border-blue-300 bg-blue-50 p-3 text-xs text-blue-900">
+          <div className="font-medium">One more step: enable notifications.</div>
+          <div className="mt-1">
+            Tap the button below and choose <span className="font-medium">Allow</span> when iOS asks. Until you do, you&apos;ll keep getting SMS instead of push.
+          </div>
+          <button
+            onClick={enablePush}
+            className="mt-2 rounded bg-blue-600 text-white px-3 py-1.5 text-xs font-medium hover:bg-blue-700"
+          >
+            Enable notifications
+          </button>
+        </div>
+      )}
       {pushState === "denied" && (
         <div className="mb-4 rounded border border-amber-300 bg-amber-50 p-3 text-xs text-amber-800">
           <div className="font-medium">Push notifications not active.</div>
@@ -236,6 +295,12 @@ export default function GuardHomePage() {
               {pushDebug}
             </div>
           )}
+          <button
+            onClick={enablePush}
+            className="mt-2 rounded bg-amber-600 text-white px-3 py-1.5 text-xs font-medium hover:bg-amber-700"
+          >
+            Try again
+          </button>
         </div>
       )}
       {pushState === "unsupported" && (
