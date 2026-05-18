@@ -113,6 +113,13 @@ export function ShiftFormDialog({ open, onOpenChange, rosterId, initial, onSaved
   // Duplicate state (edit mode only).
   const [duplicateDate, setDuplicateDate] = React.useState<string>("");
 
+  // Multi-guard state (create mode only). When ON, the single guardId
+  // dropdown is hidden and a checkbox list takes over. Submit then POSTs
+  // guardIds[] to /api/shifts (already supported by the batch handler).
+  const [multiGuardEnabled, setMultiGuardEnabled] = React.useState(false);
+  const [selectedGuardIds, setSelectedGuardIds] = React.useState<Set<string>>(new Set());
+  const [guardFilter, setGuardFilter] = React.useState("");
+
   // Reset the form ONLY when the dialog opens. The parent (rosters page)
   // polls every 10s and rebuilds a new `initial` object literal on every
   // render, so depending on `initial` here would wipe the user's typed
@@ -138,6 +145,9 @@ export function ShiftFormDialog({ open, onOpenChange, rosterId, initial, onSaved
     setRecurDays([]);
     setRecurUntil("");
     setDuplicateDate("");
+    setMultiGuardEnabled(false);
+    setSelectedGuardIds(i?.guardId ? new Set([i.guardId]) : new Set());
+    setGuardFilter("");
   }, [open, reset]);
 
   // When the user edits the start date and recurrence is on, default the
@@ -165,9 +175,8 @@ export function ShiftFormDialog({ open, onOpenChange, rosterId, initial, onSaved
 
   const onSubmit = async (values: FormValues) => {
     try {
-      const basePayload = {
+      const sharedFields = {
         rosterId,
-        guardId: values.guardId,
         siteId: values.siteId,
         startAt: localInputToUtc(values.startAt).toISOString(),
         endAt: localInputToUtc(values.endAt).toISOString(),
@@ -176,11 +185,36 @@ export function ShiftFormDialog({ open, onOpenChange, rosterId, initial, onSaved
       };
 
       if (isEdit) {
-        const payload: Record<string, unknown> = { ...basePayload };
+        const payload: Record<string, unknown> = {
+          ...sharedFields,
+          guardId: values.guardId,
+        };
         if (values.status) payload.status = values.status;
         await api(`/api/shifts/${initial!.id}`, { method: "PATCH", body: JSON.stringify(payload) });
         toast({ title: "Shift updated", variant: "success" });
+      } else if (multiGuardEnabled) {
+        // Multi-guard: POST guardIds[] to the batch handler. Backend creates
+        // one Shift row per guardId. Recurrence is intentionally ignored in
+        // multi-guard mode (backend constraint).
+        const guardIds = Array.from(selectedGuardIds);
+        if (guardIds.length === 0) {
+          toast({ title: "Select at least one guard", variant: "error" });
+          return;
+        }
+        const payload = { ...sharedFields, guardIds };
+        const created = await api<CreateResp>(`/api/shifts`, {
+          method: "POST",
+          body: JSON.stringify(payload),
+        });
+        toast({
+          title: created.count === 1
+            ? "Shift created"
+            : `Created ${created.count} shifts (one per guard)`,
+          variant: "success",
+        });
       } else {
+        // Single guard with optional recurrence — existing behaviour.
+        const basePayload = { ...sharedFields, guardId: values.guardId };
         const recurrence = recurEnabled && recurDays.length > 0 && recurUntil
           ? { daysOfWeek: recurDays, untilDate: recurUntil }
           : undefined;
@@ -257,9 +291,15 @@ export function ShiftFormDialog({ open, onOpenChange, rosterId, initial, onSaved
 
   const submitLabel = isEdit
     ? "Save"
-    : recurEnabled && previewCount > 1
-      ? `Create ${previewCount} shifts`
-      : "Create";
+    : multiGuardEnabled
+      ? selectedGuardIds.size > 1
+        ? `Create ${selectedGuardIds.size} shifts`
+        : selectedGuardIds.size === 1
+          ? "Create"
+          : "Select guards"
+      : recurEnabled && previewCount > 1
+        ? `Create ${previewCount} shifts`
+        : "Create";
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -269,13 +309,99 @@ export function ShiftFormDialog({ open, onOpenChange, rosterId, initial, onSaved
         </DialogHeader>
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-3">
           <div className="space-y-1">
-            <Label>Guard</Label>
-            <Select {...register("guardId", { required: true })}>
-              <option value="">Select guard…</option>
-              {guards.map((g) => (
-                <option key={g.id} value={g.id}>{g.firstName} {g.lastName}</option>
-              ))}
-            </Select>
+            <div className="flex items-center justify-between">
+              <Label>{multiGuardEnabled ? `Guards (${selectedGuardIds.size} selected)` : "Guard"}</Label>
+              {!isEdit && (
+                <label className="text-xs flex items-center gap-1.5 text-muted-foreground cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={multiGuardEnabled}
+                    onChange={(e) => {
+                      setMultiGuardEnabled(e.target.checked);
+                      if (!e.target.checked) {
+                        // Switching back to single — clear multi-selection.
+                        setSelectedGuardIds(new Set());
+                      }
+                    }}
+                  />
+                  Assign to multiple guards
+                </label>
+              )}
+            </div>
+            {!multiGuardEnabled && (
+              <Select {...register("guardId", { required: !multiGuardEnabled })}>
+                <option value="">Select guard…</option>
+                {guards.map((g) => (
+                  <option key={g.id} value={g.id}>{g.firstName} {g.lastName}</option>
+                ))}
+              </Select>
+            )}
+            {multiGuardEnabled && (
+              <div className="border rounded-md">
+                <Input
+                  type="text"
+                  placeholder="Filter guards…"
+                  value={guardFilter}
+                  onChange={(e) => setGuardFilter(e.target.value)}
+                  className="border-0 border-b rounded-none focus-visible:ring-0"
+                />
+                <div className="max-h-48 overflow-y-auto p-1">
+                  {(() => {
+                    const filter = guardFilter.trim().toLowerCase();
+                    const visible = filter
+                      ? guards.filter((g) =>
+                          `${g.firstName} ${g.lastName}`.toLowerCase().includes(filter),
+                        )
+                      : guards;
+                    if (visible.length === 0) {
+                      return (
+                        <p className="text-xs text-muted-foreground p-2">
+                          No guards match &quot;{guardFilter}&quot;.
+                        </p>
+                      );
+                    }
+                    return visible.map((g) => {
+                      const checked = selectedGuardIds.has(g.id);
+                      return (
+                        <label
+                          key={g.id}
+                          className={cn(
+                            "flex items-center gap-2 px-2 py-1.5 text-sm rounded cursor-pointer hover:bg-muted/60",
+                            checked && "bg-blue-50",
+                          )}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={(e) => {
+                              setSelectedGuardIds((prev) => {
+                                const next = new Set(prev);
+                                if (e.target.checked) next.add(g.id);
+                                else next.delete(g.id);
+                                return next;
+                              });
+                            }}
+                          />
+                          <span className="flex-1">{g.firstName} {g.lastName}</span>
+                        </label>
+                      );
+                    });
+                  })()}
+                </div>
+                {selectedGuardIds.size > 0 && (
+                  <div className="border-t px-2 py-1 flex items-center justify-between text-xs text-muted-foreground">
+                    <span>{selectedGuardIds.size} selected</span>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedGuardIds(new Set())}
+                      className="text-blue-600 hover:underline"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           <div className="space-y-1">
@@ -294,7 +420,7 @@ export function ShiftFormDialog({ open, onOpenChange, rosterId, initial, onSaved
           <div className="space-y-1"><Label>Role</Label><Input placeholder="Static, Patrol, Crowd…" {...register("role")} /></div>
           <div className="space-y-1"><Label>Notes</Label><Textarea rows={2} {...register("notes")} /></div>
 
-          {!isEdit && (
+          {!isEdit && !multiGuardEnabled && (
             <div className="border rounded-md p-3 space-y-2">
               <label className="flex items-center gap-2 text-sm font-medium">
                 <input

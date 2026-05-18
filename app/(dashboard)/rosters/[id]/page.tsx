@@ -2,11 +2,12 @@
 import * as React from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, Send, RefreshCcw, AlertTriangle, Trash2, RotateCw } from "lucide-react";
+import { Plus, Send, RefreshCcw, AlertTriangle, Trash2, RotateCw, Copy } from "lucide-react";
 import { PageHeader } from "@/components/shell/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { ShiftFormDialog } from "@/components/rosters/shift-form-dialog";
+import { CopyRosterDialog } from "@/components/rosters/copy-roster-dialog";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { api } from "@/lib/fetcher";
 import { addDays, fmtTime } from "@/lib/date";
@@ -96,6 +97,7 @@ export default function RosterBuilderPage() {
   const [presetGuardId, setPresetGuardId] = React.useState<string | undefined>();
   const [presetSiteId, setPresetSiteId] = React.useState<string | undefined>();
   const [presetStart, setPresetStart] = React.useState<Date | undefined>();
+  const [copyOpen, setCopyOpen] = React.useState(false);
 
   // View-mode toggle (Guard rows vs Site rows). Persists per browser so
   // operators don't have to re-pick on every visit.
@@ -301,6 +303,9 @@ export default function RosterBuilderPage() {
               <RotateCw className={cn("h-4 w-4", isFetching && "animate-spin")} />
             </Button>
             <Button variant="outline" onClick={() => openNewShift()}><Plus className="h-4 w-4" /> Add Shift</Button>
+            <Button variant="outline" onClick={() => setCopyOpen(true)} title="Copy this roster to a new week">
+              <Copy className="h-4 w-4" /> Copy forward
+            </Button>
             <Button onClick={publishAll} disabled={publishableCount === 0}>
               <Send className="h-4 w-4" /> Publish{publishableCount > 0 ? ` (${publishableCount})` : ""}
             </Button>
@@ -471,6 +476,12 @@ export default function RosterBuilderPage() {
         }
         onSaved={() => qc.invalidateQueries({ queryKey: ["roster", id] })}
         onDeleted={() => qc.invalidateQueries({ queryKey: ["roster", id] })}
+      />
+
+      <CopyRosterDialog
+        open={copyOpen}
+        onOpenChange={setCopyOpen}
+        initialSourceId={id}
       />
     </>
   );
