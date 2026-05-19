@@ -394,6 +394,11 @@ export default function GuardHomePage() {
                 key={s.id}
                 shift={mapShift(s)}
                 showCompanyBadge={isMultiCompany && activeCompany === "all"}
+                onAccept={() => void respond(s.id, "accept")}
+                onReject={() => {
+                  const reason = prompt("Reject reason (optional):") ?? undefined;
+                  void respond(s.id, "reject", reason);
+                }}
               />
             ))}
           </ul>

@@ -114,12 +114,22 @@ interface CompactProps {
   shift: ShiftCardData;
   showCompanyBadge?: boolean;
   onTap?: () => void;
+  /** When provided AND status is PENDING, inline Accept/Decline buttons render. */
+  onAccept?: () => void;
+  onReject?: () => void;
 }
 
-export function ShiftCardCompact({ shift, showCompanyBadge = false, onTap }: CompactProps) {
+export function ShiftCardCompact({
+  shift,
+  showCompanyBadge = false,
+  onTap,
+  onAccept,
+  onReject,
+}: CompactProps) {
   const start = new Date(shift.startAt);
   const end = new Date(shift.endAt);
   const stripe = companyColour(shift.company?.brandColour, shift.company?.id);
+  const showActions = shift.status === "PENDING" && (onAccept || onReject);
 
   return (
     <li
@@ -158,6 +168,41 @@ export function ShiftCardCompact({ shift, showCompanyBadge = false, onTap }: Com
             <StatusPill status={shift.status} size="sm" />
           </div>
         </div>
+
+        {showActions && (
+          <div className="mt-2.5 flex gap-2">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onAccept?.();
+              }}
+              className={cn(
+                "flex-1 h-8 rounded-lg text-xs font-medium",
+                "bg-slate-900 text-white hover:bg-slate-800",
+                "dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-200",
+                "transition active:scale-[0.97]",
+              )}
+            >
+              Accept
+            </button>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onReject?.();
+              }}
+              className={cn(
+                "flex-1 h-8 rounded-lg text-xs font-medium",
+                "bg-white text-slate-700 border border-slate-300 hover:bg-slate-50",
+                "dark:bg-slate-800 dark:text-slate-200 dark:border-slate-600 dark:hover:bg-slate-700",
+                "transition active:scale-[0.97]",
+              )}
+            >
+              Decline
+            </button>
+          </div>
+        )}
       </div>
     </li>
   );
