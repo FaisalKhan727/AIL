@@ -2,6 +2,22 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
+import { AlertTriangle, Camera, Clock, Calendar } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import { CompanyChip } from "@/components/g/company-chip";
+import { EmptyState } from "@/components/g/empty-state";
+import {
+  ShiftCardHero,
+  ShiftCardCompact,
+  ShiftCardHeroSkeleton,
+  ShiftCardCompactSkeleton,
+  type ShiftCardData,
+} from "@/components/g/shift-card";
+
+// -----------------------------------------------------------------------------
+// API types
+// -----------------------------------------------------------------------------
 
 interface Membership {
   guardId: string;
@@ -11,17 +27,12 @@ interface Membership {
 }
 
 interface MeResponse {
-  identity: {
-    id: string;
-    firstName: string;
-    lastName: string;
-    phone: string;
-  };
+  identity: { id: string; firstName: string; lastName: string; phone: string };
   memberships: Membership[];
   vapidPublicKey: string;
 }
 
-interface Shift {
+interface ShiftApi {
   id: string;
   startAt: string;
   endAt: string;
@@ -35,15 +46,20 @@ interface Shift {
 
 const ACTIVE_COMPANY_KEY = "vg_active_company";
 
+// -----------------------------------------------------------------------------
+// Page
+// -----------------------------------------------------------------------------
+
 export default function GuardHomePage() {
   const router = useRouter();
   const [me, setMe] = React.useState<MeResponse | null>(null);
-  const [shifts, setShifts] = React.useState<Shift[]>([]);
-  const [loading, setLoading] = React.useState(true);
+  const [shifts, setShifts] = React.useState<ShiftApi[] | null>(null);
   const [activeCompany, setActiveCompany] = React.useState<string>("all");
   const [pushState, setPushState] = React.useState<
     "unknown" | "subscribed" | "denied" | "unsupported" | "needs_permission"
   >("unknown");
+  const [pushDebug, setPushDebug] = React.useState<string | null>(null);
+  const swRegRef = React.useRef<ServiceWorkerRegistration | null>(null);
 
   // 1. Fetch identity + memberships; redirect to sign-in on 401.
   React.useEffect(() => {
@@ -54,13 +70,10 @@ export default function GuardHomePage() {
           router.replace("/g/sign-in");
           return;
         }
-        if (!res.ok) {
-          setLoading(false);
-          return;
-        }
+        if (!res.ok) return;
         const json = (await res.json()) as MeResponse;
         setMe(json);
-        const stored = localStorage.getItem(ACTIVE_COMPANY_KEY);
+        const stored = typeof window !== "undefined" ? localStorage.getItem(ACTIVE_COMPANY_KEY) : null;
         if (stored && (stored === "all" || json.memberships.some((m) => m.companyId === stored))) {
           setActiveCompany(stored);
         } else if (json.memberships.length === 1) {
@@ -69,22 +82,21 @@ export default function GuardHomePage() {
           setActiveCompany("all");
         }
       } catch {
-        setLoading(false);
+        /* swallow — page will sit in skeleton state */
       }
     })();
   }, [router]);
 
-  // 2. Fetch shifts whenever activeCompany changes.
+  // 2. Fetch shifts whenever active company changes.
   const reloadShifts = React.useCallback(async () => {
     if (!me) return;
-    setLoading(true);
     try {
       const q = activeCompany === "all" ? "" : `?companyId=${encodeURIComponent(activeCompany)}`;
       const res = await fetch(`/api/g/shifts${q}`);
       const json = await res.json();
       if (res.ok) setShifts(json.shifts ?? []);
-    } finally {
-      setLoading(false);
+    } catch {
+      /* leave previous state */
     }
   }, [me, activeCompany]);
 
@@ -94,19 +106,12 @@ export default function GuardHomePage() {
 
   // 3. Persist active company.
   React.useEffect(() => {
-    if (me) localStorage.setItem(ACTIVE_COMPANY_KEY, activeCompany);
+    if (me && typeof window !== "undefined") {
+      localStorage.setItem(ACTIVE_COMPANY_KEY, activeCompany);
+    }
   }, [me, activeCompany]);
 
-  // 4. Register service worker and check existing push permission state.
-  //
-  // iOS Safari blocks Notification.requestPermission() unless it originates
-  // from a user gesture (button tap) — calling it auto in useEffect just
-  // returns "default" with no prompt shown. So this effect only registers
-  // the SW and inspects state. The actual permission request happens in
-  // enablePush() below, wired to a button.
-  const [pushDebug, setPushDebug] = React.useState<string | null>(null);
-  const swRegRef = React.useRef<ServiceWorkerRegistration | null>(null);
-
+  // 4. Service worker registration + permission inspection (no auto-prompt).
   const subscribeAndPost = React.useCallback(
     async (reg: ServiceWorkerRegistration) => {
       if (!me?.vapidPublicKey) throw new Error("vapidPublicKey missing");
@@ -139,7 +144,6 @@ export default function GuardHomePage() {
   );
 
   const enablePush = React.useCallback(async () => {
-    // Must be called from a user-gesture (button onClick).
     setPushDebug(null);
     try {
       const permission = await Notification.requestPermission();
@@ -157,15 +161,13 @@ export default function GuardHomePage() {
       setPushState("subscribed");
     } catch (err) {
       setPushState("denied");
-      const msg = err instanceof Error ? err.message : String(err);
-      setPushDebug(msg);
+      setPushDebug(err instanceof Error ? err.message : String(err));
       console.error("[guard PWA] enablePush failed:", err);
     }
   }, [subscribeAndPost]);
 
   React.useEffect(() => {
-    if (!me) return;
-    if (typeof window === "undefined") return;
+    if (!me || typeof window === "undefined") return;
     if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
       setPushState("unsupported");
       setPushDebug("Browser lacks serviceWorker or PushManager.");
@@ -174,7 +176,6 @@ export default function GuardHomePage() {
     if (!me.vapidPublicKey) {
       setPushState("denied");
       setPushDebug("Server returned no VAPID public key — env var missing on server.");
-      console.error("[guard PWA] /api/g/me returned empty vapidPublicKey");
       return;
     }
     (async () => {
@@ -183,80 +184,85 @@ export default function GuardHomePage() {
         swRegRef.current = reg;
         const perm = Notification.permission;
         if (perm === "granted") {
-          // Already granted on a previous session — silently ensure subscription exists.
           await subscribeAndPost(reg);
           setPushState("subscribed");
         } else if (perm === "denied") {
           setPushState("denied");
-          setPushDebug(
-            "Notifications are blocked. Open iOS Settings → Notifications → Vigilo Guards.",
-          );
+          setPushDebug("Notifications are blocked. Open iOS Settings → Notifications → Vigilo Guards.");
         } else {
-          // "default" — needs the user to tap the Enable button.
           setPushState("needs_permission");
         }
       } catch (err) {
         setPushState("denied");
-        const msg = err instanceof Error ? err.message : String(err);
-        setPushDebug(msg);
+        setPushDebug(err instanceof Error ? err.message : String(err));
         console.error("[guard PWA] init failed:", err);
       }
     })();
   }, [me, subscribeAndPost]);
 
+  // 5. Respond actions (Accept/Reject) — optimistic UI update + real API call.
   async function respond(shiftId: string, action: "accept" | "reject", reason?: string) {
-    const res = await fetch(`/api/g/shifts/${shiftId}/${action}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: action === "reject" ? JSON.stringify({ reason }) : "{}",
-    });
-    if (res.ok) {
-      await reloadShifts();
-    } else {
-      const json = await res.json().catch(() => ({}));
-      alert(json.error ?? `${action} failed`);
+    const prev = shifts;
+    // Optimistic: flip status immediately so the user gets instant feedback.
+    if (shifts) {
+      setShifts(
+        shifts.map((s) =>
+          s.id === shiftId ? { ...s, status: action === "accept" ? "CONFIRMED" : "REJECTED" } : s,
+        ),
+      );
+    }
+    try {
+      const res = await fetch(`/api/g/shifts/${shiftId}/${action}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: action === "reject" ? JSON.stringify({ reason }) : "{}",
+      });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? `${action} failed`);
+      await reloadShifts(); // resync from server
+    } catch (e: unknown) {
+      // Roll back optimistic change
+      setShifts(prev);
+      alert(e instanceof Error ? e.message : `${action} failed`);
     }
   }
 
-  if (!me) {
-    return <div className="p-6 text-slate-500 text-sm">Loading…</div>;
+  async function signOut() {
+    if (!confirm("Sign out of Vigilo Guards?")) return;
+    await fetch("/api/g/auth/sign-out", { method: "POST" });
+    router.replace("/g/sign-in");
   }
 
-  const isMultiCompany = me.memberships.length > 1;
-  const activeMembership =
-    activeCompany === "all"
-      ? null
-      : me.memberships.find((m) => m.companyId === activeCompany) ?? null;
+  // ---------- derived state ----------
+
+  const isMultiCompany = (me?.memberships.length ?? 0) > 1;
+
+  const partitioned = React.useMemo(() => {
+    if (!shifts) return null;
+    if (shifts.length === 0) return { hero: null as ShiftApi | null, rest: [] as ShiftApi[] };
+    const now = Date.now();
+    // Hero = the next shift that isn't yet WORKED. If none upcoming, take the earliest.
+    const sorted = [...shifts].sort((a, b) => a.startAt.localeCompare(b.startAt));
+    const hero = sorted.find((s) => new Date(s.endAt).getTime() >= now) ?? sorted[0];
+    const rest = sorted.filter((s) => s.id !== hero.id).slice(0, 5);
+    return { hero, rest };
+  }, [shifts]);
+
+  const subline = (() => {
+    if (!me) return "";
+    if (activeCompany === "all" || !isMultiCompany) return me.identity.phone;
+    return me.memberships.find((m) => m.companyId === activeCompany)?.companyName ?? me.identity.phone;
+  })();
+
+  // ---------- render ----------
 
   return (
-    <div className="max-w-md mx-auto px-4 py-6 pb-24">
-      <header className="mb-4 flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold">
-            Hi, {me.identity.firstName}
-          </h1>
-          <p className="text-xs text-slate-500">{me.identity.phone}</p>
-        </div>
-        <button
-          onClick={async () => {
-            await fetch("/api/g/auth/sign-out", { method: "POST" });
-            router.replace("/g/sign-in");
-          }}
-          className="text-xs text-slate-500 hover:text-slate-700 underline"
-        >
-          Sign out
-        </button>
-      </header>
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 pb-12">
+      <TopBar firstName={me?.identity.firstName} subline={subline} onAvatarTap={signOut} />
 
-      {isMultiCompany && (
-        <div className="mb-4">
-          <div className="flex flex-wrap gap-2">
-            <CompanyChip
-              label="All"
-              colour={null}
-              active={activeCompany === "all"}
-              onClick={() => setActiveCompany("all")}
-            />
+      {isMultiCompany && me && (
+        <div className="px-4 pt-3 pb-1 -mx-1 overflow-x-auto whitespace-nowrap">
+          <div className="inline-flex gap-2 px-1">
+            <CompanyChip label="All" colour={null} active={activeCompany === "all"} onClick={() => setActiveCompany("all")} />
             {me.memberships.map((m) => (
               <CompanyChip
                 key={m.companyId}
@@ -271,218 +277,225 @@ export default function GuardHomePage() {
       )}
 
       {pushState === "needs_permission" && (
-        <div className="mb-4 rounded border border-blue-300 bg-blue-50 p-3 text-xs text-blue-900">
-          <div className="font-medium">One more step: enable notifications.</div>
-          <div className="mt-1">
-            Tap the button below and choose <span className="font-medium">Allow</span> when iOS asks. Until you do, you&apos;ll keep getting SMS instead of push.
-          </div>
+        <div className="mx-4 mt-3 rounded-xl border border-blue-300 dark:border-blue-700 bg-blue-50 dark:bg-blue-950/50 p-3 text-xs text-blue-900 dark:text-blue-100">
+          <div className="font-medium">Enable notifications to get shift alerts.</div>
           <button
             onClick={enablePush}
-            className="mt-2 rounded bg-blue-600 text-white px-3 py-1.5 text-xs font-medium hover:bg-blue-700"
+            className="mt-2 rounded-lg bg-blue-600 text-white px-3 py-1.5 text-xs font-medium hover:bg-blue-700 active:scale-[0.97] transition"
           >
             Enable notifications
           </button>
         </div>
       )}
       {pushState === "denied" && (
-        <div className="mb-4 rounded border border-amber-300 bg-amber-50 p-3 text-xs text-amber-800">
+        <div className="mx-4 mt-3 rounded-xl border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/50 p-3 text-xs text-amber-900 dark:text-amber-100">
           <div className="font-medium">Push notifications not active.</div>
-          <div className="mt-1">
-            You&apos;ll keep getting SMS until this is fixed. On iPhone, the app must be added to the Home Screen via Safari Share first, then opened from the Home Screen icon.
-          </div>
+          <p className="mt-1">You&apos;ll keep getting SMS until this is fixed.</p>
           {pushDebug && (
-            <div className="mt-2 font-mono text-[10px] break-all bg-amber-100 p-1.5 rounded">
+            <p className="mt-2 font-mono text-[10px] break-all bg-amber-100 dark:bg-amber-900/40 p-1.5 rounded">
               {pushDebug}
-            </div>
+            </p>
           )}
           <button
             onClick={enablePush}
-            className="mt-2 rounded bg-amber-600 text-white px-3 py-1.5 text-xs font-medium hover:bg-amber-700"
+            className="mt-2 rounded-lg bg-amber-600 text-white px-3 py-1.5 text-xs font-medium hover:bg-amber-700 active:scale-[0.97] transition"
           >
             Try again
           </button>
         </div>
       )}
-      {pushState === "unsupported" && (
-        <div className="mb-4 rounded border border-slate-300 bg-slate-50 p-3 text-xs text-slate-700">
-          <div className="font-medium">Push notifications aren&apos;t supported by this browser.</div>
-          <div className="mt-1">
-            On iPhone: add this app to your home screen via the Safari Share menu, then open it from the Home Screen icon.
-          </div>
-          {pushDebug && (
-            <div className="mt-2 font-mono text-[10px] break-all bg-slate-100 p-1.5 rounded">
-              {pushDebug}
-            </div>
-          )}
+
+      {/* Hero card area */}
+      <div className="px-4 pt-3">
+        {shifts === null ? (
+          <ShiftCardHeroSkeleton />
+        ) : partitioned?.hero ? (
+          <ShiftCardHero
+            shift={mapShift(partitioned.hero)}
+            showCompanyBadge={isMultiCompany && activeCompany === "all"}
+          >
+            {partitioned.hero.status === "PENDING" && (
+              <div className="flex gap-2">
+                <Button
+                  className="flex-1 h-10 bg-slate-900 hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-200 text-white"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    void respond(partitioned.hero!.id, "accept");
+                  }}
+                >
+                  Accept
+                </Button>
+                <Button
+                  variant="outline"
+                  className="flex-1 h-10"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const reason = prompt("Reject reason (optional):") ?? undefined;
+                    void respond(partitioned.hero!.id, "reject", reason);
+                  }}
+                >
+                  Decline
+                </Button>
+              </div>
+            )}
+            {partitioned.hero.status === "CONFIRMED" && (
+              <Button
+                variant="outline"
+                className="w-full h-10"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const reason = prompt("Change to declined — reason?") ?? undefined;
+                  void respond(partitioned.hero!.id, "reject", reason);
+                }}
+              >
+                Change to decline
+              </Button>
+            )}
+            {partitioned.hero.status === "REJECTED" && (
+              <Button
+                className="w-full h-10 bg-emerald-600 hover:bg-emerald-700 text-white"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  void respond(partitioned.hero!.id, "accept");
+                }}
+              >
+                Reconsider — accept
+              </Button>
+            )}
+          </ShiftCardHero>
+        ) : (
+          <EmptyState
+            icon={Calendar}
+            title="You're all caught up"
+            description="No shifts scheduled. We'll notify you when one's published."
+          />
+        )}
+      </div>
+
+      {/* Quick actions row — Phase 2-4 features visible but disabled */}
+      <QuickActions />
+
+      {/* Upcoming list */}
+      {shifts === null ? (
+        <div className="px-4 pt-6">
+          <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200 mb-2">Upcoming</h3>
+          <ul className="space-y-2">
+            <ShiftCardCompactSkeleton />
+            <ShiftCardCompactSkeleton />
+            <ShiftCardCompactSkeleton />
+          </ul>
         </div>
-      )}
-
-      <h2 className="text-sm font-medium text-slate-700 mb-2">
-        {activeMembership ? `${activeMembership.companyName} shifts` : "All shifts"}
-      </h2>
-
-      {loading && shifts.length === 0 ? (
-        <p className="text-sm text-slate-500">Loading shifts…</p>
-      ) : shifts.length === 0 ? (
-        <p className="text-sm text-slate-500">No upcoming shifts.</p>
-      ) : (
-        <ul className="space-y-3">
-          {shifts.map((s) => (
-            <ShiftCard
-              key={s.id}
-              shift={s}
-              showCompanyBadge={isMultiCompany && activeCompany === "all"}
-              onAccept={() => respond(s.id, "accept")}
-              onReject={() => {
-                const reason = prompt("Reject reason (optional):") ?? undefined;
-                void respond(s.id, "reject", reason);
-              }}
-            />
-          ))}
-        </ul>
-      )}
+      ) : partitioned && partitioned.rest.length > 0 ? (
+        <div className="px-4 pt-6">
+          <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200 mb-2">Upcoming</h3>
+          <ul className="space-y-2">
+            {partitioned.rest.map((s) => (
+              <ShiftCardCompact
+                key={s.id}
+                shift={mapShift(s)}
+                showCompanyBadge={isMultiCompany && activeCompany === "all"}
+              />
+            ))}
+          </ul>
+        </div>
+      ) : null}
     </div>
   );
 }
 
-function CompanyChip({
-  label,
-  colour,
-  active,
-  onClick,
+// -----------------------------------------------------------------------------
+// Sub-components
+// -----------------------------------------------------------------------------
+
+function TopBar({
+  firstName,
+  subline,
+  onAvatarTap,
 }: {
-  label: string;
-  colour: string | null;
-  active: boolean;
-  onClick: () => void;
+  firstName?: string;
+  subline: string;
+  onAvatarTap: () => void;
 }) {
+  const display = firstName ?? "…";
+  const initials = (firstName ?? "")
+    .split(/\s+/)
+    .map((p) => p[0])
+    .filter(Boolean)
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
   return (
-    <button
-      onClick={onClick}
-      className={`text-xs px-3 py-1.5 rounded-full border flex items-center gap-1.5 ${
-        active
-          ? "bg-slate-900 text-white border-slate-900"
-          : "bg-white text-slate-700 border-slate-300"
-      }`}
-    >
-      {colour && (
-        <span
-          className="inline-block h-2 w-2 rounded-full"
-          style={{ backgroundColor: colour }}
-        />
-      )}
-      {label}
-    </button>
-  );
-}
-
-function ShiftCard({
-  shift,
-  showCompanyBadge,
-  onAccept,
-  onReject,
-}: {
-  shift: Shift;
-  showCompanyBadge: boolean;
-  onAccept: () => void;
-  onReject: () => void;
-}) {
-  const start = new Date(shift.startAt);
-  const end = new Date(shift.endAt);
-  const stripeColour =
-    shift.company?.brandColour ?? "#0B1E3F";
-
-  return (
-    <li className="relative overflow-hidden rounded-lg bg-white shadow-sm border border-slate-200">
-      <div
-        className="absolute left-0 top-0 bottom-0 w-1.5"
-        style={{ backgroundColor: stripeColour }}
-      />
-      <div className="pl-4 pr-3 py-3">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <p className="text-sm font-medium truncate">{shift.site.name}</p>
-            <p className="text-xs text-slate-500 truncate">{shift.site.address}</p>
-          </div>
-          {showCompanyBadge && shift.company && (
-            <span className="text-[10px] uppercase tracking-wide font-medium text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded">
-              {shift.company.name}
-            </span>
-          )}
+    <header className="sticky top-0 z-10 bg-slate-50/95 dark:bg-slate-900/95 backdrop-blur px-4 py-3 border-b border-slate-200 dark:border-slate-700">
+      <div className="flex items-center justify-between">
+        <div className="min-w-0">
+          <h1 className="text-base font-semibold text-slate-900 dark:text-slate-100">
+            Hi, {display}
+          </h1>
+          <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{subline}</p>
         </div>
-        <p className="mt-2 text-sm text-slate-700">
-          {start.toLocaleString(undefined, {
-            weekday: "short",
-            day: "numeric",
-            month: "short",
-          })}{" "}
-          {start.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })} –{" "}
-          {end.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}
-        </p>
-        {shift.role && (
-          <p className="text-xs text-slate-500 mt-1">{shift.role}</p>
-        )}
-        {shift.notes && (
-          <p className="text-xs text-slate-500 mt-1 whitespace-pre-wrap">{shift.notes}</p>
-        )}
-
-        <div className="mt-3 flex items-center gap-2">
-          <StatusPill status={shift.status} />
-          {shift.status === "PENDING" && (
-            <>
-              <button
-                onClick={onAccept}
-                className="ml-auto text-xs bg-emerald-600 text-white px-3 py-1.5 rounded font-medium hover:bg-emerald-700"
-              >
-                Accept
-              </button>
-              <button
-                onClick={onReject}
-                className="text-xs bg-white text-slate-700 border border-slate-300 px-3 py-1.5 rounded font-medium hover:bg-slate-50"
-              >
-                Reject
-              </button>
-            </>
+        <button
+          onClick={onAvatarTap}
+          aria-label="Sign out"
+          className={cn(
+            "h-9 w-9 rounded-full bg-slate-200 dark:bg-slate-700",
+            "flex items-center justify-center text-xs font-semibold",
+            "text-slate-700 dark:text-slate-200 active:scale-95 transition",
           )}
-          {shift.status === "CONFIRMED" && (
-            <button
-              onClick={onReject}
-              className="ml-auto text-xs text-slate-500 hover:text-red-600 underline"
-            >
-              Change to reject
-            </button>
-          )}
-          {shift.status === "REJECTED" && (
-            <button
-              onClick={onAccept}
-              className="ml-auto text-xs text-emerald-700 hover:underline"
-            >
-              Reconsider — accept
-            </button>
-          )}
-        </div>
+        >
+          {initials || "…"}
+        </button>
       </div>
-    </li>
+    </header>
   );
 }
 
-function StatusPill({ status }: { status: Shift["status"] }) {
-  const map: Record<Shift["status"], string> = {
-    PENDING: "bg-amber-100 text-amber-800",
-    CONFIRMED: "bg-emerald-100 text-emerald-800",
-    REJECTED: "bg-red-100 text-red-800",
-    WORKED: "bg-emerald-200 text-emerald-900",
-    NO_SHOW: "bg-slate-100 text-slate-600",
-    CANCELLED: "bg-slate-100 text-slate-600",
-  };
+function QuickActions() {
+  // Phase 2-4 features. Rendered but inert in Phase 1 — gives the home
+  // screen visual density and signals what's coming. The onClick is a
+  // friendly placeholder; behaviour lands per phase.
+  const items = [
+    { icon: AlertTriangle, label: "Report" },
+    { icon: Camera, label: "Check-in" },
+    { icon: Clock, label: "Timesheets" },
+  ];
   return (
-    <span className={`text-[10px] uppercase tracking-wide font-medium px-1.5 py-0.5 rounded ${map[status]}`}>
-      {status}
-    </span>
+    <div className="grid grid-cols-3 gap-2 px-4 pt-4">
+      {items.map((it) => (
+        <button
+          key={it.label}
+          type="button"
+          onClick={() => alert("Coming soon — available in a future update.")}
+          className={cn(
+            "flex flex-col items-center justify-center gap-1 rounded-xl",
+            "bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700",
+            "py-3 transition active:scale-[0.97]",
+            "opacity-70",
+          )}
+        >
+          <it.icon className="h-5 w-5 text-slate-600 dark:text-slate-300" />
+          <span className="text-[11px] font-medium text-slate-700 dark:text-slate-200">{it.label}</span>
+        </button>
+      ))}
+    </div>
   );
 }
 
-// VAPID public key conversion (base64url → ArrayBuffer) for PushManager.subscribe.
+// -----------------------------------------------------------------------------
+// Helpers
+// -----------------------------------------------------------------------------
+
+function mapShift(s: ShiftApi): ShiftCardData {
+  return {
+    id: s.id,
+    startAt: s.startAt,
+    endAt: s.endAt,
+    role: s.role,
+    status: s.status,
+    site: { name: s.site.name, address: s.site.address },
+    company: s.company,
+  };
+}
+
 function urlBase64ToUint8Array(base64String: string): ArrayBuffer {
   const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
   const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
