@@ -322,7 +322,7 @@ export default function PreviewPage() {
 
   return (
     <div className={cn("min-h-screen", dark ? "bg-slate-950" : "bg-slate-100")}>
-      <div className="sticky top-0 z-20 flex items-center justify-between p-3 bg-slate-100/95 dark:bg-slate-950/95 backdrop-blur border-b border-slate-200 dark:border-slate-800">
+      <div className="sticky top-0 z-20 flex items-center justify-between px-3 pt-[calc(env(safe-area-inset-top)+0.75rem)] pb-3 bg-slate-100/95 dark:bg-slate-950/95 backdrop-blur border-b border-slate-200 dark:border-slate-800">
         <button
           onClick={() => router.push("/g")}
           className="inline-flex items-center gap-1 text-sm text-slate-600 dark:text-slate-300"

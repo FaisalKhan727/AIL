@@ -63,6 +63,17 @@ const config: Config = {
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
       },
+      padding: {
+        // iOS safe-area inset utilities for PWA edge-to-edge layout.
+        // env(safe-area-inset-*) only resolves when the page sets
+        // viewport-fit=cover in its viewport meta. Used by the guard PWA
+        // shell at /g so the header clears the status bar / Dynamic Island
+        // and the bottom clears the home indicator.
+        "safe-t": "env(safe-area-inset-top)",
+        "safe-b": "env(safe-area-inset-bottom)",
+        "safe-l": "env(safe-area-inset-left)",
+        "safe-r": "env(safe-area-inset-right)",
+      },
       fontFamily: {
         sans: ["var(--font-inter)", "system-ui", "sans-serif"],
       },
