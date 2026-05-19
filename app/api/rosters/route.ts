@@ -9,28 +9,38 @@ export async function GET() {
   const rosters = await prisma.roster.findMany({
     where: { companyId: auth.companyId },
     orderBy: { startDate: "desc" },
-    include: { _count: { select: { shifts: true } } },
   });
-  // Add confirmation rates
-  const enriched = await Promise.all(
-    rosters.map(async (r) => {
-      const counts = await prisma.shift.groupBy({
-        by: ["status"],
-        where: { rosterId: r.id },
+
+  // One combined groupBy across ALL rosters, not one per roster (was N+1).
+  // For a company with 100 rosters this drops from 101 round-trips to 2.
+  const counts = rosters.length === 0
+    ? []
+    : await prisma.shift.groupBy({
+        by: ["rosterId", "status"],
+        where: { rosterId: { in: rosters.map((r) => r.id) } },
         _count: { _all: true },
       });
-      const total = counts.reduce((a, c) => a + c._count._all, 0);
-      const confirmed = counts.find((c) => c.status === "CONFIRMED")?._count._all ?? 0;
-      const rejected = counts.find((c) => c.status === "REJECTED")?._count._all ?? 0;
-      return {
-        ...r,
-        shiftCount: total,
-        confirmedCount: confirmed,
-        rejectedCount: rejected,
-        confirmationPct: total > 0 ? Math.round((confirmed / total) * 100) : 0,
-      };
-    }),
-  );
+
+  // Build a per-roster status histogram from the flat groupBy result.
+  const histogram = new Map<string, { total: number; confirmed: number; rejected: number }>();
+  for (const c of counts) {
+    const h = histogram.get(c.rosterId) ?? { total: 0, confirmed: 0, rejected: 0 };
+    h.total += c._count._all;
+    if (c.status === "CONFIRMED") h.confirmed += c._count._all;
+    else if (c.status === "REJECTED") h.rejected += c._count._all;
+    histogram.set(c.rosterId, h);
+  }
+
+  const enriched = rosters.map((r) => {
+    const h = histogram.get(r.id) ?? { total: 0, confirmed: 0, rejected: 0 };
+    return {
+      ...r,
+      shiftCount: h.total,
+      confirmedCount: h.confirmed,
+      rejectedCount: h.rejected,
+      confirmationPct: h.total > 0 ? Math.round((h.confirmed / h.total) * 100) : 0,
+    };
+  });
   return NextResponse.json(enriched);
 }
 

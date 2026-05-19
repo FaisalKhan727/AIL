@@ -114,11 +114,13 @@ export default function RosterBuilderPage() {
   const { data, refetch, isFetching } = useQuery<Roster>({
     queryKey: ["roster", id],
     queryFn: () => api(`/api/rosters/${id}`),
-    // Poll every 10s. Keep polling when the tab is in background so when the
-    // operator switches back, the grid is already up to date with any SMS
-    // replies that came in while they were elsewhere.
+    // Poll every 10s while the tab is visible. When the operator switches to
+    // another tab, polling pauses (refetchIntervalInBackground=false, default)
+    // — but the grid is refreshed instantly the moment they switch back via
+    // refetchOnWindowFocus. Same "fresh when I look at it" UX without the
+    // background load.
     refetchInterval: 10_000,
-    refetchIntervalInBackground: true,
+    refetchOnWindowFocus: true,
   });
 
   if (!data) return <div className="text-muted-foreground">Loading…</div>;
