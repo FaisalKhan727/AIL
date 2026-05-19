@@ -313,6 +313,7 @@ export default function GuardHomePage() {
           <ShiftCardHero
             shift={mapShift(partitioned.hero)}
             showCompanyBadge={isMultiCompany && activeCompany === "all"}
+            onTap={() => router.push(`/g/shifts/${partitioned.hero!.id}`)}
           >
             {partitioned.hero.status === "PENDING" && (
               <div className="flex gap-2">
@@ -394,6 +395,7 @@ export default function GuardHomePage() {
                 key={s.id}
                 shift={mapShift(s)}
                 showCompanyBadge={isMultiCompany && activeCompany === "all"}
+                onTap={() => router.push(`/g/shifts/${s.id}`)}
                 onAccept={() => void respond(s.id, "accept")}
                 onReject={() => {
                   const reason = prompt("Reject reason (optional):") ?? undefined;
