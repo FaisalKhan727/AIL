@@ -476,6 +476,14 @@ model AlarmJob {
   createdBy           String // FK to AdminUser.id (string, kept loose for now)
   createdAt           DateTime  @default(now())
   resolvedAt          DateTime?
+  // Paste-and-parse intake metadata (populated when admin pastes a raw
+  // monitoring-centre message and the parser extracts fields).
+  bureau              String? // e.g. "Secura Protective Solutions" — secondary source
+  areaLabel           String? // monitoring centre's area label, e.g. "1 MJB Cont - Access"
+  zoneLabel           String? // monitoring centre's zone description, e.g. "2 Front Entry Pir"
+  rawIntakeText       String? // the original pasted message, for audit
+  parserUsed          String? // "guardian" | "manual" | "adt" | ...
+  parseConfidence     String? // "high" | "low" | "manual"
 
   company    Company          @relation(fields: [companyId], references: [id])
   site       Site?            @relation(fields: [siteId], references: [id])
@@ -563,4 +571,20 @@ model AlarmReport {
 
   @@index([alarmJobId])
   @@index([companyId])
+}
+
+// Geocoding cache. Not company-scoped — the same physical address
+// resolves to the same lat/lng regardless of which tenant looks it up,
+// so all tenants share the cache and save provider quota / rate-limit
+// usage. Provider column lets us swap Nominatim → Google later without
+// invalidating entries.
+model GeocodedAddress {
+  id                String   @id @default(cuid())
+  normalisedAddress String   @unique // lowercased, trimmed, collapsed whitespace
+  latitude          Decimal
+  longitude         Decimal
+  provider          String // "nominatim" | "google" | ...
+  createdAt         DateTime @default(now())
+
+  @@index([normalisedAddress])
 }
