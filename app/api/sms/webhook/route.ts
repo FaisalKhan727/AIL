@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSmsAdapter } from "@/lib/sms";
 import { parseInboundReply, type ParserShift } from "@/lib/sms/parser";
-import { buildReplySummary, buildUnparsedReply } from "@/lib/sms/templates";
+import { buildReplySummary, buildUnparsedReply, buildAlarmAutoReply } from "@/lib/sms/templates";
+import { parseAlarmReply, combineHHmmWithDispatch } from "@/lib/alarms/parser";
 
 async function getSetting(companyId: string, key: string): Promise<string | undefined> {
   const row = await prisma.setting.findUnique({
@@ -64,7 +65,7 @@ export async function POST(req: Request) {
   }
 
   // Always log the inbound, even if guard is unknown.
-  await prisma.smsLog.create({
+  const inboundLog = await prisma.smsLog.create({
     data: {
       guardId: guard?.id,
       direction: "INBOUND",
@@ -75,6 +76,31 @@ export async function POST(req: Request) {
       status: "received",
     },
   });
+
+  // ALARM-FIRST ROUTING ----------------------------------------------------
+  // Confirmed priority: an inbound SMS from a phone that has a pending alarm
+  // dispatch is treated as an alarm response BEFORE falling through to roster
+  // confirmation logic. If no pending alarm, the existing roster flow runs
+  // exactly as before — zero behaviour change for the roster path.
+  const pendingResponder = await prisma.alarmResponder.findFirst({
+    where: {
+      externalPhone: from,
+      declinedAt: null,
+      alarmJob: { status: { in: ["DISPATCHED", "ACKNOWLEDGED"] } },
+    },
+    include: { alarmJob: true },
+    orderBy: { dispatchedAt: "desc" },
+  });
+  if (pendingResponder) {
+    await handleAlarmReply({
+      body,
+      responder: pendingResponder,
+      inboundLogId: inboundLog.id,
+      from,
+    });
+    return NextResponse.json({ ok: true, route: "alarm", docket: pendingResponder.alarmJob.docket });
+  }
+  // ---------------------------------------------------------------------
 
   if (!guard) {
     return NextResponse.json({ ok: true, note: "unknown sender" });
@@ -153,4 +179,101 @@ export async function POST(req: Request) {
     summary: { confirmedCount, rejectedCount, pendingCount },
     autoReply: summary,
   });
+}
+
+// ---------------------------------------------------------------------------
+// Alarm reply handling — invoked when an inbound SMS matches a pending
+// AlarmResponder. Updates DB, sends auto-reply where appropriate, links
+// the inbound SmsLog to the alarm context.
+// ---------------------------------------------------------------------------
+
+type PendingResponderRow = Awaited<
+  ReturnType<typeof prisma.alarmResponder.findFirst<{ include: { alarmJob: true } }>>
+>;
+
+async function handleAlarmReply(args: {
+  body: string;
+  responder: NonNullable<PendingResponderRow>;
+  inboundLogId: string;
+  from: string;
+}): Promise<void> {
+  const { body, responder, inboundLogId, from } = args;
+  const adapter = getSmsAdapter();
+  const result = parseAlarmReply(body);
+
+  // Link the inbound log to the alarm context regardless of parse outcome.
+  await prisma.smsLog.update({
+    where: { id: inboundLogId },
+    data: { alarmJobId: responder.alarmJobId, alarmResponderId: responder.id },
+  });
+
+  if (result.kind === "complete") {
+    const onsiteAt = combineHHmmWithDispatch(result.onsiteHHmm, responder.dispatchedAt);
+    const offsiteAt = combineHHmmWithDispatch(result.offsiteHHmm, responder.dispatchedAt);
+    // If offsite < onsite (crossed midnight reported in shifted order), push offsite a day.
+    const offsiteAdjusted =
+      offsiteAt.getTime() < onsiteAt.getTime()
+        ? new Date(offsiteAt.getTime() + 24 * 3600_000)
+        : offsiteAt;
+
+    await prisma.$transaction([
+      prisma.alarmResponder.update({
+        where: { id: responder.id },
+        data: {
+          onsiteAt,
+          offsiteAt: offsiteAdjusted,
+          responseResult: result.resultText,
+          responseRawBody: body,
+          responseSmsLogId: inboundLogId,
+        },
+      }),
+      prisma.alarmJob.update({
+        where: { id: responder.alarmJobId },
+        data: { status: "COMPLETED", resolvedAt: new Date() },
+      }),
+    ]);
+
+    const replyBody = buildAlarmAutoReply("completed", responder.alarmJob.docket);
+    await adapter.sendSms(from, replyBody, {});
+    // PDF generation hook (step 8) lands here — left as a TODO comment so
+    // the trigger point is obvious when that step ships.
+    // await generateAlarmReport(responder.alarmJobId);
+    return;
+  }
+
+  if (result.kind === "acknowledged") {
+    await prisma.$transaction([
+      prisma.alarmResponder.update({
+        where: { id: responder.id },
+        data: { acknowledgedAt: new Date(), responseRawBody: body, responseSmsLogId: inboundLogId },
+      }),
+      prisma.alarmJob.update({
+        where: { id: responder.alarmJobId },
+        data: { status: responder.alarmJob.status === "DISPATCHED" ? "ACKNOWLEDGED" : responder.alarmJob.status },
+      }),
+    ]);
+    const replyBody = buildAlarmAutoReply("acknowledged");
+    await adapter.sendSms(from, replyBody, {});
+    return;
+  }
+
+  if (result.kind === "declined") {
+    await prisma.alarmResponder.update({
+      where: { id: responder.id },
+      data: { declinedAt: new Date(), responseRawBody: body, responseSmsLogId: inboundLogId },
+    });
+    // Admin SMS notification lands in step 9. For now, log only.
+    console.log(
+      `[alarm webhook] responder declined docket #${responder.alarmJob.docket}: ${from}`,
+    );
+    return;
+  }
+
+  // unparsed — store raw and ask for the right format
+  await prisma.alarmResponder.update({
+    where: { id: responder.id },
+    data: { responseRawBody: body, responseSmsLogId: inboundLogId },
+  });
+  const replyBody = buildAlarmAutoReply("unparsed");
+  await adapter.sendSms(from, replyBody, {});
 }
