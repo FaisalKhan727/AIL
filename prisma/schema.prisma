@@ -23,6 +23,9 @@ model Company {
   shiftCheckIns      ShiftCheckIn[]
   incidentReports    IncidentReport[]
   loneWorkerCheckIns LoneWorkerCheckIn[]
+  alarmJobs          AlarmJob[]
+  alarmContacts      AlarmContact[]
+  alarmReports       AlarmReport[]
 }
 
 model AdminUser {
@@ -62,6 +65,7 @@ model Guard {
   shiftCheckIns      ShiftCheckIn[]
   incidentReports    IncidentReport[]
   loneWorkerCheckIns LoneWorkerCheckIn[]
+  alarmResponders    AlarmResponder[]
 
   @@unique([companyId, phone])
   @@index([companyId])
@@ -82,6 +86,7 @@ model Site {
   shifts          Shift[]
   shiftTemplates  ShiftTemplate[]
   incidentReports IncidentReport[]
+  alarmJobs       AlarmJob[]
 
   @@index([companyId])
 }
@@ -161,24 +166,30 @@ model Shift {
 }
 
 model SmsLog {
-  id          String   @id @default(cuid())
-  guardId     String?
-  shiftId     String?
-  direction   String // OUTBOUND | INBOUND
-  fromNumber  String
-  toNumber    String
-  body        String
-  providerSid String?
-  status      String? // queued|sent|delivered|failed|mock
-  errorCode   String?
-  receivedAt  DateTime @default(now())
+  id               String   @id @default(cuid())
+  guardId          String?
+  shiftId          String?
+  alarmJobId       String?
+  alarmResponderId String?
+  direction        String // OUTBOUND | INBOUND
+  fromNumber       String
+  toNumber         String
+  body             String
+  providerSid      String?
+  status           String? // queued|sent|delivered|failed|mock
+  errorCode        String?
+  receivedAt       DateTime @default(now())
 
-  guard Guard? @relation(fields: [guardId], references: [id])
-  shift Shift? @relation(fields: [shiftId], references: [id])
+  guard          Guard?          @relation(fields: [guardId], references: [id])
+  shift          Shift?          @relation(fields: [shiftId], references: [id])
+  alarmJob       AlarmJob?       @relation(fields: [alarmJobId], references: [id])
+  alarmResponder AlarmResponder? @relation(fields: [alarmResponderId], references: [id])
 
   @@index([guardId])
   @@index([direction])
   @@index([receivedAt])
+  @@index([alarmJobId])
+  @@index([alarmResponderId])
 }
 
 model Timesheet {
@@ -431,4 +442,125 @@ model LoneWorkerCheckIn {
   @@index([guardId])
   @@index([companyId])
   @@index([scheduledAt])
+}
+
+// ---------------------------------------------------------------------------
+// Alarm Dispatch (independent of roster module)
+// ---------------------------------------------------------------------------
+
+// One alarm callout. Docket is per-company sequential, sourced from a
+// Setting key (alarm.nextDocket) at creation time. Status moves
+// DISPATCHED → ACKNOWLEDGED → ONSITE → COMPLETED (or CANCELLED /
+// NO_RESPONSE) driven by the inbound SMS parser or admin action.
+model AlarmJob {
+  id                  String    @id @default(cuid())
+  companyId           String
+  docket              String // per-company unique, human-readable (e.g. "59005")
+  source              String // e.g. "Guardian Protective Services"
+  sourceReference     String?
+  alarmType           String // BURGLARY | FIRE | MEDICAL | PANIC | TAMPER | DURESS | OTHER
+  priority            String    @default("HIGH") // LOW | MEDIUM | HIGH | CRITICAL
+  siteName            String
+  siteAddress         String
+  siteLatitude        Decimal?
+  siteLongitude       Decimal?
+  siteId              String?
+  clientName          String?
+  clientEmail         String?
+  clientPhone         String?
+  receivedAt          DateTime  @default(now())
+  description         String?
+  specialInstructions String?
+  status              String    @default("DISPATCHED") // DISPATCHED | ACKNOWLEDGED | ONSITE | COMPLETED | NO_RESPONSE | CANCELLED
+  notes               String? // admin internal notes added post-hoc
+  createdBy           String // FK to AdminUser.id (string, kept loose for now)
+  createdAt           DateTime  @default(now())
+  resolvedAt          DateTime?
+
+  company    Company          @relation(fields: [companyId], references: [id])
+  site       Site?            @relation(fields: [siteId], references: [id])
+  responders AlarmResponder[]
+  reports    AlarmReport[]
+  smsLogs    SmsLog[]
+
+  @@unique([companyId, docket])
+  @@index([companyId])
+  @@index([companyId, status])
+  @@index([companyId, receivedAt])
+  @@index([siteId])
+}
+
+// One row per dispatch attempt. Each AlarmJob may have multiple
+// AlarmResponder rows (admin can send to a second responder if the
+// first doesn't reply). The inbound parser matches incoming SMS to the
+// AlarmResponder with the latest pending state for that phone.
+model AlarmResponder {
+  id                 String    @id @default(cuid())
+  alarmJobId         String
+  companyId          String
+  responderType      String // INTERNAL_GUARD | EXTERNAL_CONTRACTOR
+  guardId            String?
+  externalName       String?
+  externalPhone      String // E.164
+  externalCompany    String?
+  dispatchedAt       DateTime  @default(now())
+  dispatchSmsLogId   String?
+  acknowledgedAt     DateTime?
+  declinedAt         DateTime?
+  onsiteAt           DateTime?
+  offsiteAt          DateTime?
+  responseResult     String?
+  responseRawBody    String?
+  responseSmsLogId   String?
+
+  alarmJob AlarmJob @relation(fields: [alarmJobId], references: [id], onDelete: Cascade)
+  guard    Guard?   @relation(fields: [guardId], references: [id])
+  smsLogs  SmsLog[]
+
+  @@index([alarmJobId])
+  @@index([externalPhone])
+  @@index([guardId])
+  @@index([companyId])
+}
+
+// Saved external contractors / frequent responders. Phone is unique per
+// company so admin can type the number in New Alarm and the responder's
+// name auto-fills.
+model AlarmContact {
+  id         String    @id @default(cuid())
+  companyId  String
+  name       String
+  phone      String // E.164
+  company    String? // contractor's company name
+  email      String?
+  notes      String?
+  active     Boolean   @default(true)
+  lastUsedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  companyRef Company @relation(fields: [companyId], references: [id])
+
+  @@unique([companyId, phone])
+  @@index([companyId, active])
+}
+
+// Generated PDF + (optional) email delivery state. Email fields are
+// nullable because v1 ships without auto-send — admin downloads the PDF
+// manually. Schema is forward-compatible for when email lands later.
+model AlarmReport {
+  id                  String    @id @default(cuid())
+  companyId           String
+  alarmJobId          String
+  pdfUrl              String // R2 signed URL or storage key
+  generatedAt         DateTime  @default(now())
+  emailSentAt         DateTime?
+  emailSentTo         String?
+  emailDelivered      Boolean   @default(false)
+  emailFailureReason  String?
+
+  alarmJob AlarmJob @relation(fields: [alarmJobId], references: [id], onDelete: Cascade)
+  company  Company  @relation(fields: [companyId], references: [id])
+
+  @@index([alarmJobId])
+  @@index([companyId])
 }
