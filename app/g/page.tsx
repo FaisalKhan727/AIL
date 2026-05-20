@@ -457,13 +457,33 @@ function TopBar({
 }
 
 function QuickActions() {
-  // Phase 2-4 features. Rendered but inert in Phase 1 — gives the home
-  // screen visual density and signals what's coming. The onClick is a
-  // friendly placeholder; behaviour lands per phase.
-  const items = [
-    { icon: AlertTriangle, label: "Report" },
-    { icon: Camera, label: "Check-in" },
-    { icon: Clock, label: "Timesheets" },
+  const router = useRouter();
+  // Each item has its own behaviour; Phase 2-4 features still show
+  // "coming soon" until their respective phase lands.
+  const items: Array<{
+    icon: typeof AlertTriangle;
+    label: string;
+    onClick: () => void;
+    enabled: boolean;
+  }> = [
+    {
+      icon: AlertTriangle,
+      label: "Report",
+      onClick: () => alert("Incident reports coming in a future update."),
+      enabled: false,
+    },
+    {
+      icon: Camera,
+      label: "Check-in",
+      onClick: () => alert("Photo check-ins coming in a future update."),
+      enabled: false,
+    },
+    {
+      icon: Clock,
+      label: "Timesheets",
+      onClick: () => router.push("/g/timesheets"),
+      enabled: true,
+    },
   ];
   return (
     <div className="grid grid-cols-3 gap-2 px-4 pt-4">
@@ -471,12 +491,12 @@ function QuickActions() {
         <button
           key={it.label}
           type="button"
-          onClick={() => alert("Coming soon — available in a future update.")}
+          onClick={it.onClick}
           className={cn(
             "flex flex-col items-center justify-center gap-1 rounded-xl",
             "bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700",
             "py-3 transition active:scale-[0.97]",
-            "opacity-70",
+            !it.enabled && "opacity-70",
           )}
         >
           <it.icon className="h-5 w-5 text-slate-600 dark:text-slate-300" />
