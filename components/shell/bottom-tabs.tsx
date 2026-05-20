@@ -14,17 +14,19 @@ import {
   Settings,
   LogOut,
   X,
+  AlertCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const PRIMARY = [
   { href: "/dashboard", label: "Home", icon: LayoutDashboard },
   { href: "/rosters",   label: "Rosters", icon: Calendar },
+  { href: "/alarms",    label: "Alarms",  icon: AlertCircle },
   { href: "/guards",    label: "Guards",  icon: Users },
-  { href: "/sites",     label: "Sites",   icon: Building2 },
 ] as const;
 
 const MORE = [
+  { href: "/sites",      label: "Sites",      icon: Building2 },
   { href: "/timesheets", label: "Timesheets", icon: ClipboardList },
   { href: "/sms-log",    label: "SMS Log",    icon: MessageSquare },
   { href: "/settings",   label: "Settings",   icon: Settings },
