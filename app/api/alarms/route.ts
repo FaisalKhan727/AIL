@@ -173,6 +173,7 @@ export async function POST(req: Request) {
       id: created.job.id,
       docket: created.job.docket,
       dispatch: dispatch.ok ? "sent" : "failed",
+      channel: dispatch.channel, // "push" or "sms"
       dispatchError: dispatch.error,
     },
     { status: 201 },

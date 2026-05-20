@@ -1,19 +1,29 @@
 import { prisma } from "@/lib/prisma";
 import { getSmsAdapter } from "@/lib/sms";
 import { buildAlarmMessage } from "@/lib/sms/templates";
+import { pickChannelForGuard, sendPushToGuardAccount } from "@/lib/push/dispatch";
 
 /**
- * Send the outbound alarm SMS to a responder and link the SmsLog row to
- * the AlarmJob + AlarmResponder. Idempotent at the API level — calling
- * twice creates two SmsLog rows (intentional; reflects two real send
- * attempts) but the second call overwrites dispatchSmsLogId on the
- * responder so the most recent dispatch is the authoritative one.
+ * Send the alarm to a responder. Picks the channel automatically:
  *
- * Returns whether the underlying Twilio call reported success. Caller
- * decides whether to surface the failure to admin or schedule a retry.
+ *   INTERNAL_GUARD + active PWA + push subscription  → push notification
+ *   INTERNAL_GUARD without app                       → SMS
+ *   EXTERNAL_CONTRACTOR                              → SMS
+ *
+ * Push failures fall back to SMS for that delivery (same pattern as the
+ * roster dispatch). Idempotent at the API level — calling twice fires
+ * a second notification; the most recent dispatch wins for the inbound
+ * parser via the AlarmResponder.dispatchedAt ordering.
+ *
+ * Returns ok + the channel actually used. Caller surfaces this to admin
+ * so they can see whether the responder got push or SMS.
+ *
+ * (Function name kept as dispatchAlarmSms to avoid touching every caller;
+ * the contract now covers both channels.)
  */
 export async function dispatchAlarmSms(alarmResponderId: string): Promise<{
   ok: boolean;
+  channel: "push" | "sms";
   smsLogId: string | null;
   error?: string;
 }> {
@@ -25,7 +35,7 @@ export async function dispatchAlarmSms(alarmResponderId: string): Promise<{
     },
   });
   if (!responder) {
-    return { ok: false, smsLogId: null, error: "AlarmResponder not found" };
+    return { ok: false, channel: "sms", smsLogId: null, error: "AlarmResponder not found" };
   }
 
   // Resolve the destination phone: internal guards use Guard.phone;
@@ -35,7 +45,7 @@ export async function dispatchAlarmSms(alarmResponderId: string): Promise<{
       ? responder.guard.phone
       : responder.externalPhone;
   if (!toPhone) {
-    return { ok: false, smsLogId: null, error: "Responder has no phone number" };
+    return { ok: false, channel: "sms", smsLogId: null, error: "Responder has no phone number" };
   }
 
   const job = responder.alarmJob;
@@ -49,18 +59,56 @@ export async function dispatchAlarmSms(alarmResponderId: string): Promise<{
     specialInstructions: job.specialInstructions,
   });
 
+  // -------------------------------------------------------------------------
+  // Push path — INTERNAL_GUARD with active app subscription.
+  // -------------------------------------------------------------------------
+  if (responder.responderType === "INTERNAL_GUARD" && responder.guardId) {
+    try {
+      const channel = await pickChannelForGuard(responder.guardId);
+      if (channel.channel === "PUSH") {
+        const pushRes = await sendPushToGuardAccount(channel.guardAccountId, {
+          title: `${job.priority} ALARM #${job.docket}`,
+          body,
+          url: "/g",
+          data: {
+            type: "alarm_dispatch",
+            alarmJobId: job.id,
+            docket: job.docket,
+            alarmType: job.alarmType,
+            priority: job.priority,
+          },
+          tag: `alarm-${job.id}`,
+        });
+        if (pushRes.ok) {
+          await prisma.alarmResponder.update({
+            where: { id: responder.id },
+            data: { dispatchedAt: new Date() },
+          });
+          return { ok: true, channel: "push", smsLogId: null };
+        }
+        // Push had subscriptions but every send failed → fall through to SMS.
+      }
+    } catch (err) {
+      // pickChannelForGuard / sendPushToGuardAccount threw (VAPID missing,
+      // network, etc.). Log and fall back to SMS so dispatch never fails
+      // because of the push side.
+      console.error(
+        `[alarm dispatch] push threw for guard ${responder.guardId}, falling back to SMS:`,
+        err instanceof Error ? err.message : err,
+      );
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // SMS path — external contractors, internal guards without the app,
+  // or push fallthrough from above.
+  // -------------------------------------------------------------------------
   const adapter = getSmsAdapter();
   try {
     const res = await adapter.sendSms(toPhone, body, {
       guardId: responder.guardId ?? undefined,
-      // Twilio adapter's OutboundMeta only knows guardId/shiftId today;
-      // alarmJobId/alarmResponderId are attached to SmsLog separately
-      // below so SmsLog filtering by alarm still works.
     });
 
-    // Find the SmsLog row the adapter just wrote (the most-recent OUTBOUND
-    // to this number) and attach alarm linkage. This is a cleaner shape
-    // than threading new meta fields through every adapter implementation.
     const log = await prisma.smsLog.findFirst({
       where: { toNumber: toPhone, direction: "OUTBOUND", alarmJobId: null },
       orderBy: { receivedAt: "desc" },
@@ -77,9 +125,14 @@ export async function dispatchAlarmSms(alarmResponderId: string): Promise<{
       data: { dispatchedAt: new Date(), dispatchSmsLogId: log?.id ?? null },
     });
 
-    return { ok: true, smsLogId: log?.id ?? null, error: res.status === "failed" ? "twilio reported failed" : undefined };
+    return {
+      ok: true,
+      channel: "sms",
+      smsLogId: log?.id ?? null,
+      error: res.status === "failed" ? "twilio reported failed" : undefined,
+    };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    return { ok: false, smsLogId: null, error: message };
+    return { ok: false, channel: "sms", smsLogId: null, error: message };
   }
 }
