@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSmsAdapter } from "@/lib/sms";
 import { parseInboundReply, type ParserShift } from "@/lib/sms/parser";
-import { buildReplySummary, buildUnparsedReply, buildAlarmAutoReply } from "@/lib/sms/templates";
+import { buildUnparsedReply, buildAlarmAutoReply } from "@/lib/sms/templates";
 import { parseAlarmReply, combineHHmmWithDispatch } from "@/lib/alarms/parser";
 
 async function getSetting(companyId: string, key: string): Promise<string | undefined> {
@@ -155,7 +155,10 @@ export async function POST(req: Request) {
     }
   }
 
-  // Recompute counts for summary.
+  // Recompute counts (kept in the response payload for admin debugging /
+  // future analytics; the confirmation auto-reply SMS is intentionally
+  // NOT sent to save Twilio credits — admin verifies via the calendar
+  // and the guard sees the change reflected in the PWA).
   const after = await prisma.shift.findMany({
     where: { rosterId: latestRoster.id, guardId: guard.id },
   });
@@ -163,21 +166,12 @@ export async function POST(req: Request) {
   const rejectedCount = after.filter((s) => s.status === "REJECTED").length;
   const pendingCount = after.filter((s) => s.status === "PENDING").length;
 
-  const summary = buildReplySummary({
-    firstName: guard.firstName,
-    confirmedCount,
-    rejectedCount,
-    pendingCount,
-    template: await getSetting(guard.companyId, "sms_template_reply_summary"),
-  });
-  await adapter.sendSms(guard.phone, summary, { guardId: guard.id });
-
   return NextResponse.json({
     ok: true,
     parsed: true,
     applied: result.decisions.length,
     summary: { confirmedCount, rejectedCount, pendingCount },
-    autoReply: summary,
+    autoReply: null,
   });
 }
 

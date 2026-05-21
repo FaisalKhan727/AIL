@@ -39,9 +39,18 @@ interface ShiftApi {
   role: string | null;
   notes: string | null;
   status: "PENDING" | "CONFIRMED" | "REJECTED" | "WORKED" | "NO_SHOW" | "CANCELLED";
+  workedStart: string | null;
+  workedEnd: string | null;
   site: { id: string; name: string; address: string };
   rosterName: string;
   company: { id: string; name: string; brandColour: string | null } | null;
+}
+
+interface HomeResponse {
+  identity: { id: string; firstName: string; lastName: string; phone: string };
+  memberships: Membership[];
+  vapidPublicKey: string;
+  shifts: ShiftApi[];
 }
 
 const ACTIVE_COMPANY_KEY = "vg_active_company";
@@ -54,55 +63,62 @@ export default function GuardHomePage() {
   const router = useRouter();
   const [me, setMe] = React.useState<MeResponse | null>(null);
   const [shifts, setShifts] = React.useState<ShiftApi[] | null>(null);
-  const [activeCompany, setActiveCompany] = React.useState<string>("all");
+  // Lazy init from localStorage so we fetch with the right scope on first
+  // render — avoids a double-fetch (all → user's stored company).
+  const [activeCompany, setActiveCompany] = React.useState<string>(() => {
+    if (typeof window === "undefined") return "all";
+    return localStorage.getItem(ACTIVE_COMPANY_KEY) || "all";
+  });
   const [pushState, setPushState] = React.useState<
     "unknown" | "subscribed" | "denied" | "unsupported" | "needs_permission"
   >("unknown");
   const [pushDebug, setPushDebug] = React.useState<string | null>(null);
   const swRegRef = React.useRef<ServiceWorkerRegistration | null>(null);
 
-  // 1. Fetch identity + memberships; redirect to sign-in on 401.
-  React.useEffect(() => {
-    (async () => {
-      try {
-        const res = await fetch("/api/g/me");
-        if (res.status === 401) {
-          router.replace("/g/sign-in");
-          return;
-        }
-        if (!res.ok) return;
-        const json = (await res.json()) as MeResponse;
-        setMe(json);
-        const stored = typeof window !== "undefined" ? localStorage.getItem(ACTIVE_COMPANY_KEY) : null;
-        if (stored && (stored === "all" || json.memberships.some((m) => m.companyId === stored))) {
-          setActiveCompany(stored);
-        } else if (json.memberships.length === 1) {
-          setActiveCompany(json.memberships[0].companyId);
-        } else {
-          setActiveCompany("all");
-        }
-      } catch {
-        /* swallow — page will sit in skeleton state */
-      }
-    })();
-  }, [router]);
-
-  // 2. Fetch shifts whenever active company changes.
-  const reloadShifts = React.useCallback(async () => {
-    if (!me) return;
+  // 1. Single round-trip: /api/g/home returns identity + memberships +
+  //    shifts + vapidPublicKey. Replaces the previous /me → /shifts
+  //    cascade (2 round-trips became 1; on a cold-start Vercel function
+  //    that's ~600-1000ms saved on first open).
+  //
+  //    Re-fetches whenever activeCompany changes so the chip switcher
+  //    re-scopes the shift list on the server (cheap, since this is
+  //    after warm-up).
+  const reloadHome = React.useCallback(async () => {
     try {
       const q = activeCompany === "all" ? "" : `?companyId=${encodeURIComponent(activeCompany)}`;
-      const res = await fetch(`/api/g/shifts${q}`);
-      const json = await res.json();
-      if (res.ok) setShifts(json.shifts ?? []);
+      const res = await fetch(`/api/g/home${q}`);
+      if (res.status === 401) {
+        router.replace("/g/sign-in");
+        return;
+      }
+      if (!res.ok) return;
+      const json = (await res.json()) as HomeResponse;
+      setMe({
+        identity: json.identity,
+        memberships: json.memberships,
+        vapidPublicKey: json.vapidPublicKey,
+      });
+      setShifts(json.shifts);
+      // If stored active company is no longer a membership (e.g., admin
+      // removed the guard from a company), drop back to a sane default.
+      if (
+        activeCompany !== "all" &&
+        !json.memberships.some((m) => m.companyId === activeCompany)
+      ) {
+        setActiveCompany(json.memberships.length === 1 ? json.memberships[0].companyId : "all");
+      }
     } catch {
-      /* leave previous state */
+      /* swallow — page sits in skeleton state */
     }
-  }, [me, activeCompany]);
+  }, [activeCompany, router]);
 
   React.useEffect(() => {
-    void reloadShifts();
-  }, [reloadShifts]);
+    void reloadHome();
+  }, [reloadHome]);
+
+  // Alias kept for the existing accept/reject handlers below that call
+  // reloadShifts() — same purpose, just refreshes everything now.
+  const reloadShifts = reloadHome;
 
   // 3. Persist active company.
   React.useEffect(() => {
@@ -232,6 +248,57 @@ export default function GuardHomePage() {
     router.replace("/g/sign-in");
   }
 
+  // Clock in / out. Tries to capture GPS but never blocks on it — works
+  // even when location permission is denied. Optimistic UI flip then
+  // server reconcile via reloadHome.
+  async function clockAction(shiftId: string, action: "clock-in" | "clock-out") {
+    const prev = shifts;
+    // Optimistic flip — show the button state changed instantly.
+    if (shifts) {
+      setShifts(
+        shifts.map((s) => {
+          if (s.id !== shiftId) return s;
+          if (action === "clock-in") return { ...s, workedStart: new Date().toISOString() };
+          return { ...s, workedEnd: new Date().toISOString(), status: "WORKED" };
+        }),
+      );
+    }
+    let body: Record<string, number> = {};
+    try {
+      const pos = await new Promise<GeolocationPosition | null>((resolve) => {
+        if (typeof navigator === "undefined" || !navigator.geolocation) {
+          resolve(null);
+          return;
+        }
+        navigator.geolocation.getCurrentPosition(
+          (p) => resolve(p),
+          () => resolve(null),
+          { maximumAge: 60_000, timeout: 5000, enableHighAccuracy: false },
+        );
+      });
+      if (pos) {
+        body = { latitude: pos.coords.latitude, longitude: pos.coords.longitude };
+      }
+    } catch {
+      /* ignore — proceed without GPS */
+    }
+    try {
+      const res = await fetch(`/api/g/shifts/${shiftId}/${action}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error ?? `${action} failed`);
+      }
+      await reloadShifts();
+    } catch (e: unknown) {
+      setShifts(prev);
+      alert(e instanceof Error ? e.message : `${action} failed`);
+    }
+  }
+
   // ---------- derived state ----------
 
   const isMultiCompany = (me?.memberships.length ?? 0) > 1;
@@ -339,18 +406,45 @@ export default function GuardHomePage() {
                 </Button>
               </div>
             )}
-            {partitioned.hero.status === "CONFIRMED" && (
-              <Button
-                variant="outline"
-                className="w-full h-10"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  const reason = prompt("Change to declined — reason?") ?? undefined;
-                  void respond(partitioned.hero!.id, "reject", reason);
-                }}
-              >
-                Change to decline
-              </Button>
+            {partitioned.hero.status === "CONFIRMED" && !partitioned.hero.workedStart && (
+              <div className="flex flex-col gap-2">
+                <Button
+                  className="w-full h-11 bg-emerald-600 hover:bg-emerald-700 text-white"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    void clockAction(partitioned.hero!.id, "clock-in");
+                  }}
+                >
+                  Clock in
+                </Button>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const reason = prompt("Change to declined — reason?") ?? undefined;
+                    if (reason !== undefined) void respond(partitioned.hero!.id, "reject", reason);
+                  }}
+                  className="text-xs text-slate-500 dark:text-slate-400 hover:text-red-600 hover:underline self-end"
+                >
+                  Change to decline
+                </button>
+              </div>
+            )}
+            {partitioned.hero.status === "CONFIRMED" && partitioned.hero.workedStart && !partitioned.hero.workedEnd && (
+              <div className="flex flex-col gap-2">
+                <p className="text-xs text-emerald-700 dark:text-emerald-400 font-medium">
+                  ⏱ Clocked in {new Date(partitioned.hero.workedStart).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}
+                </p>
+                <Button
+                  className="w-full h-11 bg-slate-900 hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-200 text-white"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    void clockAction(partitioned.hero!.id, "clock-out");
+                  }}
+                >
+                  Clock out
+                </Button>
+              </div>
             )}
             {partitioned.hero.status === "REJECTED" && (
               <Button

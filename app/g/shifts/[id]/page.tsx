@@ -45,6 +45,49 @@ export default function ShiftDetailPage() {
   const [shift, setShift] = React.useState<ShiftDetail | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   const [respondingTo, setRespondingTo] = React.useState<"accept" | "reject" | null>(null);
+  const [clockBusy, setClockBusy] = React.useState(false);
+
+  // Clock in/out: try GPS, never block on it. Server returns updated shift;
+  // we refetch the full detail to pick up the new timeline event.
+  async function clockAction(action: "clock-in" | "clock-out") {
+    if (clockBusy) return;
+    setClockBusy(true);
+    let body: Record<string, number> = {};
+    try {
+      const pos = await new Promise<GeolocationPosition | null>((resolve) => {
+        if (typeof navigator === "undefined" || !navigator.geolocation) {
+          resolve(null);
+          return;
+        }
+        navigator.geolocation.getCurrentPosition(
+          (p) => resolve(p),
+          () => resolve(null),
+          { maximumAge: 60_000, timeout: 5000, enableHighAccuracy: false },
+        );
+      });
+      if (pos) body = { latitude: pos.coords.latitude, longitude: pos.coords.longitude };
+    } catch {
+      /* ignore */
+    }
+    try {
+      const res = await fetch(`/api/g/shifts/${id}/${action}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error ?? `${action} failed`);
+      }
+      // Refresh the detail to pick up new timeline events + status.
+      const refreshed = await fetch(`/api/g/shifts/${id}`);
+      if (refreshed.ok) setShift((await refreshed.json()) as ShiftDetail);
+    } catch (e: unknown) {
+      alert(e instanceof Error ? e.message : `${action} failed`);
+    } finally {
+      setClockBusy(false);
+    }
+  }
 
   React.useEffect(() => {
     let cancelled = false;
@@ -300,20 +343,38 @@ export default function ShiftDetailPage() {
               </Button>
             </div>
           )}
-          {shift.status === "CONFIRMED" && (
-            <div className="flex gap-2 items-center">
-              <span className="text-xs text-slate-500 dark:text-slate-400 flex-1">
-                Confirmed. Need to change?
-              </span>
+          {shift.status === "CONFIRMED" && !shift.timeline.workedStart && (
+            <div className="space-y-2">
               <Button
-                variant="outline"
-                className="h-10"
+                className="w-full h-11 bg-emerald-600 hover:bg-emerald-700 text-white"
+                onClick={() => void clockAction("clock-in")}
+                disabled={clockBusy}
+              >
+                {clockBusy ? "Clocking in…" : "Clock in"}
+              </Button>
+              <button
+                type="button"
                 onClick={() => {
                   const reason = prompt("Change to declined — reason?") ?? undefined;
                   if (reason !== undefined) void respond("reject", reason);
                 }}
+                className="block w-full text-center text-xs text-slate-500 dark:text-slate-400 hover:text-red-600 hover:underline"
               >
-                Decline
+                Can&apos;t make it? Change to decline
+              </button>
+            </div>
+          )}
+          {shift.status === "CONFIRMED" && shift.timeline.workedStart && !shift.timeline.workedEnd && (
+            <div className="space-y-2">
+              <p className="text-center text-xs text-emerald-700 dark:text-emerald-400 font-medium">
+                ⏱ Clocked in at {new Date(shift.timeline.workedStart).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}
+              </p>
+              <Button
+                className="w-full h-11 bg-slate-900 hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-200 text-white"
+                onClick={() => void clockAction("clock-out")}
+                disabled={clockBusy}
+              >
+                {clockBusy ? "Clocking out…" : "Clock out"}
               </Button>
             </div>
           )}
