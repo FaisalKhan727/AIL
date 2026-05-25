@@ -15,6 +15,7 @@ import {
   LogOut,
   X,
   AlertCircle,
+  FileText,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -26,6 +27,7 @@ const PRIMARY = [
 ] as const;
 
 const MORE = [
+  { href: "/invoices",   label: "Invoices",   icon: FileText },
   { href: "/sites",      label: "Sites",      icon: Building2 },
   { href: "/timesheets", label: "Timesheets", icon: ClipboardList },
   { href: "/sms-log",    label: "SMS Log",    icon: MessageSquare },

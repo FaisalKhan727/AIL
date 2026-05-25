@@ -15,6 +15,7 @@ import {
   ShieldCheck,
   LogOut,
   AlertCircle,
+  FileText,
 } from "lucide-react";
 
 const NAV = [
@@ -23,6 +24,7 @@ const NAV = [
   { href: "/sites", label: "Sites", icon: Building2 },
   { href: "/rosters", label: "Rosters", icon: Calendar },
   { href: "/alarms", label: "Alarms", icon: AlertCircle },
+  { href: "/invoices", label: "Invoices", icon: FileText },
   { href: "/timesheets", label: "Timesheets", icon: ClipboardList },
   { href: "/sms-log", label: "SMS Log", icon: MessageSquare },
   { href: "/settings", label: "Settings", icon: Settings },
