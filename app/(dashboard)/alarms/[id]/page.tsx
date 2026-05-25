@@ -13,6 +13,8 @@ import {
   Phone,
   StickyNote,
   AlertTriangle,
+  UserPlus,
+  Edit,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -20,9 +22,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/components/ui/toast";
 import { api } from "@/lib/fetcher";
-import { fmtDateTime } from "@/lib/date";
+import { fmtDateTime, utcToLocalInput, localInputToUtc } from "@/lib/date";
 import { formatPhoneAU } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 
@@ -139,6 +142,8 @@ export default function AlarmDetailPage() {
   const qc = useQueryClient();
   const { toast } = useToast();
   const [now, setNow] = React.useState(Date.now());
+  const [sendToOpen, setSendToOpen] = React.useState(false);
+  const [manualResOpen, setManualResOpen] = React.useState(false);
 
   // Tick every 30s so "X minutes ago" stays fresh on the live-status panel.
   React.useEffect(() => {
@@ -236,6 +241,16 @@ export default function AlarmDetailPage() {
             {isLive && (
               <Button variant="outline" size="sm" onClick={onResend}>
                 <RefreshCcw className="h-4 w-4" /> Resend
+              </Button>
+            )}
+            {isLive && (
+              <Button variant="outline" size="sm" onClick={() => setSendToOpen(true)}>
+                <UserPlus className="h-4 w-4" /> Send to different
+              </Button>
+            )}
+            {isLive && (
+              <Button variant="outline" size="sm" onClick={() => setManualResOpen(true)}>
+                <Edit className="h-4 w-4" /> Enter response
               </Button>
             )}
             {isLive && data.status !== "COMPLETED" && (
@@ -488,7 +503,268 @@ export default function AlarmDetailPage() {
           )}
         </div>
       </div>
+
+      <SendToDifferentDialog
+        open={sendToOpen}
+        onOpenChange={setSendToOpen}
+        alarmId={data.id}
+        docket={data.docket}
+        onSent={() => qc.invalidateQueries({ queryKey: ["alarm", id] })}
+      />
+      <ManualResponseDialog
+        open={manualResOpen}
+        onOpenChange={setManualResOpen}
+        alarmId={data.id}
+        docket={data.docket}
+        onSaved={() => qc.invalidateQueries({ queryKey: ["alarm", id] })}
+      />
     </>
+  );
+}
+
+// -----------------------------------------------------------------------------
+// Send to a different responder dialog
+// -----------------------------------------------------------------------------
+
+interface GuardOption {
+  id: string;
+  firstName: string;
+  lastName: string;
+  phone: string;
+  active: boolean;
+}
+
+function SendToDifferentDialog({
+  open,
+  onOpenChange,
+  alarmId,
+  docket,
+  onSent,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  alarmId: string;
+  docket: string;
+  onSent?: () => void;
+}) {
+  const { toast } = useToast();
+  const [type, setType] = React.useState<"INTERNAL_GUARD" | "EXTERNAL_CONTRACTOR">("INTERNAL_GUARD");
+  const [guardId, setGuardId] = React.useState("");
+  const [name, setName] = React.useState("");
+  const [phone, setPhone] = React.useState("");
+  const [company, setCompany] = React.useState("");
+  const [submitting, setSubmitting] = React.useState(false);
+  const [guards, setGuards] = React.useState<GuardOption[]>([]);
+
+  React.useEffect(() => {
+    if (!open) return;
+    setType("INTERNAL_GUARD");
+    setGuardId("");
+    setName("");
+    setPhone("");
+    setCompany("");
+    setSubmitting(false);
+    (async () => {
+      try {
+        const list = await api<GuardOption[]>("/api/guards?active=true");
+        setGuards(list);
+      } catch {
+        /* no guards is fine — admin can use external */
+      }
+    })();
+  }, [open]);
+
+  async function onSubmit() {
+    if (type === "INTERNAL_GUARD" && !guardId) {
+      toast({ title: "Pick a guard", variant: "error" });
+      return;
+    }
+    if (type === "EXTERNAL_CONTRACTOR" && (!name.trim() || !phone.trim())) {
+      toast({ title: "Name and phone are required", variant: "error" });
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const body =
+        type === "INTERNAL_GUARD"
+          ? { type, guardId }
+          : { type, name: name.trim(), phone: phone.trim(), company: company.trim() || undefined };
+      const r = await api<{ ok: boolean; channel: string; error?: string }>(
+        `/api/alarms/${alarmId}/dispatch`,
+        { method: "POST", body: JSON.stringify(body) },
+      );
+      if (r.ok) {
+        toast({
+          title: `Sent to new responder via ${r.channel.toUpperCase()}`,
+          description: `Docket #${docket} is back in DISPATCHED state.`,
+          variant: "success",
+        });
+        onOpenChange(false);
+        onSent?.();
+      } else {
+        toast({ title: "Dispatch failed", description: r.error, variant: "error" });
+      }
+    } catch (e: unknown) {
+      toast({ title: "Dispatch failed", description: e instanceof Error ? e.message : "", variant: "error" });
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Send Docket #{docket} to a different responder</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3">
+          <p className="text-xs text-muted-foreground">
+            Creates a new dispatch alongside the original. The original responder remains in the timeline for the audit trail.
+          </p>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setType("INTERNAL_GUARD")}
+              className={cn(
+                "flex-1 rounded-md border px-3 py-2 text-sm",
+                type === "INTERNAL_GUARD" ? "bg-brand-navy text-white border-brand-navy" : "bg-background hover:bg-muted",
+              )}
+            >
+              Internal guard
+            </button>
+            <button
+              type="button"
+              onClick={() => setType("EXTERNAL_CONTRACTOR")}
+              className={cn(
+                "flex-1 rounded-md border px-3 py-2 text-sm",
+                type === "EXTERNAL_CONTRACTOR" ? "bg-brand-navy text-white border-brand-navy" : "bg-background hover:bg-muted",
+              )}
+            >
+              External contractor
+            </button>
+          </div>
+          {type === "INTERNAL_GUARD" ? (
+            <Select value={guardId} onChange={(e) => setGuardId(e.target.value)}>
+              <option value="">Select guard…</option>
+              {guards.map((g) => (
+                <option key={g.id} value={g.id}>{g.firstName} {g.lastName}</option>
+              ))}
+            </Select>
+          ) : (
+            <div className="grid grid-cols-2 gap-2">
+              <Input placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} />
+              <Input placeholder="+61412345678" value={phone} onChange={(e) => setPhone(e.target.value)} />
+              <Input className="col-span-2" placeholder="Company (optional)" value={company} onChange={(e) => setCompany(e.target.value)} />
+            </div>
+          )}
+        </div>
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button type="button" onClick={onSubmit} disabled={submitting}>
+            {submitting ? "Sending…" : "Send dispatch"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// -----------------------------------------------------------------------------
+// Manual response entry dialog
+// -----------------------------------------------------------------------------
+
+function ManualResponseDialog({
+  open,
+  onOpenChange,
+  alarmId,
+  docket,
+  onSaved,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  alarmId: string;
+  docket: string;
+  onSaved?: () => void;
+}) {
+  const { toast } = useToast();
+  const [onsite, setOnsite] = React.useState("");
+  const [offsite, setOffsite] = React.useState("");
+  const [result, setResult] = React.useState("All good and secure.");
+  const [submitting, setSubmitting] = React.useState(false);
+
+  React.useEffect(() => {
+    if (!open) return;
+    const now = new Date();
+    const halfHourAgo = new Date(now.getTime() - 30 * 60_000);
+    setOnsite(utcToLocalInput(halfHourAgo));
+    setOffsite(utcToLocalInput(now));
+    setResult("All good and secure.");
+    setSubmitting(false);
+  }, [open]);
+
+  async function onSubmit() {
+    if (!onsite || !offsite || !result.trim()) {
+      toast({ title: "All fields required", variant: "error" });
+      return;
+    }
+    setSubmitting(true);
+    try {
+      await api(`/api/alarms/${alarmId}/manual-complete`, {
+        method: "POST",
+        body: JSON.stringify({
+          onsiteAt: localInputToUtc(onsite).toISOString(),
+          offsiteAt: localInputToUtc(offsite).toISOString(),
+          result: result.trim(),
+        }),
+      });
+      toast({ title: `Docket #${docket} closed manually`, variant: "success" });
+      onOpenChange(false);
+      onSaved?.();
+    } catch (e: unknown) {
+      toast({ title: "Save failed", description: e instanceof Error ? e.message : "", variant: "error" });
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Enter response manually — Docket #{docket}</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3">
+          <p className="text-xs text-muted-foreground">
+            Use this when the responder phoned in instead of texting back, or to correct what the parser captured. This closes the docket and updates the timeline.
+          </p>
+          <div className="grid grid-cols-2 gap-2">
+            <div className="space-y-1">
+              <Label>Onsite</Label>
+              <Input type="datetime-local" value={onsite} onChange={(e) => setOnsite(e.target.value)} />
+            </div>
+            <div className="space-y-1">
+              <Label>Offsite</Label>
+              <Input type="datetime-local" value={offsite} onChange={(e) => setOffsite(e.target.value)} />
+            </div>
+          </div>
+          <div className="space-y-1">
+            <Label>Result</Label>
+            <Textarea
+              rows={3}
+              value={result}
+              onChange={(e) => setResult(e.target.value)}
+              placeholder="All good and secure, false alarm, broken window etc."
+            />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button type="button" onClick={onSubmit} disabled={submitting}>
+            {submitting ? "Saving…" : "Mark complete"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

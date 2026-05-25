@@ -69,7 +69,9 @@ export async function dispatchAlarmSms(alarmResponderId: string): Promise<{
         const pushRes = await sendPushToGuardAccount(channel.guardAccountId, {
           title: `${job.priority} ALARM #${job.docket}`,
           body,
-          url: "/g",
+          // Deep-link straight to the alarm detail screen so tapping the
+          // notification shows the full alarm details (was /g home before).
+          url: `/g/alarms/${job.id}`,
           data: {
             type: "alarm_dispatch",
             alarmJobId: job.id,

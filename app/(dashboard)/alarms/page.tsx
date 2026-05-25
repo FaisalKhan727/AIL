@@ -94,6 +94,25 @@ export default function AlarmsPage() {
     setStatusFilter((prev) => (prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]));
   }
 
+  // Group alarms by calendar month (alarms come back sorted desc, so this
+  // produces month buckets in reverse-chronological order). Used to render
+  // section headers between rows / cards.
+  const grouped = React.useMemo(() => {
+    const out: Array<{ monthKey: string; monthLabel: string; rows: AlarmRow[] }> = [];
+    let currentKey = "";
+    for (const a of alarms) {
+      const d = new Date(a.receivedAt);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      if (key !== currentKey) {
+        const label = d.toLocaleDateString(undefined, { month: "long", year: "numeric" });
+        out.push({ monthKey: key, monthLabel: label, rows: [] });
+        currentKey = key;
+      }
+      out[out.length - 1].rows.push(a);
+    }
+    return out;
+  }, [alarms]);
+
   return (
     <>
       <PageHeader
@@ -168,42 +187,57 @@ export default function AlarmsPage() {
                   </TableCell>
                 </TableRow>
               )}
-              {alarms.map((a) => (
-                <TableRow key={a.id} className="hover:bg-muted/40">
-                  <TableCell>
-                    <Link href={`/alarms/${a.id}`} className="font-mono font-semibold text-brand-navy hover:underline">
-                      #{a.docket}
-                    </Link>
-                  </TableCell>
-                  <TableCell className="whitespace-nowrap text-xs">{fmtDateTime(a.receivedAt)}</TableCell>
-                  <TableCell className="text-xs">
-                    {a.source}
-                    {a.sourceReference && <span className="text-muted-foreground"> · {a.sourceReference}</span>}
-                  </TableCell>
-                  <TableCell className="max-w-[220px] truncate">{a.siteName}</TableCell>
-                  <TableCell className="max-w-[160px] truncate">{a.clientName ?? "—"}</TableCell>
-                  <TableCell><Pill className="bg-slate-100 text-slate-700 border-slate-300">{a.alarmType}</Pill></TableCell>
-                  <TableCell><Pill className={priorityClass(a.priority)}>{a.priority}</Pill></TableCell>
-                  <TableCell className="text-xs max-w-[140px] truncate">{a.responderName ?? "—"}</TableCell>
-                  <TableCell><Pill className={statusClass(a.status)}>{a.status.replace("_", " ")}</Pill></TableCell>
-                  <TableCell className="text-xs whitespace-nowrap">
-                    {a.timeOnSiteMin !== null ? `${a.timeOnSiteMin} min` : "—"}
-                  </TableCell>
-                </TableRow>
+              {grouped.map((g) => (
+                <React.Fragment key={g.monthKey}>
+                  <TableRow className="bg-muted/40 hover:bg-muted/40">
+                    <TableCell colSpan={10} className="py-2 px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      {g.monthLabel} <span className="ml-1 font-normal text-muted-foreground/80">· {g.rows.length} alarm{g.rows.length === 1 ? "" : "s"}</span>
+                    </TableCell>
+                  </TableRow>
+                  {g.rows.map((a) => (
+                    <TableRow key={a.id} className="hover:bg-muted/40">
+                      <TableCell>
+                        <Link href={`/alarms/${a.id}`} className="font-mono font-semibold text-brand-navy hover:underline">
+                          #{a.docket}
+                        </Link>
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap text-xs">{fmtDateTime(a.receivedAt)}</TableCell>
+                      <TableCell className="text-xs">
+                        {a.source}
+                        {a.sourceReference && <span className="text-muted-foreground"> · {a.sourceReference}</span>}
+                      </TableCell>
+                      <TableCell className="max-w-[220px] truncate">{a.siteName}</TableCell>
+                      <TableCell className="max-w-[160px] truncate">{a.clientName ?? "—"}</TableCell>
+                      <TableCell><Pill className="bg-slate-100 text-slate-700 border-slate-300">{a.alarmType}</Pill></TableCell>
+                      <TableCell><Pill className={priorityClass(a.priority)}>{a.priority}</Pill></TableCell>
+                      <TableCell className="text-xs max-w-[140px] truncate">{a.responderName ?? "—"}</TableCell>
+                      <TableCell><Pill className={statusClass(a.status)}>{a.status.replace("_", " ")}</Pill></TableCell>
+                      <TableCell className="text-xs whitespace-nowrap">
+                        {a.timeOnSiteMin !== null ? `${a.timeOnSiteMin} min` : "—"}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </React.Fragment>
               ))}
             </TableBody>
           </Table>
         </CardContent>
       </Card>
 
-      {/* Mobile: card list */}
+      {/* Mobile: card list grouped by month */}
       <div className="md:hidden space-y-2">
         {isLoading && <Card><CardContent className="py-8 text-center text-muted-foreground">Loading…</CardContent></Card>}
         {!isLoading && alarms.length === 0 && (
           <Card><CardContent className="py-8 text-center text-muted-foreground">No alarms yet.</CardContent></Card>
         )}
-        {alarms.map((a) => (
-          <Link key={a.id} href={`/alarms/${a.id}`}>
+        {grouped.map((g) => (
+          <React.Fragment key={g.monthKey}>
+            <h3 className="pt-2 px-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              {g.monthLabel}
+              <span className="ml-1 font-normal text-muted-foreground/80">· {g.rows.length} alarm{g.rows.length === 1 ? "" : "s"}</span>
+            </h3>
+            {g.rows.map((a) => (
+        <Link key={a.id} href={`/alarms/${a.id}`}>
             <Card className="active:opacity-70">
               <CardContent className="p-3">
                 <div className="flex items-center justify-between gap-2">
@@ -224,6 +258,8 @@ export default function AlarmsPage() {
               </CardContent>
             </Card>
           </Link>
+            ))}
+          </React.Fragment>
         ))}
       </div>
 
