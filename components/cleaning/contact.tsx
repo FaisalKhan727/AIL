@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import {
   Phone,
   Mail,
@@ -69,6 +70,21 @@ export function Contact() {
         <div className="grid lg:grid-cols-5 gap-12">
           {/* Contact info */}
           <div className="lg:col-span-2 space-y-6">
+            {/* Image card */}
+            <div className="relative rounded-2xl overflow-hidden h-48 mb-8 hidden lg:block">
+              <Image
+                src="https://images.unsplash.com/photo-1521737711867-e3b97375f902?auto=format&fit=crop&w=600&q=80"
+                alt="Our friendly team"
+                fill
+                className="object-cover"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-emerald-900/80 to-emerald-900/20" />
+              <div className="absolute bottom-4 left-5 right-5">
+                <p className="text-white font-semibold">We&apos;re here to help</p>
+                <p className="text-emerald-200 text-sm">Reach out anytime</p>
+              </div>
+            </div>
+
             {contactInfo.map((item) => (
               <div
                 key={item.label}

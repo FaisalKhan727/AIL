@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import {
   ShieldCheck,
   Leaf,
@@ -50,7 +51,18 @@ const reasons = [
 
 export function WhyChooseUs() {
   return (
-    <section className="py-24 bg-gray-900 relative overflow-hidden">
+    <section className="py-24 relative overflow-hidden">
+      {/* Background image */}
+      <div className="absolute inset-0">
+        <Image
+          src="https://images.unsplash.com/photo-1497215842964-222b430dc094?auto=format&fit=crop&w=1920&q=80"
+          alt="Modern office space"
+          fill
+          className="object-cover"
+        />
+        <div className="absolute inset-0 bg-gray-900/92" />
+      </div>
+
       {/* Background pattern */}
       <div className="absolute inset-0 opacity-5">
         <div
@@ -86,7 +98,7 @@ export function WhyChooseUs() {
           {reasons.map((reason) => (
             <div
               key={reason.title}
-              className="group p-8 rounded-2xl bg-gray-800/50 border border-gray-700/50 hover:bg-gray-800 hover:border-emerald-700/30 transition-all duration-300"
+              className="group p-8 rounded-2xl bg-white/5 backdrop-blur-sm border border-white/10 hover:bg-white/10 hover:border-emerald-700/30 transition-all duration-300"
             >
               <div className="w-14 h-14 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center mb-6 group-hover:bg-emerald-500/20 transition-colors">
                 <reason.icon className="w-7 h-7 text-emerald-400" />

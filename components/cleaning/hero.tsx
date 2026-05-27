@@ -1,11 +1,11 @@
 "use client";
 
+import Image from "next/image";
 import {
   ArrowRight,
   Shield,
   Clock,
   Award,
-  Sparkles,
   CheckCircle2,
 } from "lucide-react";
 
@@ -19,19 +19,32 @@ export function Hero() {
   return (
     <section
       id="home"
-      className="relative min-h-screen flex items-center cleaning-hero-pattern overflow-hidden"
+      className="relative min-h-screen flex items-center overflow-hidden bg-gray-50"
     >
-      {/* Decorative blobs */}
-      <div className="absolute top-20 right-10 w-72 h-72 bg-emerald-200/30 cleaning-blob cleaning-float" />
-      <div className="absolute bottom-20 left-10 w-56 h-56 bg-amber-200/20 cleaning-blob" style={{ animationDelay: "2s" }} />
-      <div className="absolute top-1/2 right-1/4 w-32 h-32 bg-emerald-100/40 rounded-full cleaning-float" style={{ animationDelay: "4s" }} />
+      {/* Background image */}
+      <div className="absolute inset-0">
+        <Image
+          src="https://images.unsplash.com/photo-1581578731548-c64695cc6952?auto=format&fit=crop&w=1920&q=80"
+          alt="Professional cleaning service"
+          fill
+          className="object-cover"
+          priority
+        />
+        <div className="absolute inset-0 bg-gradient-to-r from-white via-white/95 to-white/60" />
+      </div>
 
       <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-28 pb-20">
         <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
           {/* Left content */}
           <div className="space-y-8">
             <div className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-50 border border-emerald-200 rounded-full">
-              <Sparkles className="w-4 h-4 text-emerald-600" />
+              <Image
+                src="/cleaning/logo.jpg"
+                alt="ACS"
+                width={20}
+                height={20}
+                className="rounded-sm"
+              />
               <span className="text-sm font-medium text-emerald-700">
                 Allied Corporate Services
               </span>
@@ -88,22 +101,24 @@ export function Hero() {
             </div>
           </div>
 
-          {/* Right visual */}
+          {/* Right — hero image showcase */}
           <div className="relative hidden lg:block">
-            <div className="relative w-full aspect-square max-w-lg mx-auto">
-              {/* Main circle */}
-              <div className="absolute inset-8 rounded-full cleaning-gradient opacity-90 shadow-2xl" />
-              <div className="absolute inset-8 rounded-full bg-gradient-to-br from-white/10 to-transparent" />
-
-              {/* Center icon */}
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="w-32 h-32 bg-white/20 rounded-3xl backdrop-blur-sm flex items-center justify-center">
-                  <Sparkles className="w-16 h-16 text-white" />
-                </div>
+            <div className="relative w-full max-w-lg mx-auto">
+              {/* Main image */}
+              <div className="relative rounded-3xl overflow-hidden shadow-2xl">
+                <Image
+                  src="https://images.unsplash.com/photo-1628177142898-93e36e4e3a50?auto=format&fit=crop&w=800&q=80"
+                  alt="Professional cleaner at work"
+                  width={800}
+                  height={600}
+                  className="object-cover w-full h-[480px]"
+                  priority
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent" />
               </div>
 
               {/* Floating cards */}
-              <div className="absolute -left-4 top-1/4 bg-white rounded-2xl p-4 shadow-xl cleaning-float">
+              <div className="absolute -left-8 top-1/4 bg-white rounded-2xl p-4 shadow-xl cleaning-float">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center">
                     <Shield className="w-5 h-5 text-emerald-600" />
@@ -131,7 +146,7 @@ export function Hero() {
               </div>
 
               <div
-                className="absolute left-1/4 -bottom-2 bg-white rounded-2xl p-4 shadow-xl cleaning-float"
+                className="absolute left-1/4 -bottom-4 bg-white rounded-2xl p-4 shadow-xl cleaning-float"
                 style={{ animationDelay: "1.5s" }}
               >
                 <div className="flex items-center gap-3">

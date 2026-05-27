@@ -1,7 +1,7 @@
 "use client";
 
+import Image from "next/image";
 import {
-  Sparkles,
   Phone,
   Mail,
   MapPin,
@@ -39,9 +39,17 @@ export function Footer() {
       {/* CTA Banner */}
       <div className="relative overflow-hidden">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-          <div className="relative cleaning-gradient rounded-3xl p-10 sm:p-14 text-center overflow-hidden">
-            <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent" />
-            <div className="relative space-y-6">
+          <div className="relative rounded-3xl overflow-hidden">
+            {/* Background image */}
+            <Image
+              src="https://images.unsplash.com/photo-1497366811353-6870744d04b2?auto=format&fit=crop&w=1400&q=80"
+              alt="Clean modern space"
+              fill
+              className="object-cover"
+            />
+            <div className="absolute inset-0 cleaning-gradient opacity-90" />
+
+            <div className="relative p-10 sm:p-14 text-center space-y-6">
               <h2 className="text-3xl sm:text-4xl font-bold text-white">
                 Ready for a Spotless Space?
               </h2>
@@ -74,15 +82,18 @@ export function Footer() {
         <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-10 mb-12">
           {/* Brand */}
           <div className="space-y-5">
-            <a href="#home" className="flex items-center gap-2">
-              <div className="w-10 h-10 rounded-xl cleaning-gradient flex items-center justify-center">
-                <Sparkles className="w-5 h-5 text-white" />
-              </div>
+            <a href="#home" className="flex items-center gap-3">
+              <Image
+                src="/cleaning/logo.jpg"
+                alt="ACS Logo"
+                width={40}
+                height={40}
+                className="rounded-lg brightness-0 invert"
+              />
               <div>
                 <span className="text-xl font-bold text-white">ACS</span>
                 <span className="text-xl font-bold text-emerald-400">
-                  {" "}
-                  Cleaning
+                  {" "}Cleaning
                 </span>
               </div>
             </a>

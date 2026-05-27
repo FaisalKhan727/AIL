@@ -1,11 +1,11 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Image from "next/image";
 import {
   Menu,
   X,
   Phone,
-  Sparkles,
 } from "lucide-react";
 
 const navLinks = [
@@ -39,22 +39,24 @@ export function Navbar() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-20">
           {/* Logo */}
-          <a href="#home" className="flex items-center gap-2">
-            <div className="w-10 h-10 rounded-xl cleaning-gradient flex items-center justify-center">
-              <Sparkles className="w-5 h-5 text-white" />
-            </div>
-            <div>
-              <span
-                className={`text-xl font-bold tracking-tight ${
-                  scrolled ? "text-gray-900" : "text-gray-900"
-                }`}
-              >
+          <a href="#home" className="flex items-center gap-3">
+            <Image
+              src="/cleaning/logo.jpg"
+              alt="ACS Logo"
+              width={44}
+              height={44}
+              className="rounded-lg"
+            />
+            <div className="leading-tight">
+              <span className="text-lg font-bold tracking-tight text-[#1B3A5C]">
                 ACS
               </span>
-              <span className="text-xl font-bold text-emerald-600">
-                {" "}
-                Cleaning
+              <span className="text-lg font-bold text-emerald-600">
+                {" "}Cleaning
               </span>
+              <p className="text-[10px] text-gray-400 font-medium tracking-wider uppercase">
+                Allied Corporate Services
+              </p>
             </div>
           </a>
 

@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import {
   Users,
   Target,
@@ -38,17 +39,25 @@ export function About() {
         <div className="grid lg:grid-cols-2 gap-16 items-center">
           {/* Left visual */}
           <div className="relative">
-            <div className="relative rounded-3xl overflow-hidden">
-              {/* Visual placeholder */}
-              <div className="aspect-[4/3] cleaning-gradient rounded-3xl flex items-center justify-center relative overflow-hidden">
-                <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent" />
-                <div className="relative text-center text-white space-y-4">
-                  <p className="text-7xl font-extrabold">10+</p>
-                  <p className="text-xl font-medium opacity-90">
-                    Years of Excellence
-                  </p>
-                </div>
-              </div>
+            {/* Main image */}
+            <div className="relative rounded-3xl overflow-hidden shadow-xl">
+              <Image
+                src="https://images.unsplash.com/photo-1600880292203-757bb62b4baf?auto=format&fit=crop&w=800&q=80"
+                alt="ACS Cleaning professional team"
+                width={800}
+                height={600}
+                className="object-cover w-full h-[420px]"
+              />
+            </div>
+
+            {/* Secondary image overlay */}
+            <div className="absolute -bottom-8 -left-4 w-48 h-48 rounded-2xl overflow-hidden shadow-xl border-4 border-white hidden sm:block">
+              <Image
+                src="https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?auto=format&fit=crop&w=400&q=80"
+                alt="Spotless clean result"
+                fill
+                className="object-cover"
+              />
             </div>
 
             {/* Floating stat card */}
