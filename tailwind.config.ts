@@ -65,6 +65,7 @@ const config: Config = {
       },
       fontFamily: {
         sans: ["var(--font-inter)", "system-ui", "sans-serif"],
+        poppins: ["var(--font-poppins)", "system-ui", "sans-serif"],
       },
       keyframes: {
         "accordion-down": {
