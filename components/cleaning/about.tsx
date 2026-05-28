@@ -39,20 +39,20 @@ export function About() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="grid lg:grid-cols-2 gap-14 items-center">
           <div className="relative">
-            <div className="relative rounded-2xl overflow-hidden shadow-lg">
+            <div className="relative rounded-2xl overflow-hidden shadow-lg bg-[#F1F5F9]">
               <Image
-                src="https://images.unsplash.com/photo-1600880292203-757bb62b4baf?auto=format&fit=crop&w=800&q=80"
-                alt="ACS corporate team in discussion"
+                src="/cleaning/images/mop-floor.jpg"
+                alt="Professional floor mopping"
                 width={800}
                 height={600}
                 className="object-cover w-full h-[400px]"
               />
             </div>
 
-            <div className="absolute -bottom-6 -left-4 w-48 h-40 rounded-xl overflow-hidden shadow-lg border-4 border-white hidden sm:block">
+            <div className="absolute -bottom-6 -left-4 w-48 h-40 rounded-xl overflow-hidden shadow-lg border-4 border-white hidden sm:block bg-[#F1F5F9]">
               <Image
-                src="https://images.unsplash.com/photo-1497366811353-6870744d04b2?auto=format&fit=crop&w=400&q=80"
-                alt="Modern corporate office"
+                src="/cleaning/images/supplies.jpg"
+                alt="Professional cleaning supplies"
                 fill
                 className="object-cover"
               />

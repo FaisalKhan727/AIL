@@ -65,10 +65,10 @@ export function Contact() {
 
         <div className="grid lg:grid-cols-5 gap-10">
           <div className="lg:col-span-2 space-y-5">
-            <div className="relative rounded-xl overflow-hidden h-44 mb-6 hidden lg:block">
+            <div className="relative rounded-xl overflow-hidden h-44 mb-6 hidden lg:block bg-[#F1F5F9]">
               <Image
-                src="https://images.unsplash.com/photo-1521737711867-e3b97375f902?auto=format&fit=crop&w=600&q=80"
-                alt="Our corporate team"
+                src="/cleaning/images/faucet-cleaning.jpg"
+                alt="Detail cleaning"
                 fill
                 className="object-cover"
               />
@@ -176,8 +176,8 @@ export function Contact() {
                       <option>Commercial Building Cleaning</option>
                       <option>Industrial & Warehouse Cleaning</option>
                       <option>Strata & Common Area Cleaning</option>
-                      <option>Post-Construction Cleaning</option>
                       <option>Carpet & Floor Care</option>
+                      <option>Deep Cleaning & Sanitisation</option>
                       <option>Multi-Site / Portfolio Contract</option>
                       <option>Other</option>
                     </select>

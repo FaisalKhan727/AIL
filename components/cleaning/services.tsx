@@ -9,42 +9,42 @@ const services = [
     description:
       "Daily and scheduled cleaning for corporate offices, co-working spaces, and headquarters. We maintain the professional image your business deserves.",
     features: ["Desk & Workstation Sanitisation", "Breakroom & Kitchen", "Restroom Servicing"],
-    image: "https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&w=600&q=80",
+    image: "/cleaning/images/office-cleaning.jpg",
   },
   {
     title: "Commercial Building Cleaning",
     description:
       "End-to-end facility cleaning for shopping centres, warehouses, showrooms, and multi-tenanted commercial buildings of any scale.",
     features: ["Common Area Maintenance", "Floor Care & Polishing", "After-Hours Service"],
-    image: "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=600&q=80",
+    image: "/cleaning/images/floor-polishing.jpg",
   },
   {
     title: "Industrial & Warehouse Cleaning",
     description:
       "Heavy-duty cleaning for factories, distribution centres, and industrial facilities. Equipment and protocols for high-safety environments.",
     features: ["High-Pressure Washing", "Machinery & Equipment Wipe-Down", "Hazard Compliant"],
-    image: "https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=600&q=80",
+    image: "/cleaning/images/oven-cleaning.jpg",
   },
   {
     title: "Strata & Common Area Cleaning",
     description:
       "Keep lobbies, lifts, hallways, car parks, and shared amenities spotless for tenants, visitors, and residents.",
     features: ["Lobby & Reception", "Lift & Stairwell Cleaning", "Car Park Sweeping"],
-    image: "https://images.unsplash.com/photo-1497215842964-222b430dc094?auto=format&fit=crop&w=600&q=80",
-  },
-  {
-    title: "Post-Construction Cleaning",
-    description:
-      "Builders&apos; clean and handover-ready preparation for new builds, fit-outs, and renovations — from rough clean to final detail.",
-    features: ["Debris & Dust Removal", "Window & Glass Polish", "Final Handover Detail"],
-    image: "https://images.unsplash.com/photo-1541888946425-d81bb19240f5?auto=format&fit=crop&w=600&q=80",
+    image: "/cleaning/images/switch-wiping.jpg",
   },
   {
     title: "Carpet & Floor Care",
     description:
       "Professional carpet steam cleaning, hard floor stripping, sealing, and polishing for corporate and commercial environments.",
     features: ["Steam & Hot Water Extraction", "Strip & Seal", "Scheduled Maintenance Plans"],
-    image: "https://images.unsplash.com/photo-1558618666-fcd25c85f82e?auto=format&fit=crop&w=600&q=80",
+    image: "/cleaning/images/vacuuming.jpg",
+  },
+  {
+    title: "Deep Cleaning & Sanitisation",
+    description:
+      "Thorough detail cleaning of all surfaces, fixtures, and hard-to-reach areas. Kitchen, bathroom, and high-touch point sanitisation.",
+    features: ["Surface Sanitisation", "Kitchen Deep Clean", "Bathroom Detail"],
+    image: "/cleaning/images/counter-wiping.jpg",
   },
 ];
 
@@ -71,7 +71,7 @@ export function Services() {
               key={service.title}
               className="cleaning-card-hover bg-white rounded-2xl overflow-hidden border border-[#E5E7EB] group"
             >
-              <div className="relative h-44 overflow-hidden">
+              <div className="relative h-44 overflow-hidden bg-[#F1F5F9]">
                 <Image
                   src={service.image}
                   alt={service.title}

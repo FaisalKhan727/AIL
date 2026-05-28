@@ -25,10 +25,10 @@ export function Hero() {
     >
       <div className="absolute inset-0">
         <Image
-          src="https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&w=1920&q=80"
-          alt="Modern corporate office space"
+          src="/cleaning/images/office-cleaning.jpg"
+          alt="Professional office cleaning"
           fill
-          className="object-cover opacity-40"
+          className="object-cover opacity-30"
           priority
         />
         <div className="absolute inset-0 bg-gradient-to-r from-[#0F172A] via-[#0F172A]/80 to-[#0F172A]/50" />
@@ -91,8 +91,8 @@ export function Hero() {
             <div className="relative w-full max-w-lg mx-auto">
               <div className="relative rounded-2xl overflow-hidden shadow-2xl border border-white/10">
                 <Image
-                  src="https://images.unsplash.com/photo-1497215842964-222b430dc094?auto=format&fit=crop&w=800&q=80"
-                  alt="Pristine corporate environment"
+                  src="/cleaning/images/spray-wipe.jpg"
+                  alt="Professional surface cleaning"
                   width={800}
                   height={600}
                   className="object-cover w-full h-[460px]"
