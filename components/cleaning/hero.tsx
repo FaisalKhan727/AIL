@@ -24,7 +24,7 @@ export function Hero() {
     >
       <div className="absolute inset-0">
         <img
-          src="/cleaning/images/office-cleaning.jpg"
+          src="https://images.pexels.com/photos/4239031/pexels-photo-4239031.jpeg?auto=compress&cs=tinysrgb&w=1920"
           alt="Professional office cleaning"
           className="w-full h-full object-cover opacity-30"
         />
@@ -86,7 +86,7 @@ export function Hero() {
             <div className="relative w-full max-w-lg mx-auto">
               <div className="rounded-2xl overflow-hidden shadow-2xl border border-white/10">
                 <img
-                  src="/cleaning/images/spray-wipe.jpg"
+                  src="https://images.pexels.com/photos/4239037/pexels-photo-4239037.jpeg?auto=compress&cs=tinysrgb&w=800"
                   alt="Professional surface cleaning"
                   className="w-full h-[460px] object-cover"
                 />

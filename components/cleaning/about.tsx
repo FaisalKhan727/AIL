@@ -40,15 +40,15 @@ export function About() {
           <div className="relative">
             <div className="rounded-2xl overflow-hidden shadow-lg bg-[#F1F5F9]">
               <img
-                src="/cleaning/images/mop-floor.jpg"
-                alt="Professional floor mopping"
+                src="https://images.pexels.com/photos/4239031/pexels-photo-4239031.jpeg?auto=compress&cs=tinysrgb&w=800"
+                alt="Professional cleaning service"
                 className="w-full h-[400px] object-cover"
               />
             </div>
 
             <div className="absolute -bottom-6 -left-4 w-48 h-40 rounded-xl overflow-hidden shadow-lg border-4 border-white hidden sm:block">
               <img
-                src="/cleaning/images/supplies.jpg"
+                src="https://images.pexels.com/photos/3177257/pexels-photo-3177257.jpeg?auto=compress&cs=tinysrgb&w=400"
                 alt="Professional cleaning supplies"
                 className="w-full h-full object-cover"
               />

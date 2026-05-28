@@ -41,7 +41,7 @@ export function Contact() {
           <div className="lg:col-span-2 space-y-5">
             <div className="relative rounded-xl overflow-hidden h-44 mb-6 hidden lg:block bg-[#F1F5F9]">
               <img
-                src="/cleaning/images/faucet-cleaning.jpg"
+                src="https://images.pexels.com/photos/4239040/pexels-photo-4239040.jpeg?auto=compress&cs=tinysrgb&w=600"
                 alt="Detail cleaning"
                 className="w-full h-full object-cover"
               />

@@ -8,42 +8,42 @@ const services = [
     description:
       "Daily and scheduled cleaning for corporate offices, co-working spaces, and headquarters. We maintain the professional image your business deserves.",
     features: ["Desk & Workstation Sanitisation", "Breakroom & Kitchen", "Restroom Servicing"],
-    image: "/cleaning/images/office-cleaning.jpg",
+    image: "https://images.pexels.com/photos/4239031/pexels-photo-4239031.jpeg?auto=compress&cs=tinysrgb&w=600",
   },
   {
     title: "Commercial Building Cleaning",
     description:
       "End-to-end facility cleaning for shopping centres, warehouses, showrooms, and multi-tenanted commercial buildings of any scale.",
     features: ["Common Area Maintenance", "Floor Care & Polishing", "After-Hours Service"],
-    image: "/cleaning/images/floor-polishing.jpg",
+    image: "https://images.pexels.com/photos/4239035/pexels-photo-4239035.jpeg?auto=compress&cs=tinysrgb&w=600",
   },
   {
     title: "Industrial & Warehouse Cleaning",
     description:
       "Heavy-duty cleaning for factories, distribution centres, and industrial facilities. Equipment and protocols for high-safety environments.",
     features: ["High-Pressure Washing", "Machinery & Equipment Wipe-Down", "Hazard Compliant"],
-    image: "/cleaning/images/oven-cleaning.jpg",
+    image: "https://images.pexels.com/photos/4107278/pexels-photo-4107278.jpeg?auto=compress&cs=tinysrgb&w=600",
   },
   {
     title: "Strata & Common Area Cleaning",
     description:
       "Keep lobbies, lifts, hallways, car parks, and shared amenities spotless for tenants, visitors, and residents.",
     features: ["Lobby & Reception", "Lift & Stairwell Cleaning", "Car Park Sweeping"],
-    image: "/cleaning/images/switch-wiping.jpg",
+    image: "https://images.pexels.com/photos/4239040/pexels-photo-4239040.jpeg?auto=compress&cs=tinysrgb&w=600",
   },
   {
     title: "Carpet & Floor Care",
     description:
       "Professional carpet steam cleaning, hard floor stripping, sealing, and polishing for corporate and commercial environments.",
     features: ["Steam & Hot Water Extraction", "Strip & Seal", "Scheduled Maintenance Plans"],
-    image: "/cleaning/images/vacuuming.jpg",
+    image: "https://images.pexels.com/photos/4107120/pexels-photo-4107120.jpeg?auto=compress&cs=tinysrgb&w=600",
   },
   {
     title: "Deep Cleaning & Sanitisation",
     description:
       "Thorough detail cleaning of all surfaces, fixtures, and hard-to-reach areas. Kitchen, bathroom, and high-touch point sanitisation.",
     features: ["Surface Sanitisation", "Kitchen Deep Clean", "Bathroom Detail"],
-    image: "/cleaning/images/counter-wiping.jpg",
+    image: "https://images.pexels.com/photos/4239037/pexels-photo-4239037.jpeg?auto=compress&cs=tinysrgb&w=600",
   },
 ];
 
