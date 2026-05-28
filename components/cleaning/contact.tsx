@@ -22,19 +22,19 @@ const contactInfo = [
     icon: Mail,
     label: "Email",
     value: "info@acscleaning.com.au",
-    subtext: "We reply within 2 hours",
+    subtext: "We respond within 2 hours",
   },
   {
     icon: MapPin,
     label: "Location",
     value: "Sydney, NSW",
-    subtext: "Servicing Greater Sydney",
+    subtext: "Servicing all capital cities",
   },
   {
     icon: Clock,
-    label: "Hours",
-    value: "Mon - Sat: 7am - 7pm",
-    subtext: "Emergency services 24/7",
+    label: "Operations",
+    value: "24/7 Service Available",
+    subtext: "After-hours & emergency response",
   },
 ];
 
@@ -50,7 +50,6 @@ export function Contact() {
   return (
     <section id="contact" className="py-24 bg-gray-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Header */}
         <div className="text-center max-w-3xl mx-auto mb-16">
           <div className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-50 rounded-full mb-4">
             <span className="w-2 h-2 rounded-full bg-emerald-500" />
@@ -59,29 +58,27 @@ export function Contact() {
             </span>
           </div>
           <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4">
-            Request a Free Quote
+            Request a Tailored Quote
           </h2>
           <p className="text-lg text-gray-600">
-            Tell us about your cleaning needs and we&apos;ll get back to you with a
-            tailored quote — no obligation, no pressure.
+            Tell us about your facility and requirements — we&apos;ll provide a
+            detailed proposal and scope of work.
           </p>
         </div>
 
         <div className="grid lg:grid-cols-5 gap-12">
-          {/* Contact info */}
           <div className="lg:col-span-2 space-y-6">
-            {/* Image card */}
             <div className="relative rounded-2xl overflow-hidden h-48 mb-8 hidden lg:block">
               <Image
                 src="https://images.unsplash.com/photo-1521737711867-e3b97375f902?auto=format&fit=crop&w=600&q=80"
-                alt="Our friendly team"
+                alt="Our corporate team"
                 fill
                 className="object-cover"
               />
-              <div className="absolute inset-0 bg-gradient-to-t from-emerald-900/80 to-emerald-900/20" />
+              <div className="absolute inset-0 bg-gradient-to-t from-[#0F172A]/80 to-[#0F172A]/20" />
               <div className="absolute bottom-4 left-5 right-5">
-                <p className="text-white font-semibold">We&apos;re here to help</p>
-                <p className="text-emerald-200 text-sm">Reach out anytime</p>
+                <p className="text-white font-semibold">Let&apos;s discuss your needs</p>
+                <p className="text-emerald-300 text-sm">Free site assessment included</p>
               </div>
             </div>
 
@@ -104,7 +101,6 @@ export function Contact() {
             ))}
           </div>
 
-          {/* Contact form */}
           <div className="lg:col-span-3">
             <div className="bg-white rounded-2xl p-8 shadow-sm border border-gray-100">
               {submitted ? (
@@ -116,8 +112,8 @@ export function Contact() {
                     Thank You!
                   </h3>
                   <p className="text-gray-600 max-w-sm">
-                    We&apos;ve received your enquiry and will get back to you within
-                    2 business hours.
+                    We&apos;ve received your enquiry and will be in touch within
+                    one business day with a tailored proposal.
                   </p>
                 </div>
               ) : (
@@ -125,15 +121,29 @@ export function Contact() {
                   <div className="grid sm:grid-cols-2 gap-5">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Full Name *
+                        Contact Name *
                       </label>
                       <input
                         type="text"
                         required
-                        placeholder="John Smith"
+                        placeholder="Jane Smith"
                         className="cleaning-input"
                       />
                     </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Company / Organisation *
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="Acme Corp Pty Ltd"
+                        className="cleaning-input"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid sm:grid-cols-2 gap-5">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
                         Email Address *
@@ -141,13 +151,10 @@ export function Contact() {
                       <input
                         type="email"
                         required
-                        placeholder="john@example.com"
+                        placeholder="jane@company.com.au"
                         className="cleaning-input"
                       />
                     </div>
-                  </div>
-
-                  <div className="grid sm:grid-cols-2 gap-5">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
                         Phone Number
@@ -158,32 +165,34 @@ export function Contact() {
                         className="cleaning-input"
                       />
                     </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Service Type *
-                      </label>
-                      <select required className="cleaning-input" defaultValue="">
-                        <option value="" disabled>
-                          Select a service
-                        </option>
-                        <option>Office Cleaning</option>
-                        <option>Residential Cleaning</option>
-                        <option>Commercial Cleaning</option>
-                        <option>Construction Cleaning</option>
-                        <option>Carpet & Upholstery</option>
-                        <option>Window Cleaning</option>
-                        <option>Other</option>
-                      </select>
-                    </div>
                   </div>
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Tell us about your needs
+                      Service Required *
+                    </label>
+                    <select required className="cleaning-input" defaultValue="">
+                      <option value="" disabled>
+                        Select a service
+                      </option>
+                      <option>Office & Workplace Cleaning</option>
+                      <option>Commercial Building Cleaning</option>
+                      <option>Industrial & Warehouse Cleaning</option>
+                      <option>Strata & Common Area Cleaning</option>
+                      <option>Post-Construction Cleaning</option>
+                      <option>Carpet & Floor Care</option>
+                      <option>Multi-Site / Portfolio Contract</option>
+                      <option>Other</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Project Details
                     </label>
                     <textarea
                       rows={4}
-                      placeholder="Describe your space, frequency, and any special requirements..."
+                      placeholder="Describe your facility (size, floors, current frequency), any compliance requirements, and preferred schedule..."
                       className="cleaning-input resize-none"
                     />
                   </div>
@@ -193,12 +202,12 @@ export function Contact() {
                     className="cleaning-btn-primary w-full justify-center text-base"
                   >
                     <Send className="w-5 h-5" />
-                    Send Enquiry
+                    Submit Enquiry
                   </button>
 
                   <p className="text-xs text-gray-400 text-center">
-                    By submitting, you agree to our privacy policy. We&apos;ll never
-                    share your information.
+                    Your information is confidential and will never be shared
+                    with third parties.
                   </p>
                 </form>
               )}

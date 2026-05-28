@@ -4,37 +4,37 @@ import {
   MessageSquare,
   ClipboardCheck,
   CalendarCheck,
-  ThumbsUp,
+  BarChart3,
 } from "lucide-react";
 
 const steps = [
   {
     number: "01",
     icon: MessageSquare,
-    title: "Get in Touch",
+    title: "Initial Consultation",
     description:
-      "Reach out via phone, email, or our contact form. Tell us about your space and cleaning needs.",
+      "We discuss your facility requirements, scope, frequency, and any compliance or access considerations.",
   },
   {
     number: "02",
     icon: ClipboardCheck,
-    title: "Free Assessment",
+    title: "Site Assessment & Proposal",
     description:
-      "We visit your premises to assess the scope, then provide a transparent, no-obligation quote.",
+      "Our team inspects your premises and delivers a detailed scope of work with transparent, competitive pricing.",
   },
   {
     number: "03",
     icon: CalendarCheck,
-    title: "Schedule Service",
+    title: "Mobilisation & Onboarding",
     description:
-      "Pick a time that works for you. We offer flexible scheduling including after-hours and weekends.",
+      "We assign a dedicated team, complete site inductions, set up schedules, and begin service — seamlessly.",
   },
   {
     number: "04",
-    icon: ThumbsUp,
-    title: "Enjoy the Clean",
+    icon: BarChart3,
+    title: "Ongoing Management & Reporting",
     description:
-      "Our trained team delivers exceptional results. We follow up to ensure your complete satisfaction.",
+      "Regular quality audits, KPI reviews, and account manager check-ins ensure consistent high performance.",
   },
 ];
 
@@ -42,28 +42,25 @@ export function Process() {
   return (
     <section id="process" className="py-24 bg-white">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Header */}
         <div className="text-center max-w-3xl mx-auto mb-16">
           <div className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-50 rounded-full mb-4">
             <span className="w-2 h-2 rounded-full bg-emerald-500" />
             <span className="text-sm font-medium text-emerald-700">
-              How It Works
+              How We Work
             </span>
           </div>
           <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4">
-            Simple 4-Step Process
+            A Proven Engagement Process
           </h2>
           <p className="text-lg text-gray-600">
-            Getting started with ACS Cleaning is easy. Here&apos;s how we take
-            you from enquiry to a spotless space.
+            From initial consultation to ongoing account management — here&apos;s
+            how we deliver and maintain excellence.
           </p>
         </div>
 
-        {/* Steps */}
         <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
           {steps.map((step, index) => (
             <div key={step.number} className="relative group">
-              {/* Connector line */}
               {index < steps.length - 1 && (
                 <div className="hidden lg:block absolute top-12 left-[calc(50%+40px)] w-[calc(100%-80px)] h-0.5 bg-gradient-to-r from-emerald-300 to-emerald-100" />
               )}

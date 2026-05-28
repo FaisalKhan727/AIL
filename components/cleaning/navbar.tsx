@@ -13,7 +13,6 @@ const navLinks = [
   { label: "Services", href: "#services" },
   { label: "About", href: "#about" },
   { label: "Process", href: "#process" },
-  { label: "Pricing", href: "#pricing" },
   { label: "Testimonials", href: "#testimonials" },
   { label: "Contact", href: "#contact" },
 ];
@@ -38,7 +37,6 @@ export function Navbar() {
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-20">
-          {/* Logo */}
           <a href="#home" className="flex items-center gap-3">
             <Image
               src="/cleaning/logo.jpg"
@@ -60,7 +58,6 @@ export function Navbar() {
             </div>
           </a>
 
-          {/* Desktop links */}
           <div className="hidden lg:flex items-center gap-8">
             {navLinks.map((link) => (
               <a
@@ -75,7 +72,6 @@ export function Navbar() {
             ))}
           </div>
 
-          {/* Desktop CTA */}
           <div className="hidden lg:flex items-center gap-4">
             <a
               href="tel:+61400000000"
@@ -85,11 +81,10 @@ export function Navbar() {
               1300 ACS CLN
             </a>
             <a href="#contact" className="cleaning-btn-primary text-sm !py-2.5 !px-5">
-              Get a Quote
+              Request a Quote
             </a>
           </div>
 
-          {/* Mobile menu button */}
           <button
             onClick={() => setMobileOpen(!mobileOpen)}
             className="lg:hidden p-2 rounded-lg hover:bg-gray-100 transition-colors"
@@ -104,7 +99,6 @@ export function Navbar() {
         </div>
       </div>
 
-      {/* Mobile menu */}
       {mobileOpen && (
         <div className="lg:hidden bg-white border-t border-gray-100 shadow-xl">
           <div className="px-4 py-6 space-y-3">
@@ -124,7 +118,7 @@ export function Navbar() {
                 onClick={() => setMobileOpen(false)}
                 className="cleaning-btn-primary w-full justify-center text-center"
               >
-                Get a Free Quote
+                Request a Quote
               </a>
             </div>
           </div>

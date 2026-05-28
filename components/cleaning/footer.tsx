@@ -12,19 +12,18 @@ import {
 } from "lucide-react";
 
 const serviceLinks = [
-  "Office Cleaning",
-  "Residential Cleaning",
-  "Commercial Cleaning",
-  "Construction Cleaning",
-  "Carpet & Upholstery",
-  "Window Cleaning",
+  "Office & Workplace Cleaning",
+  "Commercial Building Cleaning",
+  "Industrial & Warehouse Cleaning",
+  "Strata & Common Area Cleaning",
+  "Post-Construction Cleaning",
+  "Carpet & Floor Care",
 ];
 
 const companyLinks = [
   { label: "About Us", href: "#about" },
   { label: "Our Services", href: "#services" },
-  { label: "How It Works", href: "#process" },
-  { label: "Pricing", href: "#pricing" },
+  { label: "How We Work", href: "#process" },
   { label: "Testimonials", href: "#testimonials" },
   { label: "Contact", href: "#contact" },
 ];
@@ -35,15 +34,14 @@ export function Footer() {
   };
 
   return (
-    <footer className="bg-gray-900 text-gray-300">
+    <footer className="bg-[#0F172A] text-gray-300">
       {/* CTA Banner */}
       <div className="relative overflow-hidden">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
           <div className="relative rounded-3xl overflow-hidden">
-            {/* Background image */}
             <Image
               src="https://images.unsplash.com/photo-1497366811353-6870744d04b2?auto=format&fit=crop&w=1400&q=80"
-              alt="Clean modern space"
+              alt="Modern corporate facility"
               fill
               className="object-cover"
             />
@@ -51,18 +49,18 @@ export function Footer() {
 
             <div className="relative p-10 sm:p-14 text-center space-y-6">
               <h2 className="text-3xl sm:text-4xl font-bold text-white">
-                Ready for a Spotless Space?
+                Ready to Elevate Your Facility?
               </h2>
               <p className="text-lg text-emerald-100 max-w-2xl mx-auto">
-                Get a free, no-obligation quote today and experience the ACS
-                Cleaning difference.
+                Get a free site assessment and tailored proposal for your
+                corporate cleaning needs.
               </p>
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
                 <a
                   href="#contact"
                   className="inline-flex items-center justify-center gap-2 bg-white text-emerald-700 px-8 py-3.5 rounded-full font-semibold hover:bg-emerald-50 transition-colors shadow-lg"
                 >
-                  Get Your Free Quote
+                  Request a Proposal
                 </a>
                 <a
                   href="tel:+61400000000"
@@ -80,7 +78,6 @@ export function Footer() {
       {/* Footer content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-12">
         <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-10 mb-12">
-          {/* Brand */}
           <div className="space-y-5">
             <a href="#home" className="flex items-center gap-3">
               <Image
@@ -98,15 +95,16 @@ export function Footer() {
               </div>
             </a>
             <p className="text-sm text-gray-400 leading-relaxed">
-              A division of Allied Corporate Services delivering premium
-              cleaning solutions across Australia.
+              The corporate cleaning division of Allied Corporate Services —
+              delivering facility cleaning solutions to businesses across
+              Australia.
             </p>
             <div className="flex gap-3">
               {[Facebook, Instagram, Linkedin].map((Icon, i) => (
                 <a
                   key={i}
                   href="#"
-                  className="w-10 h-10 rounded-lg bg-gray-800 hover:bg-emerald-600 flex items-center justify-center transition-colors"
+                  className="w-10 h-10 rounded-lg bg-white/5 hover:bg-emerald-600 flex items-center justify-center transition-colors"
                 >
                   <Icon className="w-4 h-4" />
                 </a>
@@ -114,7 +112,6 @@ export function Footer() {
             </div>
           </div>
 
-          {/* Services */}
           <div>
             <h3 className="text-white font-semibold mb-5">Services</h3>
             <ul className="space-y-3">
@@ -131,7 +128,6 @@ export function Footer() {
             </ul>
           </div>
 
-          {/* Company */}
           <div>
             <h3 className="text-white font-semibold mb-5">Company</h3>
             <ul className="space-y-3">
@@ -148,7 +144,6 @@ export function Footer() {
             </ul>
           </div>
 
-          {/* Contact */}
           <div>
             <h3 className="text-white font-semibold mb-5">Contact</h3>
             <ul className="space-y-4">
@@ -168,7 +163,7 @@ export function Footer() {
                 <div>
                   <p className="text-sm">Sydney, NSW</p>
                   <p className="text-xs text-gray-500">
-                    Servicing Greater Sydney &amp; Beyond
+                    Servicing all capital cities
                   </p>
                 </div>
               </li>
@@ -176,15 +171,14 @@ export function Footer() {
           </div>
         </div>
 
-        {/* Bottom */}
-        <div className="flex flex-col sm:flex-row items-center justify-between pt-8 border-t border-gray-800 gap-4">
+        <div className="flex flex-col sm:flex-row items-center justify-between pt-8 border-t border-white/10 gap-4">
           <p className="text-sm text-gray-500">
             &copy; {new Date().getFullYear()} ACS Cleaning — Allied Corporate
             Services. All rights reserved.
           </p>
           <button
             onClick={scrollToTop}
-            className="w-10 h-10 rounded-full bg-gray-800 hover:bg-emerald-600 flex items-center justify-center transition-colors"
+            className="w-10 h-10 rounded-full bg-white/5 hover:bg-emerald-600 flex items-center justify-center transition-colors"
             aria-label="Scroll to top"
           >
             <ArrowUp className="w-4 h-4" />
