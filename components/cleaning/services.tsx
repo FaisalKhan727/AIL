@@ -1,9 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import {
-  ArrowRight,
-} from "lucide-react";
+import { ArrowRight } from "lucide-react";
 
 const services = [
   {
@@ -52,53 +50,50 @@ const services = [
 
 export function Services() {
   return (
-    <section id="services" className="py-24 bg-white">
+    <section id="services" className="py-20 lg:py-24 bg-white">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="text-center max-w-3xl mx-auto mb-16">
-          <div className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-50 rounded-full mb-4">
-            <span className="w-2 h-2 rounded-full bg-emerald-500" />
-            <span className="text-sm font-medium text-emerald-700">
-              Our Services
-            </span>
-          </div>
-          <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4">
-            Corporate & Commercial Cleaning Solutions
+        <div className="text-center max-w-2xl mx-auto mb-14">
+          <p className="text-sm font-semibold text-[#0E9F6E] uppercase tracking-wider mb-3">
+            Our Services
+          </p>
+          <h2 className="text-3xl sm:text-4xl font-bold text-[#0F172A] mb-4">
+            Corporate & Commercial Cleaning
           </h2>
-          <p className="text-lg text-gray-600">
+          <p className="text-[#4B5563] text-base leading-relaxed">
             Tailored cleaning programs for businesses of every size — from
             single-tenancy offices to multi-site commercial portfolios.
           </p>
         </div>
 
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-7">
           {services.map((service) => (
             <div
               key={service.title}
-              className="cleaning-card-hover bg-white rounded-2xl overflow-hidden border border-gray-100 shadow-sm group"
+              className="cleaning-card-hover bg-white rounded-2xl overflow-hidden border border-[#E5E7EB] group"
             >
-              <div className="relative h-48 overflow-hidden">
+              <div className="relative h-44 overflow-hidden">
                 <Image
                   src={service.image}
                   alt={service.title}
                   fill
-                  className="object-cover transition-transform duration-500 group-hover:scale-110"
+                  className="object-cover transition-transform duration-500 group-hover:scale-105"
                 />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
+                <div className="absolute inset-0 bg-gradient-to-t from-[#0F172A]/60 to-transparent" />
                 <h3 className="absolute bottom-4 left-5 right-5 text-lg font-bold text-white leading-snug">
                   {service.title}
                 </h3>
               </div>
 
               <div className="p-6">
-                <p className="text-gray-600 mb-5 leading-relaxed text-sm">
+                <p className="text-[#4B5563] text-[0.9375rem] leading-relaxed mb-5">
                   {service.description}
                 </p>
 
-                <div className="space-y-2 mb-6">
+                <div className="flex flex-wrap gap-1.5 mb-5">
                   {service.features.map((f) => (
                     <span
                       key={f}
-                      className="inline-block mr-2 mb-1 px-3 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700"
+                      className="px-3 py-1 rounded-full text-xs font-medium bg-[#F0FDF4] text-[#047857] border border-[#D1FAE5]"
                     >
                       {f}
                     </span>
@@ -107,7 +102,7 @@ export function Services() {
 
                 <a
                   href="#contact"
-                  className="inline-flex items-center gap-2 text-sm font-semibold text-emerald-600 group-hover:text-emerald-700 transition-colors"
+                  className="inline-flex items-center gap-1.5 text-sm font-semibold text-[#0E9F6E] hover:text-[#047857] transition-colors"
                 >
                   Request a Quote
                   <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />

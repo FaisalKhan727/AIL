@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import {
   ShieldCheck,
   FileCheck,
@@ -51,18 +50,8 @@ const reasons = [
 
 export function WhyChooseUs() {
   return (
-    <section className="py-24 relative overflow-hidden">
-      <div className="absolute inset-0">
-        <Image
-          src="https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=1920&q=80"
-          alt="Corporate building"
-          fill
-          className="object-cover"
-        />
-        <div className="absolute inset-0 bg-[#0F172A]/93" />
-      </div>
-
-      <div className="absolute inset-0 opacity-5">
+    <section className="py-20 lg:py-24 bg-[#0F172A] relative overflow-hidden">
+      <div className="absolute inset-0 opacity-[0.03]">
         <div
           className="absolute inset-0"
           style={{
@@ -74,35 +63,32 @@ export function WhyChooseUs() {
       </div>
 
       <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="text-center max-w-3xl mx-auto mb-16">
-          <div className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-900/50 border border-emerald-700/30 rounded-full mb-4">
-            <span className="w-2 h-2 rounded-full bg-emerald-400" />
-            <span className="text-sm font-medium text-emerald-300">
-              Why Businesses Choose ACS
-            </span>
-          </div>
+        <div className="text-center max-w-2xl mx-auto mb-14">
+          <p className="text-sm font-semibold text-[#34D399] uppercase tracking-wider mb-3">
+            Why Businesses Choose ACS
+          </p>
           <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
             Built for Corporate Standards
           </h2>
-          <p className="text-lg text-gray-400">
+          <p className="text-[#94A3B8] text-base leading-relaxed">
             We operate to the standards that corporate clients, facility
             managers, and strata companies demand.
           </p>
         </div>
 
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
           {reasons.map((reason) => (
             <div
               key={reason.title}
-              className="group p-8 rounded-2xl bg-white/5 backdrop-blur-sm border border-white/10 hover:bg-white/10 hover:border-emerald-700/30 transition-all duration-300"
+              className="group p-7 rounded-2xl bg-[#1E293B] border border-[#334155] hover:border-[#047857]/40 transition-all duration-300"
             >
-              <div className="w-14 h-14 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center mb-6 group-hover:bg-emerald-500/20 transition-colors">
-                <reason.icon className="w-7 h-7 text-emerald-400" />
+              <div className="w-12 h-12 rounded-xl bg-[#047857]/15 flex items-center justify-center mb-5 group-hover:bg-[#047857]/25 transition-colors">
+                <reason.icon className="w-6 h-6 text-[#34D399]" />
               </div>
-              <h3 className="text-lg font-bold text-white mb-3">
+              <h3 className="text-[1.0625rem] font-bold text-white mb-2.5">
                 {reason.title}
               </h3>
-              <p className="text-gray-400 text-sm leading-relaxed">
+              <p className="text-[#94A3B8] text-sm leading-relaxed">
                 {reason.description}
               </p>
             </div>
