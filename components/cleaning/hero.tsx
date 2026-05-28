@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import {
   ArrowRight,
   Shield,
@@ -24,12 +23,10 @@ export function Hero() {
       className="relative min-h-screen flex items-center overflow-hidden bg-[#0F172A]"
     >
       <div className="absolute inset-0">
-        <Image
+        <img
           src="/cleaning/images/office-cleaning.jpg"
           alt="Professional office cleaning"
-          fill
-          className="object-cover opacity-30"
-          priority
+          className="w-full h-full object-cover opacity-30"
         />
         <div className="absolute inset-0 bg-gradient-to-r from-[#0F172A] via-[#0F172A]/80 to-[#0F172A]/50" />
       </div>
@@ -38,12 +35,10 @@ export function Hero() {
         <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
           <div className="space-y-8">
             <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/10 border border-white/15 backdrop-blur-sm rounded-full">
-              <Image
+              <img
                 src="/cleaning/logo.jpg"
                 alt="ACS"
-                width={20}
-                height={20}
-                className="rounded-sm brightness-0 invert"
+                className="w-5 h-5 rounded-sm brightness-0 invert"
               />
               <span className="text-sm font-medium text-[#6EE7B7]">
                 Allied Corporate Services
@@ -89,14 +84,11 @@ export function Hero() {
 
           <div className="relative hidden lg:block">
             <div className="relative w-full max-w-lg mx-auto">
-              <div className="relative rounded-2xl overflow-hidden shadow-2xl border border-white/10">
-                <Image
+              <div className="rounded-2xl overflow-hidden shadow-2xl border border-white/10">
+                <img
                   src="/cleaning/images/spray-wipe.jpg"
                   alt="Professional surface cleaning"
-                  width={800}
-                  height={600}
-                  className="object-cover w-full h-[460px]"
-                  priority
+                  className="w-full h-[460px] object-cover"
                 />
               </div>
 

@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import { ArrowRight } from "lucide-react";
 
 const services = [
@@ -72,11 +71,10 @@ export function Services() {
               className="cleaning-card-hover bg-white rounded-2xl overflow-hidden border border-[#E5E7EB] group"
             >
               <div className="relative h-44 overflow-hidden bg-[#F1F5F9]">
-                <Image
+                <img
                   src={service.image}
                   alt={service.title}
-                  fill
-                  className="object-cover transition-transform duration-500 group-hover:scale-105"
+                  className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-[#0F172A]/60 to-transparent" />
                 <h3 className="absolute bottom-4 left-5 right-5 text-lg font-bold text-white leading-snug">
