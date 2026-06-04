@@ -48,12 +48,18 @@ export async function GET(req: Request) {
     new Date(now.getTime() - WEEKS_BACK * 7 * 24 * 3600_000),
   );
 
+  // Roster-status filter intentionally absent — matches the admin
+  // /api/timesheets endpoint, which counts CONFIRMED + WORKED shifts
+  // regardless of whether the parent roster is DRAFT, PUBLISHED, or
+  // ARCHIVED. Without this match, archived past-month rosters made the
+  // guard's PWA total silently lower than the admin number for the same
+  // week. Tenant scoping is enforced via guardId membership; admin can
+  // still hide a guard from a company by setting Guard.active=false.
   const shifts = await prisma.shift.findMany({
     where: {
       guardId: { in: guardIds },
       status: { in: ["CONFIRMED", "WORKED"] },
       startAt: { gte: earliestWeekStart },
-      roster: { status: "PUBLISHED" },
     },
     orderBy: { startAt: "desc" },
     select: {
