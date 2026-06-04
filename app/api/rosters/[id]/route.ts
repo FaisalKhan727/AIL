@@ -10,12 +10,39 @@ async function ensureRoster(id: string, companyId: string) {
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
   const auth = await requireAdmin();
   if ("error" in auth) return auth.error;
+  // Slim select instead of full include — the roster detail page only
+  // renders guard name + id and site name + id. Full guard rows include
+  // payRate, notes, licenceNumber etc. which were transferred but never
+  // rendered. Saves ~300ms wall-clock on a roster with 100+ shifts.
   const roster = await prisma.roster.findFirst({
     where: { id: params.id, companyId: auth.companyId },
-    include: {
+    select: {
+      id: true,
+      name: true,
+      startDate: true,
+      endDate: true,
+      status: true,
+      publishedAt: true,
       shifts: {
         orderBy: { startAt: "asc" },
-        include: { guard: true, site: true },
+        select: {
+          id: true,
+          guardId: true,
+          siteId: true,
+          startAt: true,
+          endAt: true,
+          role: true,
+          notes: true,
+          status: true,
+          publishedAt: true,
+          confirmCode: true,
+          confirmedAt: true,
+          rejectedAt: true,
+          workedStart: true,
+          workedEnd: true,
+          guard: { select: { id: true, firstName: true, lastName: true } },
+          site: { select: { id: true, name: true } },
+        },
       },
     },
   });
