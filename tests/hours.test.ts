@@ -45,6 +45,43 @@ describe("shiftHours", () => {
       }),
     ).toBe(0);
   });
+
+  it("ignores worked window under 15 min (mis-tap) and falls back to scheduled", () => {
+    expect(
+      shiftHours({
+        status: "WORKED",
+        startAt: d("2026-06-01T08:00:00Z"), // Mon 1 Jun 18:00 Melbourne
+        endAt: d("2026-06-01T20:00:00Z"),   // Tue 2 Jun 06:00 Melbourne
+        // 12 seconds — the actual prod data that triggered the bug
+        workedStart: d("2026-06-01T12:13:47Z"),
+        workedEnd:   d("2026-06-01T12:13:59Z"),
+      }),
+    ).toBe(12);
+  });
+
+  it("honours worked window when exactly 15 min", () => {
+    expect(
+      shiftHours({
+        status: "WORKED",
+        startAt: d("2026-05-04T18:00:00Z"),
+        endAt: d("2026-05-05T02:00:00Z"),
+        workedStart: d("2026-05-04T19:00:00Z"),
+        workedEnd:   d("2026-05-04T19:15:00Z"),
+      }),
+    ).toBe(0.25);
+  });
+
+  it("uses worked start with scheduled end when clocked in but not out", () => {
+    expect(
+      shiftHours({
+        status: "CONFIRMED",
+        startAt: d("2026-05-04T18:00:00Z"),
+        endAt: d("2026-05-05T02:00:00Z"), // 8h scheduled
+        workedStart: d("2026-05-04T18:30:00Z"),
+        workedEnd: null,
+      }),
+    ).toBe(7.5);
+  });
 });
 
 describe("totalHours / totalPay", () => {
