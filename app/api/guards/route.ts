@@ -3,17 +3,25 @@ import { prisma } from "@/lib/prisma";
 import { jsonError, requireAdmin } from "@/lib/api";
 import { guardCreateSchema } from "@/lib/validators";
 
+const ONBOARDING_STATUSES = ["NOT_STARTED", "IN_PROGRESS", "COMPLETE", "EXPIRED"] as const;
+
 export async function GET(req: Request) {
   const auth = await requireAdmin();
   if ("error" in auth) return auth.error;
   const { searchParams } = new URL(req.url);
   const q = searchParams.get("q")?.trim().toLowerCase();
   const activeFilter = searchParams.get("active");
+  const onboardingFilter = searchParams.get("onboardingStatus");
+  const onboardingFilterValid =
+    onboardingFilter && (ONBOARDING_STATUSES as readonly string[]).includes(onboardingFilter)
+      ? onboardingFilter
+      : null;
 
   const guards = await prisma.guard.findMany({
     where: {
       companyId: auth.companyId,
       ...(activeFilter === "true" ? { active: true } : activeFilter === "false" ? { active: false } : {}),
+      ...(onboardingFilterValid ? { onboardingStatus: onboardingFilterValid } : {}),
       ...(q
         ? {
             OR: [
@@ -25,6 +33,19 @@ export async function GET(req: Request) {
             ],
           }
         : {}),
+    },
+    select: {
+      id: true,
+      firstName: true,
+      lastName: true,
+      phone: true,
+      email: true,
+      licenceNumber: true,
+      licenceExpiry: true,
+      payRate: true,
+      active: true,
+      onboardingStatus: true,
+      onboardingCompletedAt: true,
     },
     orderBy: [{ active: "desc" }, { lastName: "asc" }],
   });
