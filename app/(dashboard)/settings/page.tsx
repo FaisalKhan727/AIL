@@ -28,6 +28,30 @@ interface SopVersion {
   createdAt: string;
 }
 interface SopList { versions: SopVersion[]; pendingReackCount: number }
+interface ContractVersion {
+  id: string;
+  version: number;
+  name: string;
+  templateContent: string;
+  effectiveFrom: string;
+  isCurrent: boolean;
+  createdAt: string;
+}
+interface ContractList { versions: ContractVersion[] }
+
+const CONTRACT_PLACEHOLDERS = [
+  "COMPANY_NAME",
+  "GUARD_NAME",
+  "GUARD_DOB",
+  "GUARD_ADDRESS",
+  "GUARD_EMAIL",
+  "GUARD_PHONE",
+  "LICENCE_NUMBER",
+  "LICENCE_CLASS",
+  "LICENCE_EXPIRY",
+  "CONTRACT_DATE",
+  "EMPLOYEE_SIGNATURE",
+] as const;
 
 const KEYS = [
   { key: "company_name", label: "Company name", type: "text" },
@@ -44,10 +68,35 @@ export default function SettingsPage() {
   const { data } = useQuery<SettingsResp>({ queryKey: ["settings"], queryFn: () => api(`/api/settings`) });
   const { data: admins = [] } = useQuery<Admin[]>({ queryKey: ["admins"], queryFn: () => api(`/api/admins`) });
   const { data: sopList } = useQuery<SopList>({ queryKey: ["sop"], queryFn: () => api(`/api/sop`) });
+  const { data: contractList } = useQuery<ContractList>({ queryKey: ["contracts"], queryFn: () => api(`/api/contracts`) });
 
   const [sopDraft, setSopDraft] = React.useState({ title: "", body: "" });
   const [sopPublishing, setSopPublishing] = React.useState(false);
   const currentSop = sopList?.versions.find((v) => v.isCurrent) ?? null;
+
+  const [contractDraft, setContractDraft] = React.useState({ name: "", templateContent: "" });
+  const [contractPublishing, setContractPublishing] = React.useState(false);
+  const currentContract = contractList?.versions.find((v) => v.isCurrent) ?? null;
+
+  async function publishContract() {
+    if (contractPublishing) return;
+    if (!confirm(
+      `Publish "${contractDraft.name}" as the new contract template?\n\n` +
+      `Already-signed contracts stay locked to the version that was current when each guard signed them. ` +
+      `Only new onboarding submissions will use this new template.\n\nThis cannot be undone.`,
+    )) return;
+    setContractPublishing(true);
+    try {
+      await api(`/api/contracts`, { method: "POST", body: JSON.stringify(contractDraft) });
+      toast({ title: "New contract template published", variant: "success" });
+      setContractDraft({ name: "", templateContent: "" });
+      qc.invalidateQueries({ queryKey: ["contracts"] });
+    } catch (e: unknown) {
+      toast({ title: "Publish failed", description: e instanceof Error ? e.message : "", variant: "error" });
+    } finally {
+      setContractPublishing(false);
+    }
+  }
 
   async function publishSop() {
     if (sopPublishing) return;
@@ -239,6 +288,94 @@ export default function SettingsPage() {
                 disabled={sopPublishing || sopDraft.title.trim().length < 2 || sopDraft.body.trim().length < 20}
               >
                 {sopPublishing ? "Publishing…" : "Publish as v" + ((sopList?.versions[0]?.version ?? 0) + 1)}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="lg:col-span-2">
+          <CardHeader>
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <CardTitle>Employment contract template</CardTitle>
+              {currentContract ? (
+                <Badge className="bg-emerald-100 text-emerald-800 border-emerald-300">
+                  Current: v{currentContract.version}
+                </Badge>
+              ) : (
+                <Badge className="bg-rose-100 text-rose-800 border-rose-300">NO TEMPLATE PUBLISHED</Badge>
+              )}
+            </div>
+            <CardDescription>
+              Used at the end of every onboarding flow. Already-signed contracts stay locked to the
+              version that was current at signing — publishing here only affects new submissions.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {currentContract && (
+              <div className="text-sm space-y-2 bg-muted/30 rounded-lg p-3">
+                <div className="flex items-baseline justify-between gap-2">
+                  <div className="font-medium">{currentContract.name}</div>
+                  <div className="text-xs text-muted-foreground">
+                    Published {new Date(currentContract.createdAt).toISOString().slice(0, 10)}
+                  </div>
+                </div>
+                <div className="whitespace-pre-wrap text-xs text-muted-foreground max-h-48 overflow-y-auto font-mono">
+                  {currentContract.templateContent}
+                </div>
+              </div>
+            )}
+
+            {contractList && contractList.versions.length > 1 && (
+              <details className="text-xs text-muted-foreground">
+                <summary className="cursor-pointer">Previous versions ({contractList.versions.length - 1})</summary>
+                <ul className="mt-2 space-y-1 pl-3">
+                  {contractList.versions.filter((v) => !v.isCurrent).map((v) => (
+                    <li key={v.id}>
+                      v{v.version} — {v.name} — {new Date(v.createdAt).toISOString().slice(0, 10)}
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            )}
+
+            <div className="border-t pt-4 space-y-3">
+              <div className="text-sm font-semibold">Publish a new template</div>
+
+              <div className="text-xs text-muted-foreground bg-muted/30 rounded p-2">
+                <div className="font-medium mb-1">Available placeholders (replaced at signing):</div>
+                <div className="flex flex-wrap gap-1">
+                  {CONTRACT_PLACEHOLDERS.map((p) => (
+                    <code key={p} className="bg-background border rounded px-1.5 py-0.5">{`{${p}}`}</code>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <Label>Name</Label>
+                <Input
+                  value={contractDraft.name}
+                  onChange={(e) => setContractDraft((d) => ({ ...d, name: e.target.value }))}
+                  placeholder="e.g. Casual Employment Contract v2026"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label>Contract body</Label>
+                <Textarea
+                  rows={14}
+                  value={contractDraft.templateContent}
+                  onChange={(e) => setContractDraft((d) => ({ ...d, templateContent: e.target.value }))}
+                  placeholder={"This agreement is made between {COMPANY_NAME} and {GUARD_NAME}...\n\n1. Position...\n\n2. Hours and pay..."}
+                  className="font-mono text-xs"
+                />
+                <div className="text-xs text-muted-foreground">
+                  Plain text. Blank lines separate paragraphs. Placeholders are substituted at signing.
+                </div>
+              </div>
+              <Button
+                onClick={publishContract}
+                disabled={contractPublishing || contractDraft.name.trim().length < 2 || contractDraft.templateContent.trim().length < 50}
+              >
+                {contractPublishing ? "Publishing…" : "Publish as v" + ((contractList?.versions[0]?.version ?? 0) + 1)}
               </Button>
             </div>
           </CardContent>
