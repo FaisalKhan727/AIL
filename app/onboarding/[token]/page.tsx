@@ -536,9 +536,7 @@ function LicenceStep({
   const ready =
     number.trim().length >= 4 &&
     (cls === "A" || cls === "B" || cls === "BOTH") &&
-    /^\d{4}-\d{2}-\d{2}$/.test(expiry) &&
-    !!frontUrl &&
-    !!backUrl;
+    /^\d{4}-\d{2}-\d{2}$/.test(expiry);
 
   async function handleUpload(which: "front" | "back", file: File) {
     if (uploading) return;
@@ -666,7 +664,7 @@ function LicenceStep({
                 <Camera className="h-6 w-6 mx-auto text-slate-400 mb-1" />
                 <p className="text-xs font-medium text-slate-600">{label} of licence</p>
                 <p className="text-[10px] text-slate-400 mt-0.5">
-                  {uploading === side ? "Uploading…" : "Tap to take photo"}
+                  {uploading === side ? "Uploading…" : "Tap to take photo (optional)"}
                 </p>
               </button>
             )}

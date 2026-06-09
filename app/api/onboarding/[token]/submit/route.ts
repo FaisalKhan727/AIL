@@ -50,8 +50,6 @@ export async function POST(req: Request, { params }: { params: { token: string }
     licenceNumber: d.licenceNumber,
     licenceClass: d.licenceClass,
     licenceExpiry: d.licenceExpiry,
-    licenceFrontPhotoUrl: d.licenceFrontPhotoUrl,
-    licenceBackPhotoUrl: d.licenceBackPhotoUrl,
     sopAcknowledgedAt: d.sopAcknowledgedAt,
     contractSignatureName: d.contractSignatureName,
     contractSignedAt: d.contractSignedAt,

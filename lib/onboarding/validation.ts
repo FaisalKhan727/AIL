@@ -50,10 +50,11 @@ export const licenceSchema = z.object({
   licenceNumber: z.string().trim().min(4, "Required"),
   licenceClass: z.enum(["A", "B", "BOTH"]),
   licenceExpiry: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use yyyy-mm-dd"),
-  // Photos are uploaded to Vercel Blob via /licence-upload before this
-  // step submits; the returned URLs flow through here.
-  licenceFrontPhotoUrl: z.string().url("Front photo is required"),
-  licenceBackPhotoUrl: z.string().url("Back photo is required"),
+  // Photos are optional — guards can complete onboarding without them
+  // (e.g. when Vercel Blob isn't configured, or when the guard
+  // doesn't have the licence on hand). URLs flow through when present.
+  licenceFrontPhotoUrl: z.string().url().optional().or(z.literal("")),
+  licenceBackPhotoUrl: z.string().url().optional().or(z.literal("")),
 });
 
 export const sopSchema = z.object({
