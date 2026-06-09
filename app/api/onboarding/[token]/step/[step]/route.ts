@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { hashOnboardingToken } from "@/lib/onboarding/token";
 import { STEP_SCHEMAS } from "@/lib/onboarding/validation";
+import { encrypt } from "@/lib/crypto";
 
 /**
  * POST /api/onboarding/[token]/step/[step]
@@ -63,14 +64,28 @@ export async function POST(req: Request, { params }: { params: { token: string; 
     patch.visaHoursPerFortnight = data.visaHoursPerFortnight ?? null;
   }
   if (stepNum === 4) {
-    // NOTE: stored in clear during step 2 of the build. Encryption
-    // lands in step 3, after which the same wire format will be
-    // routed through lib/crypto.ts before persistence.
-    patch.tfnEncrypted = data.tfn;
+    // Sensitive fields are encrypted with AES-256-GCM via lib/crypto
+    // before persistence. The ciphertext envelope is `enc:v1:<base64>`.
+    // If ENCRYPTION_KEY is misconfigured on the server, encrypt()
+    // throws — we catch and return a 500 with a clear message rather
+    // than persist any cleartext.
+    try {
+      patch.tfnEncrypted = encrypt(String(data.tfn));
+      patch.bankBsbEncrypted = encrypt(String(data.bankBsb).replace("-", ""));
+      patch.bankAccountNumberEncrypted = encrypt(String(data.bankAccountNumber));
+    } catch (e: unknown) {
+      return NextResponse.json(
+        {
+          error:
+            e instanceof Error
+              ? `Server encryption error: ${e.message}`
+              : "Server encryption error",
+        },
+        { status: 500 },
+      );
+    }
     patch.taxFreeThreshold = data.taxFreeThreshold;
     patch.bankAccountName = data.bankAccountName;
-    patch.bankBsbEncrypted = (data.bankBsb as string).replace("-", "");
-    patch.bankAccountNumberEncrypted = data.bankAccountNumber;
   }
   if (stepNum === 5) {
     patch.licenceNumber = data.licenceNumber;

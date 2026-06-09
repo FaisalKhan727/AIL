@@ -1,20 +1,27 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { jsonError, requireAdmin } from "@/lib/api";
+import { isEncrypted } from "@/lib/crypto";
 
 /**
  * GET /api/guards/[id]/onboarding
  *
  * Returns the latest OnboardingSession for the guard + the captured
- * data. Sensitive fields (TFN, BSB, account number) are MASKED — the
- * full value is held by the encryption layer that lands in step 3 and
- * will only be available to OWNER-role admins, with each decrypt
- * recorded in AuditLog. Until then this endpoint must not return the
- * raw values, even though the underlying columns are currently in
- * clear.
+ * data. Sensitive fields (TFN, BSB, account number) are returned
+ * MASKED. The plaintext lives behind the OWNER gate on
+ * /api/guards/[id]/onboarding/decrypt, which writes an AuditLog row
+ * for every reveal.
+ *
+ * - encrypted column → returns the fixed "•••••" mask so the API
+ *   never leaks length or partial content
+ * - legacy cleartext column (data captured before encryption deploy
+ *   and before the backfill script ran) → falls back to masking the
+ *   tail off the cleartext, same as the pre-step-3 behaviour
  */
-function maskTail(value: string | null | undefined, keepLast: number): string | null {
+const ENCRYPTED_MASK = "••••••••";
+function maskField(value: string | null | undefined, keepLast: number): string | null {
   if (!value) return null;
+  if (isEncrypted(value)) return ENCRYPTED_MASK;
   const trimmed = value.trim();
   if (trimmed.length <= keepLast) return trimmed;
   const last = trimmed.slice(-keepLast);
@@ -40,6 +47,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     return NextResponse.json({
       hasSession: false,
       onboardingStatus: guard.onboardingStatus,
+      viewerRole: auth.role,
     });
   }
 
@@ -51,6 +59,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     return NextResponse.json({
       hasSession: false,
       onboardingStatus: guard.onboardingStatus,
+      viewerRole: auth.role,
     });
   }
 
@@ -83,6 +92,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     sessionCompletedAt: session.completedAt,
     guardCompletedAt: guard.onboardingCompletedAt,
     onboardingStatus: guard.onboardingStatus,
+    viewerRole: auth.role,
     data: session.data
       ? {
           personal: {
@@ -101,11 +111,14 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
             visaHoursPerFortnight: session.data.visaHoursPerFortnight,
           },
           taxBank: {
-            tfnMasked: maskTail(session.data.tfnEncrypted, 3),
+            tfnMasked: maskField(session.data.tfnEncrypted, 3),
+            tfnEncrypted: isEncrypted(session.data.tfnEncrypted),
             taxFreeThreshold: session.data.taxFreeThreshold,
             bankAccountName: session.data.bankAccountName,
-            bankBsbMasked: maskTail(session.data.bankBsbEncrypted, 3),
-            bankAccountNumberMasked: maskTail(session.data.bankAccountNumberEncrypted, 4),
+            bankBsbMasked: maskField(session.data.bankBsbEncrypted, 3),
+            bankBsbEncrypted: isEncrypted(session.data.bankBsbEncrypted),
+            bankAccountNumberMasked: maskField(session.data.bankAccountNumberEncrypted, 4),
+            bankAccountNumberEncrypted: isEncrypted(session.data.bankAccountNumberEncrypted),
           },
           licence: {
             number: session.data.licenceNumber,

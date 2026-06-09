@@ -2,13 +2,23 @@
 import * as React from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useParams, useRouter } from "next/navigation";
-import { Pencil, Send, Trash2, ClipboardCheck } from "lucide-react";
+import { Pencil, Send, Trash2, ClipboardCheck, Eye, ShieldAlert } from "lucide-react";
 import { PageHeader } from "@/components/shell/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { GuardFormDialog } from "@/components/guards/guard-form-dialog";
 import { StatusBadge } from "@/components/shared/status-badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import { api } from "@/lib/fetcher";
 import { fmtDateTime, fmtIso } from "@/lib/date";
 import { formatPhoneAU } from "@/lib/utils";
@@ -29,6 +39,8 @@ interface GuardDetail {
   smsLogs: Array<{ id: string; direction: string; body: string; receivedAt: string; status: string | null }>;
 }
 
+type SensitiveField = "tfn" | "bsb" | "accountNumber";
+
 interface OnboardingView {
   hasSession: boolean;
   sessionId?: string;
@@ -40,6 +52,7 @@ interface OnboardingView {
   sessionCompletedAt?: string | null;
   guardCompletedAt?: string | null;
   onboardingStatus: string;
+  viewerRole: string;
   data?: {
     personal: {
       legalName: string | null;
@@ -58,10 +71,13 @@ interface OnboardingView {
     };
     taxBank: {
       tfnMasked: string | null;
+      tfnEncrypted: boolean;
       taxFreeThreshold: boolean | null;
       bankAccountName: string | null;
       bankBsbMasked: string | null;
+      bankBsbEncrypted: boolean;
       bankAccountNumberMasked: string | null;
+      bankAccountNumberEncrypted: boolean;
     };
     licence: {
       number: string | null;
@@ -93,6 +109,50 @@ function Field({ label, value }: { label: string; value: React.ReactNode }) {
   );
 }
 
+function SensitiveFieldCell({
+  label,
+  masked,
+  encrypted,
+  revealed,
+  canReveal,
+  onReveal,
+}: {
+  label: string;
+  field: SensitiveField;
+  masked: string | null;
+  encrypted: boolean;
+  revealed: string | undefined;
+  canReveal: boolean;
+  onReveal: () => void;
+}) {
+  if (revealed !== undefined) {
+    return (
+      <div>
+        <div className="text-xs text-muted-foreground">{label}</div>
+        <div className="text-sm font-mono text-amber-700">{revealed}</div>
+        <div className="text-[10px] text-amber-700/80 mt-0.5">Auto-hides in 30s</div>
+      </div>
+    );
+  }
+  return (
+    <div>
+      <div className="text-xs text-muted-foreground">{label}</div>
+      <div className="text-sm flex items-center gap-2">
+        <span>{masked ?? "—"}</span>
+        {masked && encrypted && canReveal && (
+          <button
+            type="button"
+            onClick={onReveal}
+            className="text-xs underline text-blue-600 hover:text-blue-800"
+          >
+            Reveal
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function GuardDetailPage() {
   const { id } = useParams<{ id: string }>();
   const qc = useQueryClient();
@@ -101,6 +161,71 @@ export default function GuardDetailPage() {
   const [editOpen, setEditOpen] = React.useState(false);
   const [inviting, setInviting] = React.useState(false);
   const [sendingOnboard, setSendingOnboard] = React.useState(false);
+
+  // Reveal flow state. `revealing` = which field is currently in the
+  // reason dialog. `revealedValues` = plaintexts that are currently
+  // visible; each entry auto-clears after REVEAL_TTL_MS.
+  const REVEAL_TTL_MS = 30_000;
+  const [revealing, setRevealing] = React.useState<SensitiveField | null>(null);
+  const [revealReason, setRevealReason] = React.useState("");
+  const [revealing_submitting, setRevealingSubmitting] = React.useState(false);
+  const [revealedValues, setRevealedValues] = React.useState<Partial<Record<SensitiveField, string>>>({});
+  const revealTimers = React.useRef<Partial<Record<SensitiveField, number>>>({});
+
+  React.useEffect(() => {
+    return () => {
+      // Clear any pending hide timers on unmount.
+      Object.values(revealTimers.current).forEach((t) => t && clearTimeout(t));
+    };
+  }, []);
+
+  async function confirmReveal() {
+    if (!revealing || revealReason.trim().length < 10 || revealing_submitting) return;
+    setRevealingSubmitting(true);
+    try {
+      const r = await api<{ tfn?: string | null; bsb?: string | null; accountNumber?: string | null }>(
+        `/api/guards/${id}/onboarding/decrypt`,
+        {
+          method: "POST",
+          body: JSON.stringify({ fields: [revealing], reason: revealReason.trim() }),
+          headers: { "Content-Type": "application/json" },
+        },
+      );
+      const value = r[revealing];
+      if (typeof value !== "string") {
+        toast({ title: "No value to reveal for that field.", variant: "error" });
+        return;
+      }
+      setRevealedValues((prev) => ({ ...prev, [revealing]: value }));
+      if (revealTimers.current[revealing]) {
+        clearTimeout(revealTimers.current[revealing]);
+      }
+      revealTimers.current[revealing] = window.setTimeout(() => {
+        setRevealedValues((prev) => {
+          const next = { ...prev };
+          delete next[revealing];
+          return next;
+        });
+        delete revealTimers.current[revealing];
+      }, REVEAL_TTL_MS);
+      toast({ title: "Revealed — auto-hides in 30 seconds. Logged to audit.", variant: "success" });
+      setRevealing(null);
+      setRevealReason("");
+    } catch (e: unknown) {
+      toast({
+        title: "Reveal failed",
+        description: e instanceof Error ? e.message : "",
+        variant: "error",
+      });
+    } finally {
+      setRevealingSubmitting(false);
+    }
+  }
+
+  function startReveal(field: SensitiveField) {
+    setRevealing(field);
+    setRevealReason("");
+  }
 
   const { data, isLoading } = useQuery<GuardDetail>({
     queryKey: ["guard", id],
@@ -293,11 +418,21 @@ export default function GuardDetailPage() {
                 <h3 className="text-sm font-semibold mb-2">
                   Tax &amp; bank
                   <span className="ml-2 text-xs font-normal text-muted-foreground">
-                    masked · OWNER-only decrypt arrives in step 3
+                    {onboarding.viewerRole === "OWNER"
+                      ? "encrypted · click Reveal to decrypt (logged to audit, auto-hides 30s)"
+                      : "encrypted · OWNER role can decrypt with a logged reason"}
                   </span>
                 </h3>
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                  <Field label="TFN" value={onboarding.data.taxBank.tfnMasked} />
+                  <SensitiveFieldCell
+                    label="TFN"
+                    field="tfn"
+                    masked={onboarding.data.taxBank.tfnMasked}
+                    encrypted={onboarding.data.taxBank.tfnEncrypted}
+                    revealed={revealedValues.tfn}
+                    canReveal={onboarding.viewerRole === "OWNER"}
+                    onReveal={() => startReveal("tfn")}
+                  />
                   <Field
                     label="Tax-free threshold"
                     value={
@@ -309,8 +444,24 @@ export default function GuardDetailPage() {
                     }
                   />
                   <Field label="Bank account name" value={onboarding.data.taxBank.bankAccountName} />
-                  <Field label="BSB" value={onboarding.data.taxBank.bankBsbMasked} />
-                  <Field label="Account number" value={onboarding.data.taxBank.bankAccountNumberMasked} />
+                  <SensitiveFieldCell
+                    label="BSB"
+                    field="bsb"
+                    masked={onboarding.data.taxBank.bankBsbMasked}
+                    encrypted={onboarding.data.taxBank.bankBsbEncrypted}
+                    revealed={revealedValues.bsb}
+                    canReveal={onboarding.viewerRole === "OWNER"}
+                    onReveal={() => startReveal("bsb")}
+                  />
+                  <SensitiveFieldCell
+                    label="Account number"
+                    field="accountNumber"
+                    masked={onboarding.data.taxBank.bankAccountNumberMasked}
+                    encrypted={onboarding.data.taxBank.bankAccountNumberEncrypted}
+                    revealed={revealedValues.accountNumber}
+                    canReveal={onboarding.viewerRole === "OWNER"}
+                    onReveal={() => startReveal("accountNumber")}
+                  />
                 </div>
               </section>
 
@@ -412,6 +563,50 @@ export default function GuardDetailPage() {
           </Table>
         </CardContent>
       </Card>
+
+      <Dialog open={revealing !== null} onOpenChange={(o) => { if (!o) { setRevealing(null); setRevealReason(""); } }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ShieldAlert className="h-5 w-5 text-amber-600" />
+              Reveal {revealing === "tfn" ? "TFN" : revealing === "bsb" ? "BSB" : "account number"}
+            </DialogTitle>
+            <DialogDescription>
+              The plaintext will be visible for 30 seconds. Every reveal is recorded in the
+              audit log with your name, the field, and the reason you enter below.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="reveal-reason">Reason (min 10 characters)</Label>
+            <Textarea
+              id="reveal-reason"
+              value={revealReason}
+              onChange={(e) => setRevealReason(e.target.value)}
+              placeholder="e.g. Setting up payroll in Xero for first pay cycle"
+              rows={3}
+              autoFocus
+            />
+            <div className="text-xs text-muted-foreground">
+              {revealReason.trim().length}/10 chars minimum
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => { setRevealing(null); setRevealReason(""); }}
+              disabled={revealing_submitting}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={confirmReveal}
+              disabled={revealReason.trim().length < 10 || revealing_submitting}
+            >
+              <Eye className="h-4 w-4" /> {revealing_submitting ? "Revealing…" : "Reveal"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <GuardFormDialog
         open={editOpen}
