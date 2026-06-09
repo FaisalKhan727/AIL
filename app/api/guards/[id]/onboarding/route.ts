@@ -137,6 +137,8 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
             signedAt: session.data.contractSignedAt,
             signerIp: session.data.contractSignerIp,
             signerUserAgent: session.data.contractSignerUserAgent,
+            contractPdfReady: !!session.data.generatedContractPdfUrl,
+            packagePdfReady: !!session.data.generatedPackagePdfUrl,
           },
         }
       : null,

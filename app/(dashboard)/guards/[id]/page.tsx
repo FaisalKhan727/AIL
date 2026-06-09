@@ -96,6 +96,8 @@ interface OnboardingView {
       signedAt: string | null;
       signerIp: string | null;
       signerUserAgent: string | null;
+      contractPdfReady: boolean;
+      packagePdfReady: boolean;
     };
   } | null;
 }
@@ -225,6 +227,30 @@ export default function GuardDetailPage() {
   function startReveal(field: SensitiveField) {
     setRevealing(field);
     setRevealReason("");
+  }
+
+  const [pdfBusy, setPdfBusy] = React.useState<"contract" | "package" | null>(null);
+  async function downloadPdf(which: "contract" | "package", regen: boolean = false) {
+    if (pdfBusy) return;
+    setPdfBusy(which);
+    try {
+      const r = await api<{ url: string; regenerated: boolean }>(
+        `/api/guards/${id}/onboarding/pdf?which=${which}${regen ? "&regen=1" : ""}`,
+      );
+      window.open(r.url, "_blank", "noopener");
+      if (regen) {
+        toast({ title: `${which === "contract" ? "Contract" : "Package"} PDF regenerated`, variant: "success" });
+        qc.invalidateQueries({ queryKey: ["guard-onboarding", id] });
+      }
+    } catch (e: unknown) {
+      toast({
+        title: "PDF download failed",
+        description: e instanceof Error ? e.message : "",
+        variant: "error",
+      });
+    } finally {
+      setPdfBusy(null);
+    }
   }
 
   const { data, isLoading } = useQuery<GuardDetail>({
@@ -526,6 +552,58 @@ export default function GuardDetailPage() {
                   <Field label="Signed at" value={onboarding.data.contract.signedAt ? fmtDateTime(onboarding.data.contract.signedAt) : null} />
                   <Field label="Signer IP" value={onboarding.data.contract.signerIp} />
                 </div>
+                {(onboarding.data.contract.contractPdfReady || onboarding.data.contract.packagePdfReady) && (
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    {onboarding.data.contract.contractPdfReady && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => downloadPdf("contract")}
+                        disabled={pdfBusy === "contract"}
+                      >
+                        {pdfBusy === "contract" ? "Opening…" : "Download signed contract"}
+                      </Button>
+                    )}
+                    {onboarding.data.contract.packagePdfReady && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => downloadPdf("package")}
+                        disabled={pdfBusy === "package"}
+                      >
+                        {pdfBusy === "package" ? "Opening…" : "Download full package"}
+                      </Button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => downloadPdf(onboarding.data!.contract.contractPdfReady ? "contract" : "package", true)}
+                      disabled={!!pdfBusy}
+                      className="text-xs underline text-muted-foreground hover:text-foreground"
+                    >
+                      Regenerate
+                    </button>
+                  </div>
+                )}
+                {(!onboarding.data.contract.contractPdfReady && !onboarding.data.contract.packagePdfReady && onboarding.status === "COMPLETED") && (
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => downloadPdf("contract", true)}
+                      disabled={!!pdfBusy}
+                    >
+                      {pdfBusy ? "Generating…" : "Generate contract PDF"}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => downloadPdf("package", true)}
+                      disabled={!!pdfBusy}
+                    >
+                      Generate package PDF
+                    </Button>
+                  </div>
+                )}
               </section>
             </div>
           )}
