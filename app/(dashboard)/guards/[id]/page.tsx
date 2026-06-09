@@ -10,7 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { GuardFormDialog } from "@/components/guards/guard-form-dialog";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { api } from "@/lib/fetcher";
-import { fmtDateTime } from "@/lib/date";
+import { fmtDateTime, fmtIso } from "@/lib/date";
 import { formatPhoneAU } from "@/lib/utils";
 import { useToast } from "@/components/ui/toast";
 
@@ -29,6 +29,70 @@ interface GuardDetail {
   smsLogs: Array<{ id: string; direction: string; body: string; receivedAt: string; status: string | null }>;
 }
 
+interface OnboardingView {
+  hasSession: boolean;
+  sessionId?: string;
+  status?: string;
+  currentStep?: number;
+  startedAt?: string;
+  lastSeenAt?: string | null;
+  expiresAt?: string;
+  sessionCompletedAt?: string | null;
+  guardCompletedAt?: string | null;
+  onboardingStatus: string;
+  data?: {
+    personal: {
+      legalName: string | null;
+      dateOfBirth: string | null;
+      residentialAddress: string | null;
+      mobile: string | null;
+      email: string | null;
+      emergencyContactName: string | null;
+      emergencyContactPhone: string | null;
+    };
+    workingRights: {
+      status: string | null;
+      visaSubclass: string | null;
+      visaExpiry: string | null;
+      visaHoursPerFortnight: number | null;
+    };
+    taxBank: {
+      tfnMasked: string | null;
+      taxFreeThreshold: boolean | null;
+      bankAccountName: string | null;
+      bankBsbMasked: string | null;
+      bankAccountNumberMasked: string | null;
+    };
+    licence: {
+      number: string | null;
+      class: string | null;
+      expiry: string | null;
+      frontPhotoUrl: string | null;
+      backPhotoUrl: string | null;
+    };
+    sop: {
+      versionLabel: string | null;
+      acknowledgedAt: string | null;
+    };
+    contract: {
+      templateLabel: string | null;
+      signatureName: string | null;
+      signedAt: string | null;
+      signerIp: string | null;
+      signerUserAgent: string | null;
+    };
+  } | null;
+}
+
+function Field({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div>
+      <div className="text-xs text-muted-foreground">{label}</div>
+      <div className="text-sm">{value ?? "—"}</div>
+    </div>
+  );
+}
+
 export default function GuardDetailPage() {
   const { id } = useParams<{ id: string }>();
   const qc = useQueryClient();
@@ -41,6 +105,11 @@ export default function GuardDetailPage() {
   const { data, isLoading } = useQuery<GuardDetail>({
     queryKey: ["guard", id],
     queryFn: () => api(`/api/guards/${id}`),
+  });
+
+  const { data: onboarding } = useQuery<OnboardingView>({
+    queryKey: ["guard-onboarding", id],
+    queryFn: () => api(`/api/guards/${id}/onboarding`),
   });
 
   async function sendAppInvite() {
@@ -148,6 +217,149 @@ export default function GuardDetailPage() {
           {data.notes && <p className="text-xs text-muted-foreground mt-2">{data.notes}</p>}
         </CardContent></Card>
       </div>
+
+      <Card className="mb-4">
+        <CardHeader>
+          <CardTitle className="flex items-center justify-between">
+            <span>Onboarding submission</span>
+            {onboarding?.hasSession && onboarding.status && (
+              <StatusBadge status={onboarding.status} />
+            )}
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {!onboarding ? (
+            <div className="text-sm text-muted-foreground">Loading…</div>
+          ) : !onboarding.hasSession ? (
+            <div className="text-sm text-muted-foreground">
+              No onboarding link sent yet. Use “Send onboarding link” above to start.
+            </div>
+          ) : !onboarding.data ? (
+            <div className="text-sm text-muted-foreground">
+              Link sent · {onboarding.status === "PENDING" ? "guard hasn’t opened it yet." : "no data captured yet."}
+              {onboarding.expiresAt && (
+                <> Expires {fmtDateTime(onboarding.expiresAt)}.</>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-6">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs text-muted-foreground">
+                <div>Step <span className="text-foreground font-medium">{onboarding.currentStep}</span> of 7</div>
+                {onboarding.guardCompletedAt && (
+                  <div>Completed <span className="text-foreground font-medium">{fmtDateTime(onboarding.guardCompletedAt)}</span></div>
+                )}
+                {onboarding.lastSeenAt && (
+                  <div>Last seen {fmtDateTime(onboarding.lastSeenAt)}</div>
+                )}
+                {onboarding.expiresAt && (
+                  <div>Link expires {fmtDateTime(onboarding.expiresAt)}</div>
+                )}
+              </div>
+
+              <section>
+                <h3 className="text-sm font-semibold mb-2">Personal</h3>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                  <Field label="Legal name" value={onboarding.data.personal.legalName} />
+                  <Field label="Date of birth" value={onboarding.data.personal.dateOfBirth ? fmtIso(onboarding.data.personal.dateOfBirth) : null} />
+                  <Field label="Residential address" value={onboarding.data.personal.residentialAddress} />
+                  <Field label="Mobile" value={onboarding.data.personal.mobile} />
+                  <Field label="Email" value={onboarding.data.personal.email} />
+                  <Field
+                    label="Emergency contact"
+                    value={
+                      onboarding.data.personal.emergencyContactName
+                        ? `${onboarding.data.personal.emergencyContactName} · ${onboarding.data.personal.emergencyContactPhone ?? "—"}`
+                        : null
+                    }
+                  />
+                </div>
+              </section>
+
+              <section>
+                <h3 className="text-sm font-semibold mb-2">Working rights</h3>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                  <Field label="Status" value={onboarding.data.workingRights.status} />
+                  {onboarding.data.workingRights.status === "WORKING_VISA" && (
+                    <>
+                      <Field label="Visa subclass" value={onboarding.data.workingRights.visaSubclass} />
+                      <Field label="Visa expiry" value={onboarding.data.workingRights.visaExpiry ? fmtIso(onboarding.data.workingRights.visaExpiry) : null} />
+                      <Field label="Hours / fortnight" value={onboarding.data.workingRights.visaHoursPerFortnight} />
+                    </>
+                  )}
+                </div>
+              </section>
+
+              <section>
+                <h3 className="text-sm font-semibold mb-2">
+                  Tax &amp; bank
+                  <span className="ml-2 text-xs font-normal text-muted-foreground">
+                    masked · OWNER-only decrypt arrives in step 3
+                  </span>
+                </h3>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                  <Field label="TFN" value={onboarding.data.taxBank.tfnMasked} />
+                  <Field
+                    label="Tax-free threshold"
+                    value={
+                      onboarding.data.taxBank.taxFreeThreshold === null
+                        ? null
+                        : onboarding.data.taxBank.taxFreeThreshold
+                          ? "Claimed here"
+                          : "Not claimed"
+                    }
+                  />
+                  <Field label="Bank account name" value={onboarding.data.taxBank.bankAccountName} />
+                  <Field label="BSB" value={onboarding.data.taxBank.bankBsbMasked} />
+                  <Field label="Account number" value={onboarding.data.taxBank.bankAccountNumberMasked} />
+                </div>
+              </section>
+
+              <section>
+                <h3 className="text-sm font-semibold mb-2">Licence</h3>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                  <Field label="Number" value={onboarding.data.licence.number} />
+                  <Field label="Class" value={onboarding.data.licence.class} />
+                  <Field label="Expiry" value={onboarding.data.licence.expiry ? fmtIso(onboarding.data.licence.expiry) : null} />
+                </div>
+                {(onboarding.data.licence.frontPhotoUrl || onboarding.data.licence.backPhotoUrl) ? (
+                  <div className="mt-3 flex gap-4">
+                    {onboarding.data.licence.frontPhotoUrl && (
+                      <a href={onboarding.data.licence.frontPhotoUrl} target="_blank" rel="noopener noreferrer" className="text-xs underline">
+                        Front photo
+                      </a>
+                    )}
+                    {onboarding.data.licence.backPhotoUrl && (
+                      <a href={onboarding.data.licence.backPhotoUrl} target="_blank" rel="noopener noreferrer" className="text-xs underline">
+                        Back photo
+                      </a>
+                    )}
+                  </div>
+                ) : (
+                  <div className="mt-3 text-xs text-muted-foreground">Photo upload arrives in step 4.</div>
+                )}
+              </section>
+
+              <section>
+                <h3 className="text-sm font-semibold mb-2">SOP acknowledgement</h3>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                  <Field label="Version" value={onboarding.data.sop.versionLabel} />
+                  <Field label="Acknowledged at" value={onboarding.data.sop.acknowledgedAt ? fmtDateTime(onboarding.data.sop.acknowledgedAt) : null} />
+                </div>
+              </section>
+
+              <section>
+                <h3 className="text-sm font-semibold mb-2">Contract</h3>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                  <Field label="Template" value={onboarding.data.contract.templateLabel} />
+                  <Field label="Typed signature" value={onboarding.data.contract.signatureName} />
+                  <Field label="Signed at" value={onboarding.data.contract.signedAt ? fmtDateTime(onboarding.data.contract.signedAt) : null} />
+                  <Field label="Signer IP" value={onboarding.data.contract.signerIp} />
+                </div>
+              </section>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       <Card className="mb-4">
         <CardHeader><CardTitle>Shift history</CardTitle></CardHeader>
