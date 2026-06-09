@@ -4,7 +4,6 @@ import { requireAdmin } from "@/lib/api";
 import { startOfWeekMon, endOfWeekSun } from "@/lib/date";
 
 const EXPIRY_WINDOW_DAYS = 60;
-const OVERRIDE_REVIEW_WINDOW_DAYS = 7;
 
 export async function GET() {
   const auth = await requireAdmin();
@@ -19,8 +18,6 @@ export async function GET() {
   dayEnd.setHours(23, 59, 59, 999);
   const expiryHorizon = new Date(now);
   expiryHorizon.setDate(expiryHorizon.getDate() + EXPIRY_WINDOW_DAYS);
-  const overrideReviewHorizon = new Date(now);
-  overrideReviewHorizon.setDate(overrideReviewHorizon.getDate() + OVERRIDE_REVIEW_WINDOW_DAYS);
 
   const companyId = auth.companyId;
   const rosterScope = { roster: { companyId } };
@@ -32,8 +29,6 @@ export async function GET() {
     todayShifts,
     recentSms,
     onboardingCounts,
-    overridesActive,
-    overridesNeedingReview,
     currentSop,
     expiringWorkingRights,
   ] = await Promise.all([
@@ -58,23 +53,6 @@ export async function GET() {
       by: ["onboardingStatus"],
       where: { companyId, active: true },
       _count: { _all: true },
-    }),
-    // Total dispatch overrides currently in effect.
-    prisma.guard.count({
-      where: { companyId, active: true, dispatchOverride: true },
-    }),
-    // Overrides whose review window has either lapsed or is within the
-    // next 7 days — admins should look at these now.
-    prisma.guard.count({
-      where: {
-        companyId,
-        active: true,
-        dispatchOverride: true,
-        OR: [
-          { dispatchOverrideReviewAt: null },
-          { dispatchOverrideReviewAt: { lte: overrideReviewHorizon } },
-        ],
-      },
     }),
     prisma.sopVersion.findFirst({
       where: { companyId, isCurrent: true },
@@ -165,8 +143,6 @@ export async function GET() {
       totalActive,
       breakdown,
       onboardedPct,
-      overridesActive,
-      overridesNeedingReview,
       sopReackPending,
     },
     workingRightsExpiring,

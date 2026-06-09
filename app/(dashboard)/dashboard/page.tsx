@@ -21,8 +21,6 @@ interface DashResp {
     totalActive: number;
     breakdown: { NOT_STARTED: number; IN_PROGRESS: number; COMPLETE: number; EXPIRED: number };
     onboardedPct: number;
-    overridesActive: number;
-    overridesNeedingReview: number;
     sopReackPending: number;
   };
   workingRightsExpiring: Array<{
@@ -140,21 +138,7 @@ export default function DashboardPage() {
                   </div>
                 )}
 
-                <div className="grid grid-cols-3 gap-2 pt-2 border-t">
-                  <Link href="/guards?onboardingStatus=NOT_STARTED" className="rounded-lg p-2 hover:bg-muted/50 transition-colors">
-                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                      <ShieldAlert className="h-3.5 w-3.5" />
-                      Override active
-                    </div>
-                    <div className="text-lg font-semibold mt-0.5">
-                      {data.onboarding.overridesActive}
-                      {data.onboarding.overridesNeedingReview > 0 && (
-                        <span className="text-xs text-amber-700 font-normal ml-1.5">
-                          ({data.onboarding.overridesNeedingReview} due)
-                        </span>
-                      )}
-                    </div>
-                  </Link>
+                <div className="grid grid-cols-2 gap-2 pt-2 border-t">
                   <div className="rounded-lg p-2">
                     <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                       <ShieldCheck className="h-3.5 w-3.5" />

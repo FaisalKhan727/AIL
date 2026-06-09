@@ -27,8 +27,6 @@ interface Guard {
   active: boolean;
   onboardingStatus: string;
   onboardingCompletedAt: string | null;
-  dispatchOverride: boolean;
-  dispatchOverrideReviewAt: string | null;
 }
 
 const ONBOARDING_FILTER_OPTIONS = [
@@ -368,17 +366,7 @@ export default function GuardsPage() {
                     )}
                   </TableCell>
                   <TableCell>
-                    <div className="flex items-center gap-1 flex-wrap">
-                      <OnboardingBadge status={g.onboardingStatus} />
-                      {g.dispatchOverride && (
-                        <Badge
-                          className="bg-amber-100 text-amber-800 border-amber-300"
-                          title={`Dispatch override active${g.dispatchOverrideReviewAt ? ` · review by ${new Date(g.dispatchOverrideReviewAt).toISOString().slice(0, 10)}` : ""}`}
-                        >
-                          Override
-                        </Badge>
-                      )}
-                    </div>
+                    <OnboardingBadge status={g.onboardingStatus} />
                     {g.onboardingStatus === "COMPLETE" && g.onboardingCompletedAt && (
                       <div className="text-[10px] text-muted-foreground mt-0.5">
                         {new Date(g.onboardingCompletedAt).toISOString().slice(0, 10)}

@@ -4,7 +4,6 @@ import { prisma } from "@/lib/prisma";
 import { jsonError, requireAdmin } from "@/lib/api";
 import { dispatchAlarmSms } from "@/lib/alarms/dispatch";
 import { phoneE164 } from "@/lib/validators";
-import { assertCanDispatchOrError } from "@/lib/dispatch/eligibility";
 
 const internalSchema = z.object({
   type: z.literal("INTERNAL_GUARD"),
@@ -55,8 +54,6 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       select: { id: true, phone: true },
     });
     if (!guard) return jsonError("guard not in this company", 400);
-    const blocked = await assertCanDispatchOrError([data.guardId], auth.companyId);
-    if (blocked) return blocked;
   }
 
   // Create the new responder + bump existing AlarmContact's lastUsedAt
