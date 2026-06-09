@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "../globals.css";
+import { SopReackBanner } from "@/components/g/sop-reack-banner";
 
 export const metadata: Metadata = {
   title: "Vigilo Guards",
@@ -35,6 +36,7 @@ export default function GuardAppLayout({ children }: { children: React.ReactNode
   // the padding is defensive against future device variations.
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 pt-safe-t pb-safe-b pl-safe-l pr-safe-r">
+      <SopReackBanner />
       {children}
     </div>
   );
