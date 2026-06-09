@@ -26,6 +26,13 @@ model Company {
   alarmJobs          AlarmJob[]
   alarmContacts      AlarmContact[]
   alarmReports       AlarmReport[]
+  onboardingSessions OnboardingSession[]
+  onboardingData     OnboardingData[]
+  sopVersions        SopVersion[]
+  sopAcknowledgements SopAcknowledgement[]
+  contractTemplates  ContractTemplate[]
+  onboardingDocuments OnboardingDocument[]
+  auditLogs          AuditLog[]
 }
 
 model AdminUser {
@@ -55,6 +62,16 @@ model Guard {
   createdAt          DateTime            @default(now())
   companyId          String
   guardIdentityId    String? // links to cross-company GuardIdentity; nullable until backfill completes
+  // ---- Onboarding fields (additive) ----
+  onboardingStatus           String     @default("NOT_STARTED") // NOT_STARTED | IN_PROGRESS | COMPLETE | EXPIRED
+  onboardingCompletedAt      DateTime?
+  latestOnboardingSessionId  String? // soft FK to OnboardingSession (no relation declaration; queries go via OnboardingSession.guardId)
+  dispatchOverride           Boolean    @default(false) // admin can bypass the onboarding/licence gate
+  dispatchOverrideReason     String?
+  dispatchOverrideBy         String? // AdminUser.id
+  dispatchOverrideAt         DateTime?
+  dispatchOverrideReviewAt   DateTime? // 30-day prompt
+  // ---- existing relations below ----
   company            Company             @relation(fields: [companyId], references: [id])
   guardIdentity      GuardIdentity?      @relation(fields: [guardIdentityId], references: [id])
   shifts             Shift[]
@@ -66,6 +83,9 @@ model Guard {
   incidentReports    IncidentReport[]
   loneWorkerCheckIns LoneWorkerCheckIn[]
   alarmResponders    AlarmResponder[]
+  onboardingSessions OnboardingSession[]
+  onboardingDocuments OnboardingDocument[]
+  sopAcknowledgements SopAcknowledgement[]
 
   @@unique([companyId, phone])
   @@index([companyId])
@@ -608,4 +628,204 @@ model GeocodedAddress {
   createdAt         DateTime @default(now())
 
   @@index([normalisedAddress])
+}
+
+// ---------------------------------------------------------------------------
+// Guard onboarding (independent of roster + alarm modules)
+// ---------------------------------------------------------------------------
+
+// One attempt by a guard to complete onboarding. A guard can have multiple
+// sessions over time (restarts after expiry). The latest active session is
+// referenced from Guard.latestOnboardingSessionId.
+model OnboardingSession {
+  id              String    @id @default(cuid())
+  companyId       String
+  guardId         String
+  tokenHash       String    @unique // SHA-256 of the random URL token
+  tokenExpiresAt  DateTime
+  startedAt       DateTime  @default(now())
+  completedAt     DateTime?
+  currentStep     Int       @default(1) // 1..7
+  status          String    @default("PENDING") // PENDING | IN_PROGRESS | COMPLETED | EXPIRED | ABANDONED
+  lastSeenAt      DateTime?
+  createdAt       DateTime  @default(now())
+
+  company Company         @relation(fields: [companyId], references: [id])
+  guard   Guard           @relation(fields: [guardId], references: [id], onDelete: Cascade)
+  data    OnboardingData?
+
+  @@index([guardId])
+  @@index([companyId, status])
+  @@index([tokenExpiresAt])
+}
+
+// The actual submitted onboarding data. One row per OnboardingSession.
+// Personal fields are clear; tfn / bsb / account-number are stored encrypted
+// (base64 of iv||tag||ciphertext) via lib/crypto.ts. SOP / contract version
+// links carry forward into the OnboardingDocument PDF generation.
+model OnboardingData {
+  id                          String   @id @default(cuid())
+  onboardingSessionId         String   @unique
+  guardId                     String
+  companyId                   String
+
+  // Step 2: personal
+  legalName                   String?
+  dateOfBirth                 DateTime?
+  residentialAddress          String?
+  mobile                      String?
+  email                       String?
+  emergencyContactName        String?
+  emergencyContactPhone       String?
+
+  // Step 3: working rights
+  workingRightsStatus         String? // CITIZEN | PERMANENT_RESIDENT | WORKING_VISA
+  visaSubclass                String?
+  visaExpiry                  DateTime?
+  visaHoursPerFortnight       Int?
+
+  // Step 4: tax + bank (encrypted columns hold base64 cipher blob)
+  tfnEncrypted                String?
+  taxFreeThreshold            Boolean?
+  bankAccountName             String?
+  bankBsbEncrypted            String?
+  bankAccountNumberEncrypted  String?
+
+  // Step 5: licence
+  licenceNumber               String?
+  licenceClass                String? // A | B | BOTH
+  licenceExpiry               DateTime?
+  licenceFrontPhotoUrl        String?
+  licenceBackPhotoUrl         String?
+
+  // Step 6: SOP
+  sopVersionId                String?
+  sopAcknowledgedAt           DateTime?
+
+  // Step 7: contract
+  contractTemplateVersionId   String?
+  contractSignatureName       String?
+  contractSignedAt            DateTime?
+  contractSignerIp            String?
+  contractSignerUserAgent     String?
+  generatedContractPdfUrl     String?
+  generatedPackagePdfUrl      String?
+
+  createdAt                   DateTime @default(now())
+  updatedAt                   DateTime @updatedAt
+
+  session  OnboardingSession @relation(fields: [onboardingSessionId], references: [id], onDelete: Cascade)
+  company  Company           @relation(fields: [companyId], references: [id])
+  sopVersion        SopVersion?       @relation(fields: [sopVersionId], references: [id])
+  contractTemplate  ContractTemplate? @relation(fields: [contractTemplateVersionId], references: [id])
+
+  @@index([guardId])
+  @@index([companyId])
+}
+
+// Standard Operating Procedure content, versioned per company. Only one
+// row per company has isCurrent=true at any moment. New version + flip
+// happens in a transaction in /api/sop/[id]/promote.
+model SopVersion {
+  id            String   @id @default(cuid())
+  companyId     String
+  version       Int // sequential per company
+  title         String
+  body          String // plain text or simple markdown
+  effectiveFrom DateTime @default(now())
+  isCurrent     Boolean  @default(false)
+  createdBy     String // AdminUser.id
+  createdAt     DateTime @default(now())
+
+  company          Company              @relation(fields: [companyId], references: [id])
+  acknowledgements SopAcknowledgement[]
+  onboardingData   OnboardingData[]
+
+  @@unique([companyId, version])
+  @@index([companyId, isCurrent])
+}
+
+// Per-guard acknowledgement of a specific SopVersion. Captures IP + UA
+// for audit. Source distinguishes the original onboarding ack from any
+// subsequent re-ack triggered by an SOP update.
+model SopAcknowledgement {
+  id              String   @id @default(cuid())
+  companyId       String
+  guardId         String
+  sopVersionId    String
+  acknowledgedAt  DateTime @default(now())
+  ipAddress       String?
+  userAgent       String?
+  source          String // ONBOARDING | REACKNOWLEDGEMENT
+
+  company    Company    @relation(fields: [companyId], references: [id])
+  guard      Guard      @relation(fields: [guardId], references: [id], onDelete: Cascade)
+  sopVersion SopVersion @relation(fields: [sopVersionId], references: [id])
+
+  @@unique([guardId, sopVersionId, source])
+  @@index([guardId, sopVersionId])
+  @@index([companyId, sopVersionId])
+}
+
+// Employment contract template, versioned per company. Body holds the
+// plain-text contract with {placeholders} resolved at signing time.
+model ContractTemplate {
+  id              String   @id @default(cuid())
+  companyId       String
+  version         Int // sequential per company
+  name            String // admin-facing label, e.g. "Casual Security v2"
+  templateContent String // plain text + {placeholders}
+  effectiveFrom   DateTime @default(now())
+  isCurrent       Boolean  @default(false)
+  createdBy       String // AdminUser.id
+  createdAt       DateTime @default(now())
+
+  company        Company          @relation(fields: [companyId], references: [id])
+  onboardingData OnboardingData[]
+
+  @@unique([companyId, version])
+  @@index([companyId, isCurrent])
+}
+
+// Generated PDFs from completed onboarding. CONTRACT = signed contract
+// only; COMPLETE_PACKAGE = bundled audit-ready package (data + contract
+// + SOP ack + licence photos). Both can be regenerated from
+// OnboardingData; URLs point at Vercel Blob storage.
+model OnboardingDocument {
+  id                   String   @id @default(cuid())
+  companyId            String
+  guardId              String
+  onboardingSessionId  String
+  type                 String // CONTRACT | TAX_DECLARATION | COMPLETE_PACKAGE
+  pdfUrl               String
+  generatedAt          DateTime @default(now())
+
+  company Company @relation(fields: [companyId], references: [id])
+  guard   Guard   @relation(fields: [guardId], references: [id], onDelete: Cascade)
+
+  @@index([guardId, type])
+  @@index([companyId])
+}
+
+// Append-only audit log. Used by: OWNER decrypt of PII fields, dispatch
+// override toggles + dispatch-override-used events, SOP/contract version
+// promotions, onboarding-link send/regenerate. Metadata is JSON-encoded
+// so action-specific details don't require new columns.
+model AuditLog {
+  id                String   @id @default(cuid())
+  companyId         String
+  actorAdminUserId  String? // null for system events
+  action            String // e.g. "DECRYPT_TFN", "DISPATCH_OVERRIDE_TOGGLED", "ONBOARDING_LINK_SENT"
+  entityType        String? // "Guard", "OnboardingSession", etc.
+  entityId          String?
+  metadata          String? // JSON-encoded action-specific details
+  ipAddress         String?
+  userAgent         String?
+  createdAt         DateTime @default(now())
+
+  company Company @relation(fields: [companyId], references: [id])
+
+  @@index([companyId, createdAt])
+  @@index([entityType, entityId])
+  @@index([actorAdminUserId])
 }
