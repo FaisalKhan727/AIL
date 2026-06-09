@@ -173,9 +173,9 @@ export default function GuardDetailPage() {
   const revealTimers = React.useRef<Partial<Record<SensitiveField, number>>>({});
 
   React.useEffect(() => {
+    const timers = revealTimers.current;
     return () => {
-      // Clear any pending hide timers on unmount.
-      Object.values(revealTimers.current).forEach((t) => t && clearTimeout(t));
+      Object.values(timers).forEach((t) => t && clearTimeout(t));
     };
   }, []);
 
@@ -473,20 +473,40 @@ export default function GuardDetailPage() {
                   <Field label="Expiry" value={onboarding.data.licence.expiry ? fmtIso(onboarding.data.licence.expiry) : null} />
                 </div>
                 {(onboarding.data.licence.frontPhotoUrl || onboarding.data.licence.backPhotoUrl) ? (
-                  <div className="mt-3 flex gap-4">
-                    {onboarding.data.licence.frontPhotoUrl && (
-                      <a href={onboarding.data.licence.frontPhotoUrl} target="_blank" rel="noopener noreferrer" className="text-xs underline">
-                        Front photo
-                      </a>
-                    )}
-                    {onboarding.data.licence.backPhotoUrl && (
-                      <a href={onboarding.data.licence.backPhotoUrl} target="_blank" rel="noopener noreferrer" className="text-xs underline">
-                        Back photo
-                      </a>
-                    )}
+                  <div className="mt-3 grid grid-cols-2 gap-3 max-w-md">
+                    {(["frontPhotoUrl", "backPhotoUrl"] as const).map((key) => {
+                      const url = onboarding.data!.licence[key];
+                      const label = key === "frontPhotoUrl" ? "Front" : "Back";
+                      if (!url) {
+                        return (
+                          <div key={key} className="rounded border border-dashed border-slate-300 h-32 flex items-center justify-center text-xs text-muted-foreground">
+                            {label} not uploaded
+                          </div>
+                        );
+                      }
+                      return (
+                        <a
+                          key={key}
+                          href={url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="block group"
+                        >
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={url}
+                            alt={`${label} of licence`}
+                            className="w-full h-32 object-contain rounded border bg-slate-50 group-hover:ring-2 group-hover:ring-blue-400"
+                          />
+                          <div className="text-[10px] text-center text-muted-foreground mt-1">
+                            {label} · click to view full size
+                          </div>
+                        </a>
+                      );
+                    })}
                   </div>
                 ) : (
-                  <div className="mt-3 text-xs text-muted-foreground">Photo upload arrives in step 4.</div>
+                  <div className="mt-3 text-xs text-muted-foreground">No photos uploaded yet.</div>
                 )}
               </section>
 

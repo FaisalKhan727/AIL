@@ -50,10 +50,10 @@ export const licenceSchema = z.object({
   licenceNumber: z.string().trim().min(4, "Required"),
   licenceClass: z.enum(["A", "B", "BOTH"]),
   licenceExpiry: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use yyyy-mm-dd"),
-  // Photo URLs are written by Step 4 (Vercel Blob upload). Step 2 just
-  // accepts them as optional pass-through fields.
-  licenceFrontPhotoUrl: z.string().url().optional().or(z.literal("")),
-  licenceBackPhotoUrl: z.string().url().optional().or(z.literal("")),
+  // Photos are uploaded to Vercel Blob via /licence-upload before this
+  // step submits; the returned URLs flow through here.
+  licenceFrontPhotoUrl: z.string().url("Front photo is required"),
+  licenceBackPhotoUrl: z.string().url("Back photo is required"),
 });
 
 export const sopSchema = z.object({

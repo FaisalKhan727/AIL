@@ -475,6 +475,43 @@ function TaxBankStep({
   );
 }
 
+/**
+ * Resize + recompress the picked image client-side before uploading.
+ * Phones take ~12MP photos (3-5MB JPEGs); we cap the longest edge at
+ * 1600px and re-encode at q=0.85 which lands at ~300-600KB — well
+ * under the serverless body limit and faster on slow connections.
+ */
+async function compressImage(file: File, maxEdge = 1600, quality = 0.85): Promise<Blob> {
+  const dataUrl = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
+  const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+    const el = new Image();
+    el.onload = () => resolve(el);
+    el.onerror = () => reject(new Error("Could not decode image"));
+    el.src = dataUrl;
+  });
+  const scale = Math.min(1, maxEdge / Math.max(img.naturalWidth, img.naturalHeight));
+  const w = Math.round(img.naturalWidth * scale);
+  const h = Math.round(img.naturalHeight * scale);
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Canvas unavailable");
+  ctx.drawImage(img, 0, 0, w, h);
+  return new Promise<Blob>((resolve, reject) =>
+    canvas.toBlob(
+      (b) => (b ? resolve(b) : reject(new Error("Canvas encode failed"))),
+      "image/jpeg",
+      quality,
+    ),
+  );
+}
+
 function LicenceStep({
   token,
   initial,
@@ -489,9 +526,42 @@ function LicenceStep({
   const [number, setNumber] = React.useState(initial?.licenceNumber ?? "");
   const [cls, setCls] = React.useState<string>(initial?.licenceClass ?? "");
   const [expiry, setExpiry] = React.useState(initial?.licenceExpiry?.slice(0, 10) ?? "");
+  const [frontUrl, setFrontUrl] = React.useState<string | null>(initial?.licenceFrontPhotoUrl ?? null);
+  const [backUrl, setBackUrl] = React.useState<string | null>(initial?.licenceBackPhotoUrl ?? null);
+  const [uploading, setUploading] = React.useState<"front" | "back" | null>(null);
   const [busy, setBusy] = React.useState(false);
+  const frontInputRef = React.useRef<HTMLInputElement>(null);
+  const backInputRef = React.useRef<HTMLInputElement>(null);
 
-  const ready = number.trim().length >= 4 && (cls === "A" || cls === "B" || cls === "BOTH") && /^\d{4}-\d{2}-\d{2}$/.test(expiry);
+  const ready =
+    number.trim().length >= 4 &&
+    (cls === "A" || cls === "B" || cls === "BOTH") &&
+    /^\d{4}-\d{2}-\d{2}$/.test(expiry) &&
+    !!frontUrl &&
+    !!backUrl;
+
+  async function handleUpload(which: "front" | "back", file: File) {
+    if (uploading) return;
+    setUploading(which);
+    try {
+      const compressed = await compressImage(file);
+      const form = new FormData();
+      form.append("which", which);
+      form.append("file", compressed, `licence-${which}.jpg`);
+      const res = await fetch(`/api/onboarding/${token}/licence-upload`, {
+        method: "POST",
+        body: form,
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? "Upload failed");
+      if (which === "front") setFrontUrl(json.url);
+      else setBackUrl(json.url);
+    } catch (e: unknown) {
+      alert(e instanceof Error ? e.message : "Upload failed");
+    } finally {
+      setUploading(null);
+    }
+  }
 
   async function next() {
     if (!ready || busy) return;
@@ -504,7 +574,8 @@ function LicenceStep({
           licenceNumber: number,
           licenceClass: cls,
           licenceExpiry: expiry,
-          // Photo upload lands in step 4 of the build (Vercel Blob).
+          licenceFrontPhotoUrl: frontUrl,
+          licenceBackPhotoUrl: backUrl,
         }),
       });
       const json = await res.json();
@@ -547,11 +618,58 @@ function LicenceStep({
         <input type="date" className={inputCls} value={expiry} onChange={(e) => setExpiry(e.target.value)} />
       </Field>
       <div className="grid grid-cols-2 gap-2">
-        {["Front", "Back"].map((side) => (
-          <div key={side} className="rounded-xl border-2 border-dashed border-slate-300 p-4 text-center">
-            <Camera className="h-6 w-6 mx-auto text-slate-400 mb-1" />
-            <p className="text-xs font-medium text-slate-600">{side} of licence</p>
-            <p className="text-[10px] text-slate-400 mt-0.5">Upload coming soon</p>
+        {[
+          { side: "front" as const, label: "Front", url: frontUrl, ref: frontInputRef },
+          { side: "back" as const, label: "Back", url: backUrl, ref: backInputRef },
+        ].map(({ side, label, url, ref }) => (
+          <div
+            key={side}
+            className={cn(
+              "rounded-xl border-2 border-dashed p-3 text-center",
+              url ? "border-emerald-400 bg-emerald-50" : "border-slate-300",
+            )}
+          >
+            <input
+              ref={ref}
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              capture="environment"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) handleUpload(side, f);
+                e.target.value = "";
+              }}
+            />
+            {url ? (
+              // Preview the uploaded photo. Tapping it re-opens the file
+              // picker so the guard can replace a blurry shot.
+              <button
+                type="button"
+                onClick={() => ref.current?.click()}
+                disabled={uploading === side}
+                className="block w-full"
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={url} alt={`${label} of licence`} className="rounded-lg mx-auto max-h-32 object-contain" />
+                <p className="text-[10px] font-medium text-emerald-700 mt-1">
+                  {uploading === side ? "Uploading…" : "Tap to retake"}
+                </p>
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => ref.current?.click()}
+                disabled={uploading === side}
+                className="block w-full py-2"
+              >
+                <Camera className="h-6 w-6 mx-auto text-slate-400 mb-1" />
+                <p className="text-xs font-medium text-slate-600">{label} of licence</p>
+                <p className="text-[10px] text-slate-400 mt-0.5">
+                  {uploading === side ? "Uploading…" : "Tap to take photo"}
+                </p>
+              </button>
+            )}
           </div>
         ))}
       </div>
