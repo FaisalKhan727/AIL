@@ -5,6 +5,7 @@ import { jsonError, requireAdmin } from "@/lib/api";
 import { reserveNextDocket } from "@/lib/alarms/docket";
 import { dispatchAlarmSms } from "@/lib/alarms/dispatch";
 import { phoneE164 } from "@/lib/validators";
+import { assertCanDispatchOrError } from "@/lib/dispatch/eligibility";
 
 const ALARM_TYPES = ["BURGLARY", "FIRE", "MEDICAL", "PANIC", "TAMPER", "DURESS", "OTHER"] as const;
 const PRIORITIES = ["LOW", "MEDIUM", "HIGH", "CRITICAL"] as const;
@@ -74,13 +75,16 @@ export async function POST(req: Request) {
   }
   const data = parsed.data;
 
-  // For INTERNAL_GUARD: verify the guard belongs to this company
+  // For INTERNAL_GUARD: verify the guard belongs to this company AND is
+  // dispatchable (onboarding complete or override active).
   if (data.responder.type === "INTERNAL_GUARD") {
     const guard = await prisma.guard.findFirst({
       where: { id: data.responder.guardId, companyId: auth.companyId },
       select: { id: true, phone: true, firstName: true, lastName: true },
     });
     if (!guard) return jsonError("guard not in this company", 400);
+    const blocked = await assertCanDispatchOrError([data.responder.guardId], auth.companyId);
+    if (blocked) return blocked;
   }
 
   // For siteId: verify it belongs to this company

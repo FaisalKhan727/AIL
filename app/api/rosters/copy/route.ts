@@ -5,6 +5,7 @@ import { jsonError, requireAdmin } from "@/lib/api";
 import { planCopy, calendarDayDiff } from "@/lib/copy-roster";
 import { generateConfirmCode } from "@/lib/codes";
 import { APP_TZ } from "@/lib/date";
+import { assertCanDispatchOrError } from "@/lib/dispatch/eligibility";
 
 const schema = z.object({
   sourceRosterId: z.string().min(1),
@@ -91,6 +92,19 @@ export async function POST(req: Request) {
       400,
       { plan: { planned: plan.planned, skipped: plan.skipped } },
     );
+  }
+
+  // Block the copy if any planned shift would land on a guard whose
+  // onboarding isn't complete (and who doesn't have an active dispatch
+  // override). Failing here protects against the operational sin of
+  // bulk-cloning shifts into the future for someone who shouldn't be
+  // dispatched yet.
+  const plannedGuardIds = Array.from(
+    new Set(plan.planned.map((p) => p.guardId).filter((id): id is string => !!id)),
+  );
+  if (plannedGuardIds.length > 0) {
+    const blocked = await assertCanDispatchOrError(plannedGuardIds, auth.companyId);
+    if (blocked) return blocked;
   }
 
   // Pre-generate a unique batch of confirm codes so the create can be done

@@ -9,6 +9,8 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { GuardFormDialog } from "@/components/guards/guard-form-dialog";
 import { StatusBadge } from "@/components/shared/status-badge";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import {
   Dialog,
   DialogContent,
@@ -35,6 +37,11 @@ interface GuardDetail {
   payRate: string | null;
   notes: string | null;
   active: boolean;
+  onboardingStatus: string;
+  dispatchOverride: boolean;
+  dispatchOverrideReason: string | null;
+  dispatchOverrideAt: string | null;
+  dispatchOverrideReviewAt: string | null;
   shifts: Array<{ id: string; startAt: string; endAt: string; status: string; site: { name: string }; roster: { name: string } }>;
   smsLogs: Array<{ id: string; direction: string; body: string; receivedAt: string; status: string | null }>;
 }
@@ -229,6 +236,66 @@ export default function GuardDetailPage() {
     setRevealReason("");
   }
 
+  // Dispatch override modal state
+  const [overrideOpen, setOverrideOpen] = React.useState(false);
+  const [overrideReason, setOverrideReason] = React.useState("");
+  const defaultReviewAt = (() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 30);
+    return d.toISOString().slice(0, 10);
+  })();
+  const [overrideReviewAt, setOverrideReviewAt] = React.useState(defaultReviewAt);
+  const [overrideSubmitting, setOverrideSubmitting] = React.useState(false);
+  const [overrideClearing, setOverrideClearing] = React.useState(false);
+
+  async function applyDispatchOverride() {
+    if (overrideReason.trim().length < 10 || overrideSubmitting) return;
+    setOverrideSubmitting(true);
+    try {
+      await api(`/api/guards/${id}/dispatch-override`, {
+        method: "POST",
+        body: JSON.stringify({ enable: true, reason: overrideReason.trim(), reviewAt: overrideReviewAt }),
+        headers: { "Content-Type": "application/json" },
+      });
+      toast({ title: "Dispatch override applied — logged to audit", variant: "success" });
+      setOverrideOpen(false);
+      setOverrideReason("");
+      qc.invalidateQueries({ queryKey: ["guard", id] });
+      qc.invalidateQueries({ queryKey: ["guards"] });
+    } catch (e: unknown) {
+      toast({
+        title: "Override failed",
+        description: e instanceof Error ? e.message : "",
+        variant: "error",
+      });
+    } finally {
+      setOverrideSubmitting(false);
+    }
+  }
+
+  async function clearDispatchOverride() {
+    if (!confirm("Clear the dispatch override? The guard will be blocked from new assignments until onboarding is complete.")) return;
+    setOverrideClearing(true);
+    try {
+      await api(`/api/guards/${id}/dispatch-override`, {
+        method: "POST",
+        body: JSON.stringify({ enable: false }),
+        headers: { "Content-Type": "application/json" },
+      });
+      toast({ title: "Dispatch override cleared", variant: "success" });
+      qc.invalidateQueries({ queryKey: ["guard", id] });
+      qc.invalidateQueries({ queryKey: ["guards"] });
+    } catch (e: unknown) {
+      toast({
+        title: "Clear failed",
+        description: e instanceof Error ? e.message : "",
+        variant: "error",
+      });
+    } finally {
+      setOverrideClearing(false);
+    }
+  }
+
   const [pdfBusy, setPdfBusy] = React.useState<"contract" | "package" | null>(null);
   async function downloadPdf(which: "contract" | "package", regen: boolean = false) {
     if (pdfBusy) return;
@@ -368,6 +435,77 @@ export default function GuardDetailPage() {
           {data.notes && <p className="text-xs text-muted-foreground mt-2">{data.notes}</p>}
         </CardContent></Card>
       </div>
+
+      {(() => {
+        const eligible = data.onboardingStatus === "COMPLETE" || data.dispatchOverride;
+        return (
+          <Card className="mb-4">
+            <CardHeader>
+              <CardTitle className="text-sm flex items-center justify-between">
+                <span>Dispatch eligibility</span>
+                {eligible ? (
+                  <Badge className="bg-emerald-100 text-emerald-800 border-emerald-300">CAN BE DISPATCHED</Badge>
+                ) : (
+                  <Badge className="bg-red-100 text-red-800 border-red-300">BLOCKED</Badge>
+                )}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {data.onboardingStatus === "COMPLETE" ? (
+                <p className="text-sm text-muted-foreground">
+                  Onboarding complete. This guard can be added to rosters and dispatched to alarms.
+                </p>
+              ) : data.dispatchOverride ? (
+                <div className="space-y-2 bg-amber-50 border border-amber-200 rounded p-3 text-sm">
+                  <div className="flex items-center gap-2">
+                    <ShieldAlert className="h-4 w-4 text-amber-700" />
+                    <span className="font-semibold text-amber-900">Dispatch override active</span>
+                  </div>
+                  <div className="text-xs text-amber-900/90">
+                    Onboarding is <strong>{data.onboardingStatus}</strong> but this guard can be dispatched
+                    until the override is cleared or expires.
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-amber-900/90">
+                    {data.dispatchOverrideReason && (
+                      <div><span className="font-medium">Reason:</span> {data.dispatchOverrideReason}</div>
+                    )}
+                    {data.dispatchOverrideAt && (
+                      <div><span className="font-medium">Applied:</span> {fmtDateTime(data.dispatchOverrideAt)}</div>
+                    )}
+                    {data.dispatchOverrideReviewAt && (
+                      <div><span className="font-medium">Review by:</span> {fmtIso(data.dispatchOverrideReviewAt)}</div>
+                    )}
+                  </div>
+                  <div className="flex gap-2 mt-2">
+                    <Button variant="outline" size="sm" onClick={() => setOverrideOpen(true)}>
+                      Update override
+                    </Button>
+                    <Button variant="destructive" size="sm" onClick={clearDispatchOverride} disabled={overrideClearing}>
+                      {overrideClearing ? "Clearing…" : "Clear override"}
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-2 bg-red-50 border border-red-200 rounded p-3 text-sm">
+                  <div className="flex items-center gap-2">
+                    <ShieldAlert className="h-4 w-4 text-red-700" />
+                    <span className="font-semibold text-red-900">Cannot be dispatched</span>
+                  </div>
+                  <div className="text-xs text-red-900/90">
+                    Onboarding is <strong>{data.onboardingStatus.replace("_", " ").toLowerCase()}</strong>.
+                    Roster, copy-roster, and alarm-dispatch endpoints will refuse to assign this guard.
+                  </div>
+                  <div className="flex gap-2 mt-2">
+                    <Button variant="outline" size="sm" onClick={() => setOverrideOpen(true)}>
+                      Apply dispatch override
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        );
+      })()}
 
       <Card className="mb-4">
         <CardHeader>
@@ -661,6 +799,76 @@ export default function GuardDetailPage() {
           </Table>
         </CardContent>
       </Card>
+
+      <Dialog
+        open={overrideOpen}
+        onOpenChange={(o) => {
+          if (!o) {
+            setOverrideOpen(false);
+            setOverrideReason("");
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ShieldAlert className="h-5 w-5 text-amber-600" />
+              {data.dispatchOverride ? "Update" : "Apply"} dispatch override
+            </DialogTitle>
+            <DialogDescription>
+              This guard&apos;s onboarding is <strong>{data.onboardingStatus.replace("_", " ").toLowerCase()}</strong>.
+              An override lets you assign them to shifts and alarms anyway. Every change is recorded in the
+              audit log with your name and the reason below.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <Label htmlFor="override-reason">Reason (min 10 characters)</Label>
+              <Textarea
+                id="override-reason"
+                value={overrideReason}
+                onChange={(e) => setOverrideReason(e.target.value)}
+                placeholder="e.g. Trusted guard, paperwork in flight, covering emergency shift Sat 22:00"
+                rows={3}
+                autoFocus
+              />
+              <div className="text-xs text-muted-foreground">{overrideReason.trim().length}/10 chars minimum</div>
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="override-review">Review by date</Label>
+              <Input
+                id="override-review"
+                type="date"
+                value={overrideReviewAt}
+                onChange={(e) => setOverrideReviewAt(e.target.value)}
+              />
+              <div className="text-xs text-muted-foreground">
+                You&apos;ll be expected to revisit the override on or before this date. The override does not
+                auto-expire — clear it manually.
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setOverrideOpen(false);
+                setOverrideReason("");
+              }}
+              disabled={overrideSubmitting}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={applyDispatchOverride}
+              disabled={overrideReason.trim().length < 10 || overrideSubmitting}
+            >
+              <ShieldAlert className="h-4 w-4" />
+              {overrideSubmitting ? "Applying…" : data.dispatchOverride ? "Update override" : "Apply override"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={revealing !== null} onOpenChange={(o) => { if (!o) { setRevealing(null); setRevealReason(""); } }}>
         <DialogContent>

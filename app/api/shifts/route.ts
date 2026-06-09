@@ -5,6 +5,7 @@ import { jsonError, requireAdmin } from "@/lib/api";
 import { shiftCreateSchema, shiftBatchCreateSchema } from "@/lib/validators";
 import { generateConfirmCode } from "@/lib/codes";
 import { APP_TZ } from "@/lib/date";
+import { assertCanDispatchOrError } from "@/lib/dispatch/eligibility";
 
 const DAY_MS = 86_400_000;
 const DOW_INDEX: Record<string, number> = {
@@ -122,6 +123,9 @@ export async function POST(req: Request) {
   if (guards.length !== dedupedGuardIds.length) {
     return jsonError("one or more guards are not in this company", 400);
   }
+
+  const blocked = await assertCanDispatchOrError(dedupedGuardIds, auth.companyId);
+  if (blocked) return blocked;
 
   const recurrence = !isBatch ? (data as { recurrence?: { daysOfWeek: string[]; untilDate: string } }).recurrence : undefined;
   let occurrences: { startAt: Date; endAt: Date }[] = [{ startAt: baseStart, endAt: baseEnd }];

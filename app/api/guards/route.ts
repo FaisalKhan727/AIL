@@ -46,6 +46,8 @@ export async function GET(req: Request) {
       active: true,
       onboardingStatus: true,
       onboardingCompletedAt: true,
+      dispatchOverride: true,
+      dispatchOverrideReviewAt: true,
     },
     orderBy: [{ active: "desc" }, { lastName: "asc" }],
   });

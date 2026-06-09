@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { jsonError, requireAdmin } from "@/lib/api";
 import { shiftUpdateSchema } from "@/lib/validators";
+import { assertCanDispatchOrError } from "@/lib/dispatch/eligibility";
 
 async function ensureShiftInCompany(id: string, companyId: string) {
   return prisma.shift.findFirst({
@@ -21,6 +22,8 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   if (data.guardId) {
     const guardOk = await prisma.guard.findFirst({ where: { id: data.guardId, companyId: auth.companyId } });
     if (!guardOk) return jsonError("guard not in this company", 400);
+    const blocked = await assertCanDispatchOrError([data.guardId], auth.companyId);
+    if (blocked) return blocked;
   }
   if (data.siteId) {
     const siteOk = await prisma.site.findFirst({ where: { id: data.siteId, companyId: auth.companyId } });
