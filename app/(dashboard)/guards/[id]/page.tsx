@@ -2,7 +2,7 @@
 import * as React from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useParams, useRouter } from "next/navigation";
-import { Pencil, Send, Trash2 } from "lucide-react";
+import { Pencil, Send, Trash2, ClipboardCheck } from "lucide-react";
 import { PageHeader } from "@/components/shell/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -36,6 +36,7 @@ export default function GuardDetailPage() {
   const { toast } = useToast();
   const [editOpen, setEditOpen] = React.useState(false);
   const [inviting, setInviting] = React.useState(false);
+  const [sendingOnboard, setSendingOnboard] = React.useState(false);
 
   const { data, isLoading } = useQuery<GuardDetail>({
     queryKey: ["guard", id],
@@ -67,6 +68,24 @@ export default function GuardDetailPage() {
     }
   }
 
+  async function sendOnboardingLink() {
+    if (sendingOnboard) return;
+    setSendingOnboard(true);
+    try {
+      await api(`/api/guards/${id}/send-onboarding-link`, { method: "POST" });
+      toast({ title: "Onboarding link sent via SMS (valid for 7 days)", variant: "success" });
+      qc.invalidateQueries({ queryKey: ["guard", id] });
+    } catch (e: unknown) {
+      toast({
+        title: "Failed to send onboarding link",
+        description: e instanceof Error ? e.message : "",
+        variant: "error",
+      });
+    } finally {
+      setSendingOnboard(false);
+    }
+  }
+
   if (isLoading) return <div className="text-muted-foreground">Loading…</div>;
   if (!data) return <div className="text-muted-foreground">Not found.</div>;
 
@@ -79,6 +98,9 @@ export default function GuardDetailPage() {
           <>
             <Button variant="outline" onClick={sendAppInvite} disabled={inviting}>
               <Send className="h-4 w-4" /> {inviting ? "Sending…" : "Send app invite"}
+            </Button>
+            <Button variant="outline" onClick={sendOnboardingLink} disabled={sendingOnboard}>
+              <ClipboardCheck className="h-4 w-4" /> {sendingOnboard ? "Sending…" : "Send onboarding link"}
             </Button>
             <Button variant="outline" onClick={() => setEditOpen(true)}>
               <Pencil className="h-4 w-4" /> Edit
