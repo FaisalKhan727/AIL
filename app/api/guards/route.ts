@@ -60,6 +60,23 @@ export async function POST(req: Request) {
   if (!parsed.success) return jsonError("validation", 400, parsed.error.flatten());
   const data = parsed.data;
   try {
+    // GuardIdentity is per-phone, cross-company (same person working two
+    // companies = one identity, two Guard rows). Reuse an existing one
+    // if the phone is already known; otherwise create one inline so the
+    // new Guard always lands with guardIdentityId set. Without this,
+    // /send-app-invite would 500 on every freshly-created guard until a
+    // separate backfill ran.
+    const existingIdentity = await prisma.guardIdentity.findFirst({
+      where: { phone: data.phone },
+      select: { id: true },
+    });
+    const guardIdentityId =
+      existingIdentity?.id ??
+      (await prisma.guardIdentity.create({
+        data: { firstName: data.firstName, lastName: data.lastName, phone: data.phone },
+        select: { id: true },
+      })).id;
+
     const guard = await prisma.guard.create({
       data: {
         firstName: data.firstName,
@@ -72,6 +89,7 @@ export async function POST(req: Request) {
         notes: data.notes,
         active: data.active ?? true,
         companyId: auth.companyId,
+        guardIdentityId,
       },
     });
     return NextResponse.json(guard, { status: 201 });
