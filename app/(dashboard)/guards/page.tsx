@@ -7,12 +7,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { TableSkeletonRows, CardSkeletonRows } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { api } from "@/lib/fetcher";
 import { formatPhoneAU } from "@/lib/utils";
 import { GuardFormDialog } from "@/components/guards/guard-form-dialog";
 import { ImportGuardsDialog } from "@/components/guards/import-guards-dialog";
 import { useToast } from "@/components/ui/toast";
+import { useDebouncedValue } from "@/lib/use-debounced-value";
 import Link from "next/link";
 
 interface Guard {
@@ -72,11 +74,15 @@ export default function GuardsPage() {
   const [sendingId, setSendingId] = React.useState<string | null>(null);
   const [bulkSending, setBulkSending] = React.useState(false);
 
-  const { data: guards = [], isLoading } = useQuery<Guard[]>({
-    queryKey: ["guards", q, active, onboardingFilter],
+  // Debounce the search box so we're not firing a request on every
+  // keystroke — the query only re-runs once typing pauses for 300ms.
+  const debouncedQ = useDebouncedValue(q, 300);
+
+  const { data: guards = [], isLoading, isFetching } = useQuery<Guard[]>({
+    queryKey: ["guards", debouncedQ, active, onboardingFilter],
     queryFn: () => {
       const params = new URLSearchParams();
-      if (q) params.set("q", q);
+      if (debouncedQ) params.set("q", debouncedQ);
       if (active !== "all") params.set("active", active);
       if (onboardingFilter !== "all") params.set("onboardingStatus", onboardingFilter);
       return api(`/api/guards?${params.toString()}`);
@@ -213,7 +219,10 @@ export default function GuardsPage() {
         <CardContent className="pt-6 flex flex-col sm:flex-row gap-3">
           <div className="relative flex-1">
             <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input className="pl-8" placeholder="Search name, phone, email, licence" value={q} onChange={(e) => setQ(e.target.value)} />
+            <Input className="pl-8 pr-16" placeholder="Search name, phone, email, licence" value={q} onChange={(e) => setQ(e.target.value)} />
+            {isFetching && (
+              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">Searching…</span>
+            )}
           </div>
           <select
             className="h-10 rounded-md border border-input bg-background px-3 text-sm"
@@ -256,7 +265,7 @@ export default function GuardsPage() {
 
       {/* Mobile: card list */}
       <div className="md:hidden space-y-2">
-        {isLoading && <Card><CardContent className="py-8 text-center text-muted-foreground">Loading…</CardContent></Card>}
+        {isLoading && <CardSkeletonRows />}
         {!isLoading && guards.length === 0 && (
           <Card><CardContent className="py-8 text-center text-muted-foreground">No guards yet.</CardContent></Card>
         )}
@@ -332,9 +341,7 @@ export default function GuardsPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {isLoading && (
-                <TableRow><TableCell colSpan={9} className="text-center py-8 text-muted-foreground">Loading…</TableCell></TableRow>
-              )}
+              {isLoading && <TableSkeletonRows columns={9} />}
               {!isLoading && guards.length === 0 && (
                 <TableRow><TableCell colSpan={9} className="text-center py-8 text-muted-foreground">No guards yet.</TableCell></TableRow>
               )}

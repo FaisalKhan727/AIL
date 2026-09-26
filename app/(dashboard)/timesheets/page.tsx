@@ -1,6 +1,6 @@
 "use client";
 import * as React from "react";
-import * as XLSX from "xlsx";
+import type * as XLSXModule from "xlsx";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Download, FileDown, FileSpreadsheet, CheckCircle2 } from "lucide-react";
 import { PageHeader } from "@/components/shell/page-header";
@@ -8,6 +8,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { TableSkeletonRows } from "@/components/ui/skeleton";
 import { api } from "@/lib/fetcher";
 import { fmtDate, fmtTime, fmtIso, startOfWeekMon } from "@/lib/date";
 import { useToast } from "@/components/ui/toast";
@@ -65,8 +66,13 @@ function downloadFile(name: string, content: BlobPart, type = "text/csv") {
  * Both sheets are derived from the same per-shift `hours` the API computes,
  * so the two always reconcile.
  */
-function buildTimesheetWorkbook(rows: Row[], weekStart: string, weekEnd: string): XLSX.WorkBook {
-  const wb = XLSX.utils.book_new();
+function buildTimesheetWorkbook(
+  xlsx: typeof XLSXModule,
+  rows: Row[],
+  weekStart: string,
+  weekEnd: string,
+): XLSXModule.WorkBook {
+  const wb = xlsx.utils.book_new();
 
   interface SummaryRow {
     Guard: string;
@@ -89,9 +95,9 @@ function buildTimesheetWorkbook(rows: Row[], weekStart: string, weekEnd: string)
     "Rate ($/hr)": "",
     "Pay ($)": Math.round(rows.reduce((sum, r) => sum + r.totalPay, 0) * 100) / 100,
   });
-  const summarySheet = XLSX.utils.json_to_sheet(summaryData);
+  const summarySheet = xlsx.utils.json_to_sheet(summaryData);
   summarySheet["!cols"] = [{ wch: 24 }, { wch: 8 }, { wch: 10 }, { wch: 12 }, { wch: 12 }];
-  XLSX.utils.book_append_sheet(wb, summarySheet, "Summary");
+  xlsx.utils.book_append_sheet(wb, summarySheet, "Summary");
 
   const detailData = rows.flatMap((r) =>
     r.shifts.map((s) => ({
@@ -106,20 +112,20 @@ function buildTimesheetWorkbook(rows: Row[], weekStart: string, weekEnd: string)
       "Pay ($)": Math.round(s.hours * r.payRate * 100) / 100,
     })),
   );
-  const detailSheet = XLSX.utils.json_to_sheet(detailData);
+  const detailSheet = xlsx.utils.json_to_sheet(detailData);
   detailSheet["!cols"] = [
     { wch: 24 }, { wch: 12 }, { wch: 8 }, { wch: 8 },
     { wch: 20 }, { wch: 10 }, { wch: 8 }, { wch: 12 }, { wch: 10 },
   ];
-  XLSX.utils.book_append_sheet(wb, detailSheet, "Shift detail");
+  xlsx.utils.book_append_sheet(wb, detailSheet, "Shift detail");
 
-  const infoSheet = XLSX.utils.aoa_to_sheet([
+  const infoSheet = xlsx.utils.aoa_to_sheet([
     ["Week start", fmtIso(weekStart)],
     ["Week end", fmtIso(weekEnd)],
     ["Generated", new Date().toLocaleString()],
   ]);
   infoSheet["!cols"] = [{ wch: 14 }, { wch: 24 }];
-  XLSX.utils.book_append_sheet(wb, infoSheet, "Week");
+  xlsx.utils.book_append_sheet(wb, infoSheet, "Week");
 
   return wb;
 }
@@ -159,6 +165,7 @@ export default function TimesheetsPage() {
   const qc = useQueryClient();
   const { toast } = useToast();
   const [week, setWeek] = React.useState<string>(fmtIso(startOfWeekMon(new Date())));
+  const [exportingExcel, setExportingExcel] = React.useState(false);
 
   const { data, isLoading } = useQuery<Resp>({
     queryKey: ["timesheets", week],
@@ -186,19 +193,28 @@ export default function TimesheetsPage() {
     downloadFile(`timesheets-${fmtIso(data.weekStart)}.csv`, rowsToCsv(data.rows, data.weekStart));
   }
 
-  function exportAllExcel() {
+  async function exportAllExcel() {
     if (!data) return;
     if (data.rows.length === 0) {
       toast({ title: "Nothing to export", description: "No payable shifts in this week." });
       return;
     }
-    const wb = buildTimesheetWorkbook(data.rows, data.weekStart, data.weekEnd);
-    const buf = XLSX.write(wb, { bookType: "xlsx", type: "array" });
-    downloadFile(
-      `timesheets-${fmtIso(data.weekStart)}.xlsx`,
-      buf,
-      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    );
+    setExportingExcel(true);
+    try {
+      // Loaded on demand instead of bundled into the page's initial JS —
+      // xlsx (SheetJS) is a sizeable library that most visits never touch
+      // (only clicked when someone actually wants the .xlsx download).
+      const xlsx = await import("xlsx");
+      const wb = buildTimesheetWorkbook(xlsx, data.rows, data.weekStart, data.weekEnd);
+      const buf = xlsx.write(wb, { bookType: "xlsx", type: "array" });
+      downloadFile(
+        `timesheets-${fmtIso(data.weekStart)}.xlsx`,
+        buf,
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      );
+    } finally {
+      setExportingExcel(false);
+    }
   }
 
   function printOne(row: Row) {
@@ -219,7 +235,9 @@ export default function TimesheetsPage() {
             <Input type="date" value={week} onChange={(e) => setWeek(e.target.value)} className="w-40" />
             <Button variant="outline" onClick={markAllWorked}><CheckCircle2 className="h-4 w-4" /> Mark all worked</Button>
             <Button variant="outline" onClick={exportAllCsv} disabled={!data}><Download className="h-4 w-4" /> Export CSV</Button>
-            <Button onClick={exportAllExcel} disabled={!data}><FileSpreadsheet className="h-4 w-4" /> Export Excel</Button>
+            <Button onClick={exportAllExcel} disabled={!data || exportingExcel}>
+              <FileSpreadsheet className="h-4 w-4" /> {exportingExcel ? "Preparing…" : "Export Excel"}
+            </Button>
           </>
         }
       />
@@ -230,7 +248,7 @@ export default function TimesheetsPage() {
             <TableHead>Rate</TableHead><TableHead>Pay</TableHead><TableHead></TableHead>
           </TableRow></TableHeader>
           <TableBody>
-            {isLoading && <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">Loading…</TableCell></TableRow>}
+            {isLoading && <TableSkeletonRows columns={6} />}
             {!isLoading && data && data.rows.length === 0 && <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">No payable shifts in this week.</TableCell></TableRow>}
             {data?.rows.map((r) => (
               <React.Fragment key={r.guardId}>

@@ -7,6 +7,7 @@ import { PageHeader } from "@/components/shell/page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
+import { PageSkeleton } from "@/components/ui/skeleton";
 import { ShiftFormDialog } from "@/components/rosters/shift-form-dialog";
 import { CopyRosterDialog } from "@/components/rosters/copy-roster-dialog";
 import { StatusBadge } from "@/components/shared/status-badge";
@@ -157,7 +158,7 @@ export default function RosterBuilderPage() {
   const prevRoster = currentIndex > 0 ? sortedRosters[currentIndex - 1] : null;
   const nextRoster = currentIndex >= 0 && currentIndex < sortedRosters.length - 1 ? sortedRosters[currentIndex + 1] : null;
 
-  if (!data) return <div className="text-muted-foreground">Loading…</div>;
+  if (!data) return <PageSkeleton cards={0} />;
 
   const start = new Date(data.startDate);
   const days: Date[] = Array.from({ length: 7 }, (_, i) => addDays(start, i));

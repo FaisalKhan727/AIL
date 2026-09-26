@@ -7,6 +7,7 @@ import { PageHeader } from "@/components/shell/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { TableSkeletonRows, CardSkeletonRows } from "@/components/ui/skeleton";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { RosterFormDialog } from "@/components/rosters/roster-form-dialog";
 import { CopyRosterDialog } from "@/components/rosters/copy-roster-dialog";
@@ -65,7 +66,7 @@ export default function RostersPage() {
       />
       {/* Mobile: card list */}
       <div className="md:hidden space-y-2">
-        {isLoading && <Card><CardContent className="py-8 text-center text-muted-foreground">Loading…</CardContent></Card>}
+        {isLoading && <CardSkeletonRows />}
         {!isLoading && rosters.length === 0 && (
           <Card><CardContent className="py-8 text-center text-muted-foreground">No rosters yet.</CardContent></Card>
         )}
@@ -110,7 +111,7 @@ export default function RostersPage() {
             <TableHead className="w-12"></TableHead>
           </TableRow></TableHeader>
           <TableBody>
-            {isLoading && <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">Loading…</TableCell></TableRow>}
+            {isLoading && <TableSkeletonRows columns={7} />}
             {!isLoading && rosters.length === 0 && <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">No rosters yet.</TableCell></TableRow>}
             {rosters.map((r) => (
               <TableRow key={r.id}>

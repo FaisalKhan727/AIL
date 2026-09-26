@@ -7,6 +7,7 @@ import { PageHeader } from "@/components/shell/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { PageSkeleton } from "@/components/ui/skeleton";
 import { GuardFormDialog } from "@/components/guards/guard-form-dialog";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Badge } from "@/components/ui/badge";
@@ -308,7 +309,7 @@ export default function GuardDetailPage() {
     }
   }
 
-  if (isLoading) return <div className="text-muted-foreground">Loading…</div>;
+  if (isLoading) return <PageSkeleton cards={3} />;
   if (!data) return <div className="text-muted-foreground">Not found.</div>;
 
   return (

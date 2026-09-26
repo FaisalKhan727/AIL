@@ -1,5 +1,6 @@
 "use client";
 import * as React from "react";
+import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface ToastItem {
@@ -24,6 +25,10 @@ export function useToast() {
 export function ToastProvider({ children }: { children: React.ReactNode }) {
   const [items, setItems] = React.useState<ToastItem[]>([]);
 
+  const dismiss = React.useCallback((id: number) => {
+    setItems((prev) => prev.filter((x) => x.id !== id));
+  }, []);
+
   const toast = React.useCallback((t: Omit<ToastItem, "id">) => {
     const id = Date.now() + Math.random();
     setItems((prev) => [...prev, { ...t, id }]);
@@ -33,18 +38,34 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   return (
     <ToastContext.Provider value={{ toast }}>
       {children}
-      <div className="fixed bottom-4 right-4 z-[100] flex flex-col gap-2 max-w-sm">
+      {/* aria-live announces new toasts to screen readers; error toasts get
+          role="alert" on the individual item since they usually need the
+          user's attention. */}
+      <div
+        role="status"
+        aria-live="polite"
+        className="fixed bottom-4 right-4 z-[100] flex flex-col gap-2 max-w-sm"
+      >
         {items.map((t) => (
           <div
             key={t.id}
+            role={t.variant === "error" ? "alert" : undefined}
             className={cn(
-              "rounded-lg border bg-card text-card-foreground shadow-lg p-4",
+              "rounded-lg border bg-card text-card-foreground shadow-lg p-4 pr-9 relative animate-in slide-in-from-bottom-2 fade-in-0 duration-200",
               t.variant === "success" && "border-emerald-300",
               t.variant === "error" && "border-red-300",
             )}
           >
+            <button
+              type="button"
+              onClick={() => dismiss(t.id)}
+              aria-label="Dismiss notification"
+              className="absolute right-2 top-2 rounded p-1 text-muted-foreground opacity-70 hover:opacity-100 hover:bg-muted"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
             <div className="font-medium text-sm">{t.title}</div>
-            {t.description && <div className="text-sm text-muted-foreground mt-1">{t.description}</div>}
+            {t.description && <div className="text-sm text-muted-foreground mt-1 whitespace-pre-line">{t.description}</div>}
           </div>
         ))}
       </div>

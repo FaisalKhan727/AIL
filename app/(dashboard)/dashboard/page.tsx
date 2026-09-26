@@ -7,6 +7,7 @@ import { PageHeader } from "@/components/shell/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Skeleton } from "@/components/ui/skeleton";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Badge } from "@/components/ui/badge";
 import { api } from "@/lib/fetcher";
@@ -103,7 +104,17 @@ export default function DashboardPage() {
         }
       />
 
-      {isLoading && <p className="text-muted-foreground">Loading…</p>}
+      {isLoading && (
+        <div className="space-y-4 mb-6">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-xl" />)}
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <Skeleton className="h-64 rounded-xl" />
+            <Skeleton className="h-64 rounded-xl" />
+          </div>
+        </div>
+      )}
       {data && (
         <>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">

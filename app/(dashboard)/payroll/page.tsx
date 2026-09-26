@@ -1,6 +1,6 @@
 "use client";
 import * as React from "react";
-import * as XLSX from "xlsx";
+import type * as XLSXModule from "xlsx";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Wallet, CheckCircle2, Clock3, FileSpreadsheet, Undo2, ChevronDown, ChevronRight, Pencil, RotateCcw } from "lucide-react";
 import { PageHeader } from "@/components/shell/page-header";
@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { TableSkeletonRows } from "@/components/ui/skeleton";
 import { api } from "@/lib/fetcher";
 import { fmtIso, fmtDate, fmtTime } from "@/lib/date";
 import { startOfWeekMon } from "@/lib/date";
@@ -114,10 +115,16 @@ function downloadFile(name: string, content: BlobPart, type: string) {
  * sheet showing who's paid and who's owed, and a per-shift sheet so any
  * hours/rate override is visible in the exported record too.
  */
-function buildPayrollWorkbook(rows: PayrollRow[], summary: PayrollSummary, weekStart: string, weekEnd: string): XLSX.WorkBook {
-  const wb = XLSX.utils.book_new();
+function buildPayrollWorkbook(
+  xlsx: typeof XLSXModule,
+  rows: PayrollRow[],
+  summary: PayrollSummary,
+  weekStart: string,
+  weekEnd: string,
+): XLSXModule.WorkBook {
+  const wb = xlsx.utils.book_new();
 
-  const statementSheet = XLSX.utils.aoa_to_sheet([
+  const statementSheet = xlsx.utils.aoa_to_sheet([
     ["Payroll statement"],
     ["Week", `${fmtIso(weekStart)} to ${fmtIso(weekEnd)}`],
     ["Generated", new Date().toLocaleString()],
@@ -127,7 +134,7 @@ function buildPayrollWorkbook(rows: PayrollRow[], summary: PayrollSummary, weekS
     ["Pending", summary.totalPending, `${summary.pendingCount} guard(s)`],
   ]);
   statementSheet["!cols"] = [{ wch: 16 }, { wch: 22 }, { wch: 16 }];
-  XLSX.utils.book_append_sheet(wb, statementSheet, "Statement");
+  xlsx.utils.book_append_sheet(wb, statementSheet, "Statement");
 
   const guardData = rows.map((r) => ({
     Guard: r.guardName,
@@ -139,12 +146,12 @@ function buildPayrollWorkbook(rows: PayrollRow[], summary: PayrollSummary, weekS
     "Paid on": r.paidAt ? fmtIso(r.paidAt) : "",
     "Paid by": r.paidByName ?? "",
   }));
-  const guardSheet = XLSX.utils.json_to_sheet(guardData);
+  const guardSheet = xlsx.utils.json_to_sheet(guardData);
   guardSheet["!cols"] = [
     { wch: 24 }, { wch: 8 }, { wch: 8 }, { wch: 12 },
     { wch: 12 }, { wch: 10 }, { wch: 12 }, { wch: 18 },
   ];
-  XLSX.utils.book_append_sheet(wb, guardSheet, "By guard");
+  xlsx.utils.book_append_sheet(wb, guardSheet, "By guard");
 
   const shiftData = rows.flatMap((r) =>
     r.shifts.map((s) => ({
@@ -160,12 +167,12 @@ function buildPayrollWorkbook(rows: PayrollRow[], summary: PayrollSummary, weekS
       "Pay ($)": s.pay,
     })),
   );
-  const shiftSheet = XLSX.utils.json_to_sheet(shiftData);
+  const shiftSheet = xlsx.utils.json_to_sheet(shiftData);
   shiftSheet["!cols"] = [
     { wch: 24 }, { wch: 12 }, { wch: 8 }, { wch: 8 }, { wch: 20 },
     { wch: 8 }, { wch: 14 }, { wch: 10 }, { wch: 14 }, { wch: 10 },
   ];
-  XLSX.utils.book_append_sheet(wb, shiftSheet, "By shift");
+  xlsx.utils.book_append_sheet(wb, shiftSheet, "By shift");
 
   return wb;
 }
@@ -290,6 +297,7 @@ export default function PayrollPage() {
   const [week, setWeek] = React.useState<string>(fmtIso(startOfWeekMon(new Date())));
   const [busyGuardId, setBusyGuardId] = React.useState<string | null>(null);
   const [bulkBusy, setBulkBusy] = React.useState(false);
+  const [exportingStatement, setExportingStatement] = React.useState(false);
   const [expanded, setExpanded] = React.useState<Set<string>>(new Set());
   const [editTarget, setEditTarget] = React.useState<EditTarget | null>(null);
 
@@ -364,19 +372,26 @@ export default function PayrollPage() {
     }
   }
 
-  function exportStatement() {
+  async function exportStatement() {
     if (!data) return;
     if (data.rows.length === 0) {
       toast({ title: "Nothing to export", description: "No payable shifts in this week." });
       return;
     }
-    const wb = buildPayrollWorkbook(data.rows, data.summary, data.weekStart, data.weekEnd);
-    const buf = XLSX.write(wb, { bookType: "xlsx", type: "array" });
-    downloadFile(
-      `payroll-statement-${fmtIso(data.weekStart)}.xlsx`,
-      buf,
-      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    );
+    setExportingStatement(true);
+    try {
+      // Loaded on demand — see the same note in the Timesheets export.
+      const xlsx = await import("xlsx");
+      const wb = buildPayrollWorkbook(xlsx, data.rows, data.summary, data.weekStart, data.weekEnd);
+      const buf = xlsx.write(wb, { bookType: "xlsx", type: "array" });
+      downloadFile(
+        `payroll-statement-${fmtIso(data.weekStart)}.xlsx`,
+        buf,
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      );
+    } finally {
+      setExportingStatement(false);
+    }
   }
 
   return (
@@ -390,8 +405,8 @@ export default function PayrollPage() {
             <Button variant="outline" onClick={onMarkAllPending} disabled={bulkBusy || !data}>
               <CheckCircle2 className="h-4 w-4" /> Mark all paid
             </Button>
-            <Button onClick={exportStatement} disabled={!data}>
-              <FileSpreadsheet className="h-4 w-4" /> Export statement
+            <Button onClick={exportStatement} disabled={!data || exportingStatement}>
+              <FileSpreadsheet className="h-4 w-4" /> {exportingStatement ? "Preparing…" : "Export statement"}
             </Button>
           </>
         }
@@ -431,7 +446,7 @@ export default function PayrollPage() {
             <TableHead>Rate</TableHead><TableHead>Pay</TableHead><TableHead>Status</TableHead><TableHead></TableHead>
           </TableRow></TableHeader>
           <TableBody>
-            {isLoading && <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">Loading…</TableCell></TableRow>}
+            {isLoading && <TableSkeletonRows columns={8} />}
             {!isLoading && data && data.rows.length === 0 && <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">No payable shifts in this week.</TableCell></TableRow>}
             {data?.rows.map((r) => {
               const isOpen = expanded.has(r.guardId);

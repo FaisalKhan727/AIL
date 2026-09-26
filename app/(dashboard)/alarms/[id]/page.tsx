@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { PageSkeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -158,7 +159,7 @@ export default function AlarmDetailPage() {
     refetchOnWindowFocus: true,
   });
 
-  if (isLoading) return <div className="text-muted-foreground p-4">Loading…</div>;
+  if (isLoading) return <PageSkeleton cards={0} />;
   if (!data) return <div className="text-muted-foreground p-4">Alarm not found.</div>;
 
   const latestResponder = data.responders[data.responders.length - 1] ?? null;

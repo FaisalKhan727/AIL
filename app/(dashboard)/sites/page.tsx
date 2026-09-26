@@ -8,10 +8,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { TableSkeletonRows, CardSkeletonRows } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { SiteFormDialog } from "@/components/sites/site-form-dialog";
 import { useToast } from "@/components/ui/toast";
 import { api } from "@/lib/fetcher";
+import { useDebouncedValue } from "@/lib/use-debounced-value";
 
 interface Site {
   id: string;
@@ -27,9 +29,10 @@ export default function SitesPage() {
   const { toast } = useToast();
   const [q, setQ] = React.useState("");
   const [open, setOpen] = React.useState(false);
-  const { data: sites = [], isLoading } = useQuery<Site[]>({
-    queryKey: ["sites", q],
-    queryFn: () => api(`/api/sites?${q ? `q=${encodeURIComponent(q)}` : ""}`),
+  const debouncedQ = useDebouncedValue(q, 300);
+  const { data: sites = [], isLoading, isFetching } = useQuery<Site[]>({
+    queryKey: ["sites", debouncedQ],
+    queryFn: () => api(`/api/sites?${debouncedQ ? `q=${encodeURIComponent(debouncedQ)}` : ""}`),
   });
 
   async function deleteSite(s: Site) {
@@ -60,12 +63,15 @@ export default function SitesPage() {
       <Card className="mb-4"><CardContent className="pt-6">
         <div className="relative max-w-md">
           <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input className="pl-8" placeholder="Search name or address" value={q} onChange={(e) => setQ(e.target.value)} />
+          <Input className="pl-8 pr-16" placeholder="Search name or address" value={q} onChange={(e) => setQ(e.target.value)} />
+          {isFetching && (
+            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">Searching…</span>
+          )}
         </div>
       </CardContent></Card>
       {/* Mobile: card list */}
       <div className="md:hidden space-y-2">
-        {isLoading && <Card><CardContent className="py-8 text-center text-muted-foreground">Loading…</CardContent></Card>}
+        {isLoading && <CardSkeletonRows />}
         {!isLoading && sites.length === 0 && (
           <Card><CardContent className="py-8 text-center text-muted-foreground">No sites yet.</CardContent></Card>
         )}
@@ -108,7 +114,7 @@ export default function SitesPage() {
             <TableHead className="w-12"></TableHead>
           </TableRow></TableHeader>
           <TableBody>
-            {isLoading && <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground">Loading…</TableCell></TableRow>}
+            {isLoading && <TableSkeletonRows columns={5} />}
             {!isLoading && sites.length === 0 && <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground">No sites yet.</TableCell></TableRow>}
             {sites.map((s) => (
               <TableRow key={s.id}>

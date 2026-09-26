@@ -6,6 +6,7 @@ import { RotateCw, RefreshCcw } from "lucide-react";
 import { PageHeader } from "@/components/shell/page-header";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { TableSkeletonRows } from "@/components/ui/skeleton";
 import { Select } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -151,7 +152,7 @@ export default function SmsLogPage() {
             <TableHead>From → To</TableHead><TableHead>Body</TableHead><TableHead>Status</TableHead><TableHead></TableHead>
           </TableRow></TableHeader>
           <TableBody>
-            {isLoading && <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">Loading…</TableCell></TableRow>}
+            {isLoading && <TableSkeletonRows columns={7} />}
             {!isLoading && filtered.length === 0 && <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">No messages.</TableCell></TableRow>}
             {filtered.map((l) => {
               const failed = l.status === "failed" || l.status === "undelivered";

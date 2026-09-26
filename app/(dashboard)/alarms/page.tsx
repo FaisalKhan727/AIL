@@ -7,11 +7,13 @@ import { PageHeader } from "@/components/shell/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { TableSkeletonRows, CardSkeletonRows } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { NewAlarmDialog } from "@/components/alarms/new-alarm-dialog";
 import { api } from "@/lib/fetcher";
 import { fmtDateTime } from "@/lib/date";
 import { cn } from "@/lib/utils";
+import { useDebouncedValue } from "@/lib/use-debounced-value";
 
 interface AlarmRow {
   id: string;
@@ -76,14 +78,18 @@ export default function AlarmsPage() {
   const [search, setSearch] = React.useState("");
   const [statusFilter, setStatusFilter] = React.useState<string[]>([]);
 
+  // Debounce the free-text search so it's not firing a request on every
+  // keystroke — status filter chips still apply instantly.
+  const debouncedSearch = useDebouncedValue(search, 300);
+
   const queryParams = React.useMemo(() => {
     const sp = new URLSearchParams();
-    if (search.trim()) sp.set("q", search.trim());
+    if (debouncedSearch.trim()) sp.set("q", debouncedSearch.trim());
     if (statusFilter.length > 0) sp.set("status", statusFilter.join(","));
     return sp.toString() ? `?${sp.toString()}` : "";
-  }, [search, statusFilter]);
+  }, [debouncedSearch, statusFilter]);
 
-  const { data: alarms = [], isLoading } = useQuery<AlarmRow[]>({
+  const { data: alarms = [], isLoading, isFetching } = useQuery<AlarmRow[]>({
     queryKey: ["alarms", queryParams],
     queryFn: () => api(`/api/alarms${queryParams}`),
     refetchInterval: 15_000,
@@ -132,8 +138,11 @@ export default function AlarmsPage() {
             placeholder="Search by docket, site, client, description…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="pl-9"
+            className="pl-9 pr-16"
           />
+          {isFetching && (
+            <span className="absolute right-2.5 top-2.5 text-xs text-muted-foreground">Searching…</span>
+          )}
         </div>
         <div className="flex flex-wrap gap-1">
           {STATUSES.map((s) => (
@@ -173,13 +182,7 @@ export default function AlarmsPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {isLoading && (
-                <TableRow>
-                  <TableCell colSpan={10} className="text-center py-6 text-muted-foreground">
-                    Loading…
-                  </TableCell>
-                </TableRow>
-              )}
+              {isLoading && <TableSkeletonRows columns={10} />}
               {!isLoading && alarms.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={10} className="text-center py-6 text-muted-foreground">
@@ -226,7 +229,7 @@ export default function AlarmsPage() {
 
       {/* Mobile: card list grouped by month */}
       <div className="md:hidden space-y-2">
-        {isLoading && <Card><CardContent className="py-8 text-center text-muted-foreground">Loading…</CardContent></Card>}
+        {isLoading && <CardSkeletonRows />}
         {!isLoading && alarms.length === 0 && (
           <Card><CardContent className="py-8 text-center text-muted-foreground">No alarms yet.</CardContent></Card>
         )}

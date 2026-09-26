@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { TableSkeletonRows, CardSkeletonRows } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
 import { api } from "@/lib/fetcher";
 import { fmtDateTime } from "@/lib/date";
@@ -99,11 +100,7 @@ export default function InvoicesPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {isLoading && (
-                <TableRow>
-                  <TableCell colSpan={7} className="text-center py-6 text-muted-foreground">Loading…</TableCell>
-                </TableRow>
-              )}
+              {isLoading && <TableSkeletonRows columns={7} />}
               {!isLoading && (data?.invoices.length ?? 0) === 0 && (
                 <TableRow>
                   <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
@@ -141,7 +138,7 @@ export default function InvoicesPage() {
 
       {/* Mobile: card list */}
       <div className="md:hidden space-y-2">
-        {isLoading && <Card><CardContent className="py-8 text-center text-muted-foreground">Loading…</CardContent></Card>}
+        {isLoading && <CardSkeletonRows />}
         {!isLoading && (data?.invoices.length ?? 0) === 0 && (
           <Card><CardContent className="py-8 text-center text-muted-foreground">No invoices yet.</CardContent></Card>
         )}

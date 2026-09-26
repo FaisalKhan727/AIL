@@ -7,6 +7,7 @@ import { PageHeader } from "@/components/shell/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { PageSkeleton } from "@/components/ui/skeleton";
 import { SiteFormDialog } from "@/components/sites/site-form-dialog";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { useToast } from "@/components/ui/toast";
@@ -34,7 +35,7 @@ export default function SiteDetailPage() {
     queryKey: ["site", id],
     queryFn: () => api(`/api/sites/${id}`),
   });
-  if (isLoading) return <div className="text-muted-foreground">Loading…</div>;
+  if (isLoading) return <PageSkeleton cards={0} />;
   if (!data) return <div className="text-muted-foreground">Not found.</div>;
 
   return (

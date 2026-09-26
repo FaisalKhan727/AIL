@@ -1,6 +1,15 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  poweredByHeader: false,
+  // Auto-tree-shakes barrel-exported icon/utility packages so importing
+  // e.g. `{ Search } from "lucide-react"` only pulls that one icon's module
+  // into the bundle instead of Next having to trace through the whole
+  // package's barrel file. Pure build-time optimization — no behaviour
+  // change, just less JS shipped to the browser on every page.
+  experimental: {
+    optimizePackageImports: ["lucide-react", "date-fns"],
+  },
   async headers() {
     return [
       {
