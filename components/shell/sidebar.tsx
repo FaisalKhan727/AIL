@@ -16,6 +16,7 @@ import {
   LogOut,
   AlertCircle,
   FileText,
+  Wallet,
 } from "lucide-react";
 
 const NAV = [
@@ -26,6 +27,7 @@ const NAV = [
   { href: "/alarms", label: "Alarms", icon: AlertCircle },
   { href: "/invoices", label: "Invoices", icon: FileText },
   { href: "/timesheets", label: "Timesheets", icon: ClipboardList },
+  { href: "/payroll", label: "Payroll", icon: Wallet },
   { href: "/sms-log", label: "SMS Log", icon: MessageSquare },
   { href: "/settings", label: "Settings", icon: Settings },
 ];

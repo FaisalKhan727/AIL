@@ -33,6 +33,7 @@ model Company {
   contractTemplates  ContractTemplate[]
   onboardingDocuments OnboardingDocument[]
   auditLogs          AuditLog[]
+  timesheets         Timesheet[]
 }
 
 model AdminUser {
@@ -86,6 +87,7 @@ model Guard {
   onboardingSessions OnboardingSession[]
   onboardingDocuments OnboardingDocument[]
   sopAcknowledgements SopAcknowledgement[]
+  timesheets         Timesheet[]
 
   @@unique([companyId, phone])
   @@index([companyId])
@@ -212,19 +214,33 @@ model SmsLog {
   @@index([alarmResponderId])
 }
 
+// Persisted payroll record for one guard's one week. The live timesheet
+// view (/api/timesheets) still computes hours on the fly from Shift data —
+// this table only captures the PAID/PENDING decision (and a snapshot of the
+// hours/pay at the moment it was marked paid), so a payment's record can't
+// silently drift if a shift is edited after the fact. Looked up by
+// [guardId, weekStart]; a row only exists once an admin has touched that
+// guard's week from the Payroll page (mark paid, or explicitly reopen).
 model Timesheet {
   id         String    @id @default(cuid())
+  companyId  String
   guardId    String
   weekStart  DateTime
   weekEnd    DateTime
   totalHours Decimal
   totalPay   Decimal
-  status     String    @default("DRAFT") // DRAFT | APPROVED | PAID
-  approvedAt DateTime?
-  approvedBy String?
+  status     String    @default("PENDING") // PENDING | PAID
+  paidAt     DateTime?
+  paidBy     String? // AdminUser.id
   createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id])
+  guard   Guard   @relation(fields: [guardId], references: [id])
 
   @@unique([guardId, weekStart])
+  @@index([companyId, weekStart])
+  @@index([guardId])
 }
 
 model Setting {

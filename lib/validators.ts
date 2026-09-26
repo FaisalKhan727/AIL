@@ -80,3 +80,8 @@ export const inboundSmsSchema = z.object({
   Body: z.string(),
   MessageSid: z.string().optional(),
 });
+
+export const payrollActionSchema = z.object({
+  weekStart: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "weekStart must be yyyy-MM-dd"),
+  guardIds: z.array(z.string().min(1)).min(1),
+});

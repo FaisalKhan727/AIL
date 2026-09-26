@@ -2,15 +2,17 @@
 import * as React from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, Send, RefreshCcw, AlertTriangle, Trash2, RotateCw, Copy } from "lucide-react";
+import { Plus, Send, RefreshCcw, AlertTriangle, Trash2, RotateCw, Copy, Search, ChevronLeft, ChevronRight } from "lucide-react";
 import { PageHeader } from "@/components/shell/page-header";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { ShiftFormDialog } from "@/components/rosters/shift-form-dialog";
 import { CopyRosterDialog } from "@/components/rosters/copy-roster-dialog";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { api } from "@/lib/fetcher";
 import { addDays, fmtTime } from "@/lib/date";
+import { shiftHours } from "@/lib/hours";
 import { useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 
@@ -24,11 +26,18 @@ interface Shift {
   role: string | null;
   notes: string | null;
   publishedAt: string | null;
+  workedStart: string | null;
+  workedEnd: string | null;
   guard: { id: string; firstName: string; lastName: string } | null;
   site: { id: string; name: string };
 }
 
 type ViewMode = "guard" | "site";
+
+interface RosterListItem {
+  id: string;
+  startDate: string;
+}
 
 interface Roster {
   id: string;
@@ -66,11 +75,17 @@ function statusCellClass(s: Shift): string {
   }
 }
 
+// Only statuses where the guard is actually scheduled for that time count as
+// a conflict. CANCELLED and REJECTED shifts don't occupy the guard's time,
+// so they shouldn't keep showing a conflict warning once resolved — mirrors
+// the overlap check in /api/rosters/[id]/publish.
+const OCCUPYING_STATUSES = new Set(["PENDING", "CONFIRMED", "WORKED", "NO_SHOW"]);
+
 function detectConflicts(shifts: Shift[]): Set<string> {
   const conflicting = new Set<string>();
   const byGuard = new Map<string, Shift[]>();
   for (const s of shifts) {
-    if (!s.guardId) continue;
+    if (!s.guardId || !OCCUPYING_STATUSES.has(s.status)) continue;
     const list = byGuard.get(s.guardId) ?? [];
     list.push(s);
     byGuard.set(s.guardId, list);
@@ -98,6 +113,10 @@ export default function RosterBuilderPage() {
   const [presetSiteId, setPresetSiteId] = React.useState<string | undefined>();
   const [presetStart, setPresetStart] = React.useState<Date | undefined>();
   const [copyOpen, setCopyOpen] = React.useState(false);
+  // Quick filter box above the grid — narrows the row list (guards or
+  // sites) by name so a roster with a large headcount stays scannable
+  // instead of forcing a scroll through everyone.
+  const [rowFilter, setRowFilter] = React.useState("");
 
   // View-mode toggle (Guard rows vs Site rows). Persists per browser so
   // operators don't have to re-pick on every visit.
@@ -123,6 +142,21 @@ export default function RosterBuilderPage() {
     refetchOnWindowFocus: true,
   });
 
+  // Every other roster's id + startDate, just enough to build Prev/Next week
+  // navigation without leaving the grid to go back to the list.
+  const { data: allRosters = [] } = useQuery<RosterListItem[]>({
+    queryKey: ["rosters", "nav"],
+    queryFn: () => api(`/api/rosters`),
+    staleTime: 60_000,
+  });
+  const sortedRosters = React.useMemo(
+    () => [...allRosters].sort((a, b) => a.startDate.localeCompare(b.startDate)),
+    [allRosters],
+  );
+  const currentIndex = sortedRosters.findIndex((r) => r.id === id);
+  const prevRoster = currentIndex > 0 ? sortedRosters[currentIndex - 1] : null;
+  const nextRoster = currentIndex >= 0 && currentIndex < sortedRosters.length - 1 ? sortedRosters[currentIndex + 1] : null;
+
   if (!data) return <div className="text-muted-foreground">Loading…</div>;
 
   const start = new Date(data.startDate);
@@ -138,10 +172,34 @@ export default function RosterBuilderPage() {
   for (const s of data.shifts) siteMap.set(s.siteId, s.site);
   const siteList = Array.from(siteMap.values()).sort((a, b) => a.name.localeCompare(b.name));
 
-  type Row = { id: string; label: string };
-  const rows: Row[] = viewMode === "guard"
-    ? guardList.map((g) => ({ id: g.id, label: `${g.firstName} ${g.lastName}` }))
-    : siteList.map((s) => ({ id: s.id, label: s.name }));
+  // Payable hours for the whole week, per row — lets an operator spot an
+  // over- or under-scheduled guard at a glance instead of adding it up by
+  // eye across seven day cells. Same shiftHours() the timesheet/payroll
+  // pages use, so the number always agrees with what pay actually works out
+  // to (only CONFIRMED/WORKED shifts count).
+  function rowHours(rowId: string): number {
+    const rowShifts = data!.shifts.filter((s) => (viewMode === "guard" ? s.guardId === rowId : s.siteId === rowId));
+    const hrs = rowShifts.reduce(
+      (sum, s) =>
+        sum +
+        shiftHours({
+          status: s.status,
+          startAt: new Date(s.startAt),
+          endAt: new Date(s.endAt),
+          workedStart: s.workedStart ? new Date(s.workedStart) : null,
+          workedEnd: s.workedEnd ? new Date(s.workedEnd) : null,
+        }),
+      0,
+    );
+    return Math.round(hrs * 100) / 100;
+  }
+
+  type Row = { id: string; label: string; hours: number };
+  const allRows: Row[] = viewMode === "guard"
+    ? guardList.map((g) => ({ id: g.id, label: `${g.firstName} ${g.lastName}`, hours: rowHours(g.id) }))
+    : siteList.map((s) => ({ id: s.id, label: s.name, hours: rowHours(s.id) }));
+  const filterNeedle = rowFilter.trim().toLowerCase();
+  const rows = filterNeedle ? allRows.filter((r) => r.label.toLowerCase().includes(filterNeedle)) : allRows;
   const rowHeading = viewMode === "guard" ? "Guard" : "Site";
 
   function shiftsForRowDay(rowId: string, day: Date): Shift[] {
@@ -294,6 +352,30 @@ export default function RosterBuilderPage() {
         description={summaryText}
         actions={
           <>
+            <div className="inline-flex rounded-md border overflow-hidden">
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label="Previous roster"
+                title={prevRoster ? "Previous roster" : "No earlier roster"}
+                className="rounded-none border-r"
+                disabled={!prevRoster}
+                onClick={() => prevRoster && router.push(`/rosters/${prevRoster.id}`)}
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label="Next roster"
+                title={nextRoster ? "Next roster" : "No later roster"}
+                className="rounded-none"
+                disabled={!nextRoster}
+                onClick={() => nextRoster && router.push(`/rosters/${nextRoster.id}`)}
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
             <Button
               variant="outline"
               size="icon"
@@ -330,31 +412,45 @@ export default function RosterBuilderPage() {
 
       {/* View-mode toggle: Guard rows vs Site rows. Same shift data either
           way; the row dimension and the card title swap. */}
-      <div className="mb-3 inline-flex rounded-md border bg-background p-0.5 text-sm">
-        <button
-          type="button"
-          onClick={() => setView("guard")}
-          className={cn(
-            "px-3 py-1.5 rounded",
-            viewMode === "guard"
-              ? "bg-brand-navy text-white font-medium"
-              : "text-muted-foreground hover:text-foreground",
-          )}
-        >
-          By Guard
-        </button>
-        <button
-          type="button"
-          onClick={() => setView("site")}
-          className={cn(
-            "px-3 py-1.5 rounded",
-            viewMode === "site"
-              ? "bg-brand-navy text-white font-medium"
-              : "text-muted-foreground hover:text-foreground",
-          )}
-        >
-          By Site
-        </button>
+      <div className="mb-3 flex flex-wrap items-center gap-3">
+        <div className="inline-flex rounded-md border bg-background p-0.5 text-sm">
+          <button
+            type="button"
+            onClick={() => setView("guard")}
+            className={cn(
+              "px-3 py-1.5 rounded",
+              viewMode === "guard"
+                ? "bg-brand-navy text-white font-medium"
+                : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            By Guard
+          </button>
+          <button
+            type="button"
+            onClick={() => setView("site")}
+            className={cn(
+              "px-3 py-1.5 rounded",
+              viewMode === "site"
+                ? "bg-brand-navy text-white font-medium"
+                : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            By Site
+          </button>
+        </div>
+        <div className="relative w-full max-w-[220px]">
+          <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+          <Input
+            className="pl-7 h-9 text-sm"
+            placeholder={viewMode === "guard" ? "Filter guards…" : "Filter sites…"}
+            value={rowFilter}
+            onChange={(e) => setRowFilter(e.target.value)}
+          />
+        </div>
+        {filterNeedle && (
+          <span className="text-xs text-muted-foreground">{rows.length} of {allRows.length} shown</span>
+        )}
       </div>
 
       <Card className="mb-4">
@@ -362,7 +458,7 @@ export default function RosterBuilderPage() {
           <table className="w-full border-collapse text-xs min-w-[900px]">
             <thead>
               <tr className="bg-muted/40">
-                <th className="text-left p-2 border-b w-40 sticky left-0 bg-muted/40 z-10">{rowHeading}</th>
+                <th className="text-left p-2 border-b w-44 sticky left-0 bg-muted/40 z-10">{rowHeading}</th>
                 {days.map((d) => (
                   <th key={d.toISOString()} className="text-left p-2 border-b border-l">
                     <div>{d.toLocaleDateString(undefined, { weekday: "short" })}</div>
@@ -373,11 +469,20 @@ export default function RosterBuilderPage() {
             </thead>
             <tbody>
               {rows.length === 0 && (
-                <tr><td colSpan={8} className="p-6 text-center text-muted-foreground">No shifts yet — click <em>Add Shift</em> to start.</td></tr>
+                <tr><td colSpan={8} className="p-6 text-center text-muted-foreground">
+                  {filterNeedle ? `No ${viewMode === "guard" ? "guards" : "sites"} match "${rowFilter}".` : <>No shifts yet — click <em>Add Shift</em> to start.</>}
+                </td></tr>
               )}
               {rows.map((row) => (
                 <tr key={row.id} className="align-top">
-                  <td className="p-2 border-b font-medium sticky left-0 bg-background z-10">{row.label}</td>
+                  <td className="p-2 border-b font-medium sticky left-0 bg-background z-10">
+                    <div className="truncate">{row.label}</div>
+                    {row.hours > 0 && (
+                      <div className={cn("text-[10px] font-normal tabular-nums", row.hours > 38 ? "text-amber-600 font-medium" : "text-muted-foreground")}>
+                        {row.hours}h this week
+                      </div>
+                    )}
+                  </td>
                   {days.map((d) => {
                     const cellShifts = shiftsForRowDay(row.id, d);
                     return (

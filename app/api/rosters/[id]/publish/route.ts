@@ -14,17 +14,27 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
   if (!roster) return jsonError("not found", 404);
 
   // Validation: no shifts in the past, no overlapping shifts per guard.
+  // Both checks only look at shifts this call would actually dispatch SMS
+  // for (PENDING, assigned, not yet sent) — a roster accumulates CONFIRMED /
+  // WORKED / CANCELLED shifts from earlier in the week as time passes, and
+  // those shouldn't block publishing newly-added shifts later in the week.
   const now = new Date();
-  const past = roster.shifts.filter((s) => s.startAt < now);
+  const dispatchable = roster.shifts.filter((s) => s.status === "PENDING" && s.guardId && !s.publishedAt);
+  const past = dispatchable.filter((s) => s.startAt < now);
   if (past.length > 0) {
     return jsonError("cannot publish: some shifts start in the past", 400, {
       shifts: past.map((s) => s.id),
     });
   }
 
+  // Overlap check: only statuses that represent the guard actually being
+  // scheduled for that time count. CANCELLED and REJECTED shifts don't
+  // occupy the guard's time, so they shouldn't produce a false conflict
+  // that blocks publishing forever.
+  const OCCUPYING = new Set(["PENDING", "CONFIRMED", "WORKED", "NO_SHOW"]);
   const byGuard = new Map<string, { id: string; startAt: Date; endAt: Date }[]>();
   for (const s of roster.shifts) {
-    if (!s.guardId) continue; // unassigned placeholder shifts can't conflict yet
+    if (!s.guardId || !OCCUPYING.has(s.status)) continue; // unassigned or non-occupying shifts can't conflict
     const list = byGuard.get(s.guardId) ?? [];
     list.push({ id: s.id, startAt: s.startAt, endAt: s.endAt });
     byGuard.set(s.guardId, list);

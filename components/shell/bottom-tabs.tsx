@@ -16,6 +16,7 @@ import {
   X,
   AlertCircle,
   FileText,
+  Wallet,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -30,6 +31,7 @@ const MORE = [
   { href: "/invoices",   label: "Invoices",   icon: FileText },
   { href: "/sites",      label: "Sites",      icon: Building2 },
   { href: "/timesheets", label: "Timesheets", icon: ClipboardList },
+  { href: "/payroll",    label: "Payroll",    icon: Wallet },
   { href: "/sms-log",    label: "SMS Log",    icon: MessageSquare },
   { href: "/settings",   label: "Settings",   icon: Settings },
 ] as const;
