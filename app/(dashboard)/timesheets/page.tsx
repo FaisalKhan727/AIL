@@ -1,7 +1,8 @@
 "use client";
 import * as React from "react";
+import * as XLSX from "xlsx";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Download, FileDown, CheckCircle2 } from "lucide-react";
+import { Download, FileDown, FileSpreadsheet, CheckCircle2 } from "lucide-react";
 import { PageHeader } from "@/components/shell/page-header";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -11,13 +12,25 @@ import { api } from "@/lib/fetcher";
 import { fmtDate, fmtTime, fmtIso, startOfWeekMon } from "@/lib/date";
 import { useToast } from "@/components/ui/toast";
 
+interface ShiftRow {
+  id: string;
+  startAt: string;
+  endAt: string;
+  status: string;
+  siteName: string;
+  /** Payable hours for this one shift — worked times if set, else scheduled
+   *  times. Computed server-side (lib/hours.ts) so it always agrees with
+   *  the guard's totalHours below. */
+  hours: number;
+}
+
 interface Row {
   guardId: string;
   guardName: string;
   payRate: number;
   totalHours: number;
   totalPay: number;
-  shifts: Array<{ id: string; startAt: string; endAt: string; status: string; siteName: string }>;
+  shifts: ShiftRow[];
 }
 
 interface Resp { weekStart: string; weekEnd: string; rows: Row[]; }
@@ -30,7 +43,7 @@ function rowsToCsv(rows: Row[], weekStart: string): string {
   return lines.join("\n");
 }
 
-function downloadFile(name: string, content: string, type = "text/csv") {
+function downloadFile(name: string, content: BlobPart, type = "text/csv") {
   const blob = new Blob([content], { type });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -42,15 +55,99 @@ function downloadFile(name: string, content: string, type = "text/csv") {
   URL.revokeObjectURL(url);
 }
 
+/**
+ * Build an .xlsx workbook with two sheets:
+ *   - Summary: one row per guard (shift count, hours, rate, pay).
+ *   - Shift detail: one row per individual shift, with its own hours —
+ *     so the export shows exactly how each guard's total was made up, not
+ *     just the final number.
+ * Both sheets are derived from the same per-shift `hours` the API computes,
+ * so the two always reconcile.
+ */
+function buildTimesheetWorkbook(rows: Row[], weekStart: string, weekEnd: string): XLSX.WorkBook {
+  const wb = XLSX.utils.book_new();
+
+  interface SummaryRow {
+    Guard: string;
+    Shifts: number;
+    Hours: number;
+    "Rate ($/hr)": number | string;
+    "Pay ($)": number;
+  }
+  const summaryData: SummaryRow[] = rows.map((r) => ({
+    Guard: r.guardName,
+    Shifts: r.shifts.length,
+    Hours: r.totalHours,
+    "Rate ($/hr)": r.payRate,
+    "Pay ($)": r.totalPay,
+  }));
+  summaryData.push({
+    Guard: "TOTAL",
+    Shifts: rows.reduce((sum, r) => sum + r.shifts.length, 0),
+    Hours: Math.round(rows.reduce((sum, r) => sum + r.totalHours, 0) * 100) / 100,
+    "Rate ($/hr)": "",
+    "Pay ($)": Math.round(rows.reduce((sum, r) => sum + r.totalPay, 0) * 100) / 100,
+  });
+  const summarySheet = XLSX.utils.json_to_sheet(summaryData);
+  summarySheet["!cols"] = [{ wch: 24 }, { wch: 8 }, { wch: 10 }, { wch: 12 }, { wch: 12 }];
+  XLSX.utils.book_append_sheet(wb, summarySheet, "Summary");
+
+  const detailData = rows.flatMap((r) =>
+    r.shifts.map((s) => ({
+      Guard: r.guardName,
+      Date: fmtDate(s.startAt),
+      Start: fmtTime(s.startAt),
+      End: fmtTime(s.endAt),
+      Site: s.siteName,
+      Status: s.status,
+      Hours: s.hours,
+      "Rate ($/hr)": r.payRate,
+      "Pay ($)": Math.round(s.hours * r.payRate * 100) / 100,
+    })),
+  );
+  const detailSheet = XLSX.utils.json_to_sheet(detailData);
+  detailSheet["!cols"] = [
+    { wch: 24 }, { wch: 12 }, { wch: 8 }, { wch: 8 },
+    { wch: 20 }, { wch: 10 }, { wch: 8 }, { wch: 12 }, { wch: 10 },
+  ];
+  XLSX.utils.book_append_sheet(wb, detailSheet, "Shift detail");
+
+  const infoSheet = XLSX.utils.aoa_to_sheet([
+    ["Week start", fmtIso(weekStart)],
+    ["Week end", fmtIso(weekEnd)],
+    ["Generated", new Date().toLocaleString()],
+  ]);
+  infoSheet["!cols"] = [{ wch: 14 }, { wch: 24 }];
+  XLSX.utils.book_append_sheet(wb, infoSheet, "Week");
+
+  return wb;
+}
+
+// Guard names and site names are free-text fields entered by admins, so they
+// must be escaped before going into an HTML string that's handed to
+// document.write() — otherwise a name like `<img src=x onerror=...>` would
+// execute as script in the print window (stored XSS).
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 function buildPrintableTimesheet(row: Row, weekStart: string, weekEnd: string): string {
-  const rows = row.shifts.map((s) => `<tr><td>${fmtDate(s.startAt)}</td><td>${fmtTime(s.startAt)}–${fmtTime(s.endAt)}</td><td>${s.siteName}</td><td>${s.status}</td></tr>`).join("");
-  return `<!doctype html><html><head><meta charset="utf-8"><title>Timesheet — ${row.guardName}</title>
+  const guardName = escapeHtml(row.guardName);
+  const rows = row.shifts
+    .map((s) => `<tr><td>${fmtDate(s.startAt)}</td><td>${fmtTime(s.startAt)}–${fmtTime(s.endAt)}</td><td>${escapeHtml(s.siteName)}</td><td>${escapeHtml(s.status)}</td></tr>`)
+    .join("");
+  return `<!doctype html><html><head><meta charset="utf-8"><title>Timesheet — ${guardName}</title>
     <style>body{font-family:system-ui,sans-serif;margin:2rem;color:#0B1E3F}
     h1{margin:0}table{width:100%;border-collapse:collapse;margin-top:1rem}
     th,td{padding:8px;border-bottom:1px solid #ddd;text-align:left;font-size:14px}
     .totals{margin-top:1rem;font-size:1.1rem}</style></head><body>
     <h1>Timesheet</h1>
-    <p><strong>${row.guardName}</strong> · Week ${fmtIso(weekStart)} → ${fmtIso(weekEnd)}</p>
+    <p><strong>${guardName}</strong> · Week ${fmtIso(weekStart)} → ${fmtIso(weekEnd)}</p>
     <table><thead><tr><th>Date</th><th>Time</th><th>Site</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table>
     <p class="totals">Hours: <strong>${row.totalHours}</strong> · Rate: $${row.payRate.toFixed(2)} · Pay: <strong>$${row.totalPay.toFixed(2)}</strong></p>
     <script>window.onload=()=>setTimeout(()=>window.print(),250)</script>
@@ -88,6 +185,21 @@ export default function TimesheetsPage() {
     downloadFile(`timesheets-${fmtIso(data.weekStart)}.csv`, rowsToCsv(data.rows, data.weekStart));
   }
 
+  function exportAllExcel() {
+    if (!data) return;
+    if (data.rows.length === 0) {
+      toast({ title: "Nothing to export", description: "No payable shifts in this week." });
+      return;
+    }
+    const wb = buildTimesheetWorkbook(data.rows, data.weekStart, data.weekEnd);
+    const buf = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+    downloadFile(
+      `timesheets-${fmtIso(data.weekStart)}.xlsx`,
+      buf,
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    );
+  }
+
   function printOne(row: Row) {
     if (!data) return;
     const w = window.open("", "_blank", "width=900,height=900");
@@ -106,6 +218,7 @@ export default function TimesheetsPage() {
             <Input type="date" value={week} onChange={(e) => setWeek(e.target.value)} className="w-40" />
             <Button variant="outline" onClick={markAllWorked}><CheckCircle2 className="h-4 w-4" /> Mark all worked</Button>
             <Button variant="outline" onClick={exportAllCsv} disabled={!data}><Download className="h-4 w-4" /> Export CSV</Button>
+            <Button onClick={exportAllExcel} disabled={!data}><FileSpreadsheet className="h-4 w-4" /> Export Excel</Button>
           </>
         }
       />
@@ -134,7 +247,7 @@ export default function TimesheetsPage() {
                 </TableRow>
                 <TableRow className="bg-muted/20">
                   <TableCell colSpan={6} className="text-xs text-muted-foreground py-2">
-                    {r.shifts.map((s) => `${fmtDate(s.startAt)} ${fmtTime(s.startAt)}–${fmtTime(s.endAt)} · ${s.siteName} (${s.status})`).join("  ·  ")}
+                    {r.shifts.map((s) => `${fmtDate(s.startAt)} ${fmtTime(s.startAt)}–${fmtTime(s.endAt)} · ${s.siteName} · ${s.hours}h (${s.status})`).join("  ·  ")}
                   </TableCell>
                 </TableRow>
               </React.Fragment>

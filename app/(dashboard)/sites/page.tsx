@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { SiteFormDialog } from "@/components/sites/site-form-dialog";
 import { useToast } from "@/components/ui/toast";
 import { api } from "@/lib/fetcher";
+import { useDebouncedValue } from "@/lib/use-debounced-value";
 
 interface Site {
   id: string;
@@ -27,9 +28,10 @@ export default function SitesPage() {
   const { toast } = useToast();
   const [q, setQ] = React.useState("");
   const [open, setOpen] = React.useState(false);
-  const { data: sites = [], isLoading } = useQuery<Site[]>({
-    queryKey: ["sites", q],
-    queryFn: () => api(`/api/sites?${q ? `q=${encodeURIComponent(q)}` : ""}`),
+  const debouncedQ = useDebouncedValue(q, 300);
+  const { data: sites = [], isLoading, isFetching } = useQuery<Site[]>({
+    queryKey: ["sites", debouncedQ],
+    queryFn: () => api(`/api/sites?${debouncedQ ? `q=${encodeURIComponent(debouncedQ)}` : ""}`),
   });
 
   async function deleteSite(s: Site) {
@@ -60,7 +62,10 @@ export default function SitesPage() {
       <Card className="mb-4"><CardContent className="pt-6">
         <div className="relative max-w-md">
           <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input className="pl-8" placeholder="Search name or address" value={q} onChange={(e) => setQ(e.target.value)} />
+          <Input className="pl-8 pr-16" placeholder="Search name or address" value={q} onChange={(e) => setQ(e.target.value)} />
+          {isFetching && (
+            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">Searching…</span>
+          )}
         </div>
       </CardContent></Card>
       {/* Mobile: card list */}

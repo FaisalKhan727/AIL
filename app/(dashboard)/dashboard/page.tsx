@@ -15,7 +15,9 @@ import { formatPhoneAU } from "@/lib/utils";
 
 interface DashResp {
   kpis: { shiftsThisWeek: number; pendingCount: number; rejectedCount: number; activeGuards: number };
-  todayShifts: Array<{ id: string; startAt: string; endAt: string; status: string; guard: { firstName: string; lastName: string }; site: { name: string } }>;
+  // Unassigned placeholder shifts (e.g. created by "copy roster forward"
+  // when the original guard is no longer eligible) have no guard yet.
+  todayShifts: Array<{ id: string; startAt: string; endAt: string; status: string; guard: { firstName: string; lastName: string } | null; site: { name: string } }>;
   recentSms: Array<{ id: string; body: string; direction: string; status: string | null; receivedAt: string; fromNumber: string; toNumber: string; guard: { firstName: string; lastName: string } | null }>;
 }
 
@@ -77,7 +79,9 @@ export default function DashboardPage() {
                     {data.todayShifts.map((s) => (
                       <TableRow key={s.id}>
                         <TableCell>{fmtTime(s.startAt)}–{fmtTime(s.endAt)}</TableCell>
-                        <TableCell>{s.guard.firstName} {s.guard.lastName}</TableCell>
+                        <TableCell>
+                          {s.guard ? `${s.guard.firstName} ${s.guard.lastName}` : <span className="text-muted-foreground italic">Unassigned</span>}
+                        </TableCell>
                         <TableCell>{s.site.name}</TableCell>
                         <TableCell><StatusBadge status={s.status} /></TableCell>
                       </TableRow>

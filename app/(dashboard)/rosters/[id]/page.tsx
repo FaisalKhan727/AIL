@@ -65,11 +65,17 @@ function statusCellClass(s: Shift): string {
   }
 }
 
+// Only statuses where the guard is actually scheduled for that time count as
+// a conflict. CANCELLED and REJECTED shifts don't occupy the guard's time,
+// so they shouldn't keep showing a conflict warning once resolved — mirrors
+// the overlap check in /api/rosters/[id]/publish.
+const OCCUPYING_STATUSES = new Set(["PENDING", "CONFIRMED", "WORKED", "NO_SHOW"]);
+
 function detectConflicts(shifts: Shift[]): Set<string> {
   const conflicting = new Set<string>();
   const byGuard = new Map<string, Shift[]>();
   for (const s of shifts) {
-    if (!s.guardId) continue;
+    if (!s.guardId || !OCCUPYING_STATUSES.has(s.status)) continue;
     const list = byGuard.get(s.guardId) ?? [];
     list.push(s);
     byGuard.set(s.guardId, list);

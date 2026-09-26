@@ -21,7 +21,8 @@ interface SiteDetail {
   contactPhone: string | null;
   notes: string | null;
   active: boolean;
-  shifts: Array<{ id: string; startAt: string; endAt: string; status: string; guard: { firstName: string; lastName: string } }>;
+  // Unassigned placeholder shifts (e.g. from "copy roster forward") have no guard yet.
+  shifts: Array<{ id: string; startAt: string; endAt: string; status: string; guard: { firstName: string; lastName: string } | null }>;
 }
 
 export default function SiteDetailPage() {
@@ -87,7 +88,9 @@ export default function SiteDetailPage() {
                 <TableRow key={s.id}>
                   <TableCell>{fmtDateTime(s.startAt)}</TableCell>
                   <TableCell>{fmtDateTime(s.endAt)}</TableCell>
-                  <TableCell>{s.guard.firstName} {s.guard.lastName}</TableCell>
+                  <TableCell>
+                    {s.guard ? `${s.guard.firstName} ${s.guard.lastName}` : <span className="text-muted-foreground italic">Unassigned</span>}
+                  </TableCell>
                   <TableCell><StatusBadge status={s.status} /></TableCell>
                 </TableRow>
               ))}

@@ -92,16 +92,30 @@ export function ShiftFormDialog({ open, onOpenChange, rosterId, initial, onSaved
   const { toast } = useToast();
   const isEdit = Boolean(initial?.id);
 
-  const { data: guards = [] } = useQuery<{ id: string; firstName: string; lastName: string; active: boolean }[]>({
-    queryKey: ["guards", "active"],
-    queryFn: () => api(`/api/guards?active=true`),
+  // Fetch every guard (not just active=true) so editing a shift that's
+  // assigned to a guard who has since been deactivated still shows their
+  // name instead of silently falling back to "Select guard…" — which used
+  // to blank out guardId on save and fail validation.
+  const { data: allGuards = [] } = useQuery<{ id: string; firstName: string; lastName: string; active: boolean }[]>({
+    queryKey: ["guards", "all"],
+    queryFn: () => api(`/api/guards`),
     enabled: open,
   });
-  const { data: sites = [] } = useQuery<{ id: string; name: string; active: boolean }[]>({
+  const guards = React.useMemo(
+    () => allGuards.filter((g) => g.active || g.id === initial?.guardId),
+    [allGuards, initial?.guardId],
+  );
+  const { data: allSites = [] } = useQuery<{ id: string; name: string; active: boolean }[]>({
     queryKey: ["sites", "all"],
     queryFn: () => api(`/api/sites`),
     enabled: open,
   });
+  // Same rationale as `guards` above: keep the currently-assigned site
+  // selectable even if it's since been deactivated.
+  const sites = React.useMemo(
+    () => allSites.filter((s) => s.active || s.id === initial?.siteId),
+    [allSites, initial?.siteId],
+  );
 
   const { register, handleSubmit, watch, getValues, reset, formState: { isSubmitting } } = useForm<FormValues>();
 
@@ -273,7 +287,9 @@ export function ShiftFormDialog({ open, onOpenChange, rosterId, initial, onSaved
             <Select {...register("guardId", { required: true })}>
               <option value="">Select guard…</option>
               {guards.map((g) => (
-                <option key={g.id} value={g.id}>{g.firstName} {g.lastName}</option>
+                <option key={g.id} value={g.id}>
+                  {g.firstName} {g.lastName}{!g.active ? " (inactive)" : ""}
+                </option>
               ))}
             </Select>
           </div>
@@ -282,7 +298,11 @@ export function ShiftFormDialog({ open, onOpenChange, rosterId, initial, onSaved
             <Label>Site</Label>
             <Select {...register("siteId", { required: true })}>
               <option value="">Select site…</option>
-              {sites.filter((s) => s.active).map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+              {sites.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}{!s.active ? " (inactive)" : ""}
+                </option>
+              ))}
             </Select>
           </div>
 

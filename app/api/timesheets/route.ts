@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/api";
-import { startOfWeekMon, endOfWeekSun } from "@/lib/date";
-import { totalHours, totalPay } from "@/lib/hours";
+import { startOfWeekMon, endOfWeekSun, APP_TZ } from "@/lib/date";
+import { shiftHours, totalHours, totalPay } from "@/lib/hours";
 
 // Returns a computed (not persisted) timesheet view for the requested week.
 // Each guard with payable shifts in the week appears once.
@@ -12,8 +12,17 @@ export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const weekParam = searchParams.get("week"); // yyyy-MM-dd of any day in the week
   const baseDate = weekParam ? new Date(weekParam) : new Date();
-  const weekStart = startOfWeekMon(baseDate);
-  const weekEnd = endOfWeekSun(baseDate);
+
+  // Week boundaries must use the company's configured timezone, not the
+  // server's — otherwise shifts near the edge of the week (e.g. just after
+  // midnight Monday, Melbourne time) land in the wrong week's totals when
+  // this runs on a UTC server.
+  const tzRow = await prisma.setting.findUnique({
+    where: { companyId_key: { companyId: auth.companyId, key: "timezone" } },
+  });
+  const tz = tzRow?.value || APP_TZ;
+  const weekStart = startOfWeekMon(baseDate, tz);
+  const weekEnd = endOfWeekSun(baseDate, tz);
 
   const allShifts = await prisma.shift.findMany({
     where: {
@@ -55,6 +64,9 @@ export async function GET(req: Request) {
         workedEnd: s.workedEnd,
         status: s.status,
         siteName: s.site.name,
+        // Per-shift hours, computed the same way totalHours does, so the UI
+        // and exports can show a breakdown that always sums to the total.
+        hours: shiftHours(s),
       })),
       totalHours: hrs,
       totalPay: pay,
