@@ -14,16 +14,21 @@
     --primary-foreground: 0 0% 100%;
     --secondary: 210 40% 96%;
     --secondary-foreground: 222 47% 11%;
-    --muted: 210 40% 96%;
-    --muted-foreground: 215 16% 47%;
+    --muted: 210 33% 96%;
+    --muted-foreground: 215 16% 44%;
     --accent: 38 92% 50%;            /* amber #F59E0B */
     --accent-foreground: 222 47% 11%;
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 98%;
-    --border: 214 32% 91%;
-    --input: 214 32% 91%;
+    --border: 214 28% 90%;
+    --input: 214 28% 90%;
     --ring: 217 71% 15%;
-    --radius: 0.5rem;
+    /* Softer, more contemporary corner radius than the old 0.5rem — every
+       Card/Button/Input/Dialog inherits this via the border-radius scale in
+       tailwind.config.ts, so bumping it here is what makes the whole app
+       read as "rounder" / more modern without touching individual files. */
+    --radius: 0.75rem;
+    --shadow-color: 222 47% 11%;
   }
 }
 
@@ -34,12 +39,49 @@
   body {
     @apply bg-background text-foreground;
     font-feature-settings: "rlig" 1, "calt" 1;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  /* Smooth, consistent micro-interactions app-wide (hover/focus/active
+     state changes) without every component having to opt in individually.
+     Scoped to color/shadow/transform so it never fights a component's own
+     transition on width/height (e.g. accordions, dialog animations). */
+  a, button, [role="button"], input, select, textarea {
+    transition-property: color, background-color, border-color, box-shadow, transform, opacity;
+    transition-duration: 150ms;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  ::selection {
+    background-color: hsl(var(--accent) / 0.35);
+  }
+  /* Thin, unobtrusive scrollbars on desktop — the default chunky OS
+     scrollbar looks dated inside a densely-scrolled admin table. */
+  @media (min-width: 768px) {
+    * {
+      scrollbar-width: thin;
+      scrollbar-color: hsl(var(--border)) transparent;
+    }
+    *::-webkit-scrollbar { width: 10px; height: 10px; }
+    *::-webkit-scrollbar-track { background: transparent; }
+    *::-webkit-scrollbar-thumb {
+      background-color: hsl(var(--border));
+      border-radius: 999px;
+      border: 2px solid hsl(var(--background));
+    }
+    *::-webkit-scrollbar-thumb:hover { background-color: hsl(var(--muted-foreground) / 0.4); }
   }
 }
 
 @layer components {
   .label {
     @apply text-sm font-medium leading-none;
+  }
+
+  /* Interactive card affordance — subtle lift + shadow on hover, used for
+     cards that wrap a Link (mobile list rows, dashboard tiles). Purely
+     visual; doesn't change any click/hit-target behaviour. */
+  .card-interactive {
+    @apply transition-all duration-150 hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 active:shadow-sm;
   }
 
   /*
@@ -60,7 +102,7 @@
     border-width: 1px;
     border-color: hsl(var(--border));
     background-color: hsl(var(--background));
-    box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+    box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
     overflow-y: auto;
     inset: 0;
     width: 100%;
@@ -87,7 +129,7 @@
       max-width: 32rem;
       height: auto;
       max-height: 95vh;
-      border-radius: 0.5rem;
+      border-radius: var(--radius);
       padding: 1.5rem;
       scroll-padding-bottom: 0;
     }

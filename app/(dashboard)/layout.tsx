@@ -15,7 +15,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const companyName = setting?.value || process.env.COMPANY_NAME || "Vigilo";
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-slate-50/70">
       <Sidebar companyName={companyName} />
       <main className="md:pl-64 pb-tabbar md:pb-0">
         <div className="p-3 md:p-6 max-w-screen-2xl mx-auto">{children}</div>

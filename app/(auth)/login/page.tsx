@@ -41,16 +41,20 @@ function LoginInner() {
   }
 
   return (
-    <div className="min-h-screen grid place-items-center bg-brand-navy p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="text-center">
-          <div className="mx-auto h-12 w-12 rounded-full bg-brand-navy text-brand-amber grid place-items-center mb-2">
+    <div className="min-h-screen grid place-items-center bg-gradient-to-br from-brand-navy via-brand-navy to-[#0f2a52] p-4 relative overflow-hidden">
+      {/* Soft ambient glow accents — purely decorative, no layout impact. */}
+      <div className="pointer-events-none absolute -top-24 -left-24 h-72 w-72 rounded-full bg-brand-amber/10 blur-3xl" aria-hidden />
+      <div className="pointer-events-none absolute -bottom-24 -right-24 h-72 w-72 rounded-full bg-blue-400/10 blur-3xl" aria-hidden />
+
+      <Card className="w-full max-w-md relative shadow-2xl border-white/10 animate-fade-in">
+        <CardHeader className="text-center pb-2">
+          <div className="mx-auto h-14 w-14 rounded-2xl bg-brand-navy text-brand-amber grid place-items-center mb-3 shadow-lg ring-1 ring-brand-amber/20">
             <ShieldCheck className="h-7 w-7" />
           </div>
-          <CardTitle>Vigilo Roster</CardTitle>
-          <CardDescription>Admin sign-in</CardDescription>
+          <CardTitle className="text-2xl">Vigilo Roster</CardTitle>
+          <CardDescription>Sign in to manage guards, rosters &amp; timesheets</CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="pt-4">
           <form onSubmit={onSubmit} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
@@ -60,8 +64,12 @@ function LoginInner() {
               <Label htmlFor="password">Password</Label>
               <Input id="password" type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required />
             </div>
-            {error && <p className="text-sm text-destructive">{error}</p>}
-            <Button type="submit" className="w-full" disabled={loading}>
+            {error && (
+              <p className="text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded-lg px-3 py-2 animate-fade-in">
+                {error}
+              </p>
+            )}
+            <Button type="submit" className="w-full" size="lg" disabled={loading}>
               {loading ? "Signing in…" : "Sign in"}
             </Button>
           </form>

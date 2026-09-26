@@ -11,7 +11,7 @@ import { StatusBadge } from "@/components/shared/status-badge";
 import { Badge } from "@/components/ui/badge";
 import { api } from "@/lib/fetcher";
 import { fmtDateTime, fmtTime } from "@/lib/date";
-import { formatPhoneAU } from "@/lib/utils";
+import { formatPhoneAU, cn } from "@/lib/utils";
 
 interface DashResp {
   kpis: { shiftsThisWeek: number; pendingCount: number; rejectedCount: number; activeGuards: number };
@@ -49,15 +49,34 @@ function severityBadge(severity: string, daysUntil: number) {
   return <Badge className={map[severity]}>{label}</Badge>;
 }
 
-function Kpi({ label, value, icon }: { label: string; value: number | string; icon: React.ReactNode }) {
+const KPI_TONES = {
+  navy: "bg-brand-navy/10 text-brand-navy",
+  amber: "bg-amber-100 text-amber-700",
+  rose: "bg-rose-100 text-rose-700",
+  emerald: "bg-emerald-100 text-emerald-700",
+} as const;
+
+function Kpi({
+  label,
+  value,
+  icon,
+  tone = "navy",
+}: {
+  label: string;
+  value: number | string;
+  icon: React.ReactNode;
+  tone?: keyof typeof KPI_TONES;
+}) {
   return (
-    <Card>
-      <CardContent className="pt-6 flex items-center justify-between">
-        <div>
-          <div className="text-xs uppercase tracking-wider text-muted-foreground">{label}</div>
-          <div className="text-2xl font-semibold mt-1">{value}</div>
+    <Card className="card-interactive">
+      <CardContent className="pt-6 flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-xs font-medium uppercase tracking-wider text-muted-foreground truncate">{label}</div>
+          <div className="text-2xl font-semibold mt-1 tabular-nums">{value}</div>
         </div>
-        <div className="text-brand-navy/40">{icon}</div>
+        <div className={cn("grid h-11 w-11 shrink-0 place-items-center rounded-xl [&>svg]:h-5 [&>svg]:w-5", KPI_TONES[tone])}>
+          {icon}
+        </div>
       </CardContent>
     </Card>
   );
@@ -88,10 +107,10 @@ export default function DashboardPage() {
       {data && (
         <>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-            <Kpi label="Shifts this week" value={data.kpis.shiftsThisWeek} icon={<Calendar className="h-8 w-8" />} />
-            <Kpi label="Pending confirmations" value={data.kpis.pendingCount} icon={<ClipboardList className="h-8 w-8" />} />
-            <Kpi label="Rejected upcoming" value={data.kpis.rejectedCount} icon={<MessageSquare className="h-8 w-8" />} />
-            <Kpi label="Active guards" value={data.kpis.activeGuards} icon={<Users className="h-8 w-8" />} />
+            <Kpi label="Shifts this week" value={data.kpis.shiftsThisWeek} icon={<Calendar />} tone="navy" />
+            <Kpi label="Pending confirmations" value={data.kpis.pendingCount} icon={<ClipboardList />} tone="amber" />
+            <Kpi label="Rejected upcoming" value={data.kpis.rejectedCount} icon={<MessageSquare />} tone="rose" />
+            <Kpi label="Active guards" value={data.kpis.activeGuards} icon={<Users />} tone="emerald" />
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
