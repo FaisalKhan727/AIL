@@ -27,6 +27,7 @@ interface Guard {
   licenceExpiry: string | null;
   payRate: string | null;
   active: boolean;
+  isSupervisor: boolean;
   onboardingStatus: string;
   onboardingCompletedAt: string | null;
 }
@@ -286,6 +287,7 @@ export default function GuardsPage() {
                   {g.active
                     ? <Badge className="bg-emerald-100 text-emerald-800 border-emerald-300">Active</Badge>
                     : <Badge className="bg-zinc-100 text-zinc-700 border-zinc-300">Inactive</Badge>}
+                  {g.isSupervisor && <Badge className="bg-blue-100 text-blue-800 border-blue-300">Supervisor</Badge>}
                   <OnboardingBadge status={g.onboardingStatus} />
                   {g.licenceNumber && <span className="text-muted-foreground">Lic {g.licenceNumber}</span>}
                   {g.payRate && <span className="text-muted-foreground">${Number(g.payRate).toFixed(2)}/hr</span>}
@@ -366,11 +368,14 @@ export default function GuardsPage() {
                   <TableCell>{expiryBadge(g.licenceExpiry)}</TableCell>
                   <TableCell>{g.payRate ? `$${Number(g.payRate).toFixed(2)}/hr` : "—"}</TableCell>
                   <TableCell>
-                    {g.active ? (
-                      <Badge className="bg-emerald-100 text-emerald-800 border-emerald-300">Active</Badge>
-                    ) : (
-                      <Badge className="bg-zinc-100 text-zinc-700 border-zinc-300">Inactive</Badge>
-                    )}
+                    <div className="flex flex-wrap gap-1">
+                      {g.active ? (
+                        <Badge className="bg-emerald-100 text-emerald-800 border-emerald-300">Active</Badge>
+                      ) : (
+                        <Badge className="bg-zinc-100 text-zinc-700 border-zinc-300">Inactive</Badge>
+                      )}
+                      {g.isSupervisor && <Badge className="bg-blue-100 text-blue-800 border-blue-300">Supervisor</Badge>}
+                    </div>
                   </TableCell>
                   <TableCell>
                     <OnboardingBadge status={g.onboardingStatus} />

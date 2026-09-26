@@ -38,6 +38,7 @@ interface GuardDetail {
   payRate: string | null;
   notes: string | null;
   active: boolean;
+  isSupervisor: boolean;
   shifts: Array<{ id: string; startAt: string; endAt: string; status: string; site: { name: string }; roster: { name: string } }>;
   smsLogs: Array<{ id: string; direction: string; body: string; receivedAt: string; status: string | null }>;
 }
@@ -367,7 +368,10 @@ export default function GuardDetailPage() {
           <div className="text-xs text-muted-foreground">per hour</div>
         </CardContent></Card>
         <Card><CardHeader><CardTitle className="text-sm">Status</CardTitle></CardHeader><CardContent>
-          <StatusBadge status={data.active ? "ACTIVE" : "INACTIVE"} />
+          <div className="flex flex-wrap gap-1.5">
+            <StatusBadge status={data.active ? "ACTIVE" : "INACTIVE"} />
+            {data.isSupervisor && <Badge className="bg-blue-100 text-blue-800 border-blue-300">Supervisor</Badge>}
+          </div>
           {data.notes && <p className="text-xs text-muted-foreground mt-2">{data.notes}</p>}
         </CardContent></Card>
       </div>
@@ -723,6 +727,7 @@ export default function GuardDetailPage() {
           payRate: data.payRate ? String(data.payRate) : undefined,
           notes: data.notes ?? undefined,
           active: data.active,
+          isSupervisor: data.isSupervisor,
         }}
         onSaved={() => qc.invalidateQueries({ queryKey: ["guard", id] })}
       />

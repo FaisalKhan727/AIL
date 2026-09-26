@@ -15,6 +15,7 @@ export const guardCreateSchema = z.object({
   payRate: z.coerce.number().nonnegative().optional(),
   notes: z.string().optional().or(z.literal("").transform(() => undefined)),
   active: z.boolean().optional(),
+  isSupervisor: z.boolean().optional(),
 });
 
 export const guardUpdateSchema = guardCreateSchema.partial();

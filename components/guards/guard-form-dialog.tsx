@@ -19,6 +19,7 @@ interface FormValues {
   payRate?: string;
   notes?: string;
   active?: boolean;
+  isSupervisor?: boolean;
 }
 
 interface Props {
@@ -106,6 +107,12 @@ export function GuardFormDialog({ open, onOpenChange, initial, onSaved }: Props)
           <label className="flex items-center gap-2 text-sm">
             <input type="checkbox" {...register("active")} /> Active
           </label>
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" {...register("isSupervisor")} /> Supervisor
+          </label>
+          <p className="text-xs text-muted-foreground -mt-2">
+            On the PWA, a supervisor can see who else is rostered at the same site for their shifts (name, role, time, phone).
+          </p>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
             <Button type="submit" disabled={isSubmitting}>{initial?.id ? "Save" : "Create"}</Button>

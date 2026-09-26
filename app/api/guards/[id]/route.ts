@@ -47,6 +47,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
         payRate: data.payRate?.toString(),
         notes: data.notes,
         active: data.active,
+        isSupervisor: data.isSupervisor,
       },
     });
     return NextResponse.json(guard);

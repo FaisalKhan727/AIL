@@ -32,6 +32,10 @@ export type GuardMembership = {
   companyId: string;
   companyName: string;
   companyBrandColour: string | null;
+  /** Can see who else is rostered at the same site (name, role, shift
+   *  time, phone) for shifts at this company — see
+   *  /api/g/shifts/[id]/coverage. Per-company, not identity-wide. */
+  isSupervisor: boolean;
 };
 
 export type GuardContext = {
@@ -124,6 +128,7 @@ export async function getGuardContext(): Promise<GuardContext | null> {
                 select: {
                   id: true,
                   companyId: true,
+                  isSupervisor: true,
                   company: { select: { name: true, brandColour: true } },
                 },
               },
@@ -172,6 +177,7 @@ export async function getGuardContext(): Promise<GuardContext | null> {
       companyId: e.companyId,
       companyName: e.company.name,
       companyBrandColour: e.company.brandColour,
+      isSupervisor: e.isSupervisor,
     })),
   };
 }

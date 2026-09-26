@@ -60,6 +60,10 @@ model Guard {
   payRate            Decimal?
   notes              String?
   active             Boolean             @default(true)
+  // Per-company: can see who else is rostered at the same site on the PWA
+  // (name, role, shift time, phone) for shifts they're on — see
+  // /api/g/shifts/[id]/coverage. Does not grant any admin/dashboard access.
+  isSupervisor       Boolean             @default(false)
   createdAt          DateTime            @default(now())
   companyId          String
   guardIdentityId    String? // links to cross-company GuardIdentity; nullable until backfill completes

@@ -54,6 +54,11 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     return NextResponse.json({ error: "Shift not yet published" }, { status: 404 });
   }
 
+  // Already verified above that this guardId is one of the signed-in
+  // identity's memberships — just read its isSupervisor flag off the
+  // context instead of a second DB round-trip.
+  const membership = guard.memberships.find((m) => m.guardId === shift.guardId);
+
   return NextResponse.json({
     id: shift.id,
     startAt: shift.startAt,
@@ -64,6 +69,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     site: shift.site,
     rosterName: shift.roster.name,
     company: shift.roster.company,
+    isSupervisor: membership?.isSupervisor ?? false,
     timeline: {
       publishedAt: shift.publishedAt,
       confirmedAt: shift.confirmedAt,

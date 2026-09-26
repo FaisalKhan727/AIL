@@ -12,6 +12,8 @@ import {
   CheckCircle2,
   XCircle,
   Send,
+  Users,
+  Phone,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -29,6 +31,9 @@ interface ShiftDetail {
   site: { id: string; name: string; address: string };
   rosterName: string;
   company: { id: string; name: string; brandColour: string | null };
+  /** True when the signed-in guard's employment at this company has the
+   *  Supervisor flag — controls whether "Who's on site today" is shown. */
+  isSupervisor: boolean;
   timeline: {
     publishedAt: string | null;
     confirmedAt: string | null;
@@ -257,6 +262,8 @@ export default function ShiftDetailPage() {
         </DetailRow>
       </div>
 
+      {shift.isSupervisor && <TeamOnSite shiftId={shift.id} />}
+
       {/* Timeline */}
       <div className="px-4 mt-6">
         <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200 mb-2">Timeline</h3>
@@ -433,6 +440,106 @@ function DetailRow({
         </p>
         <div className="mt-0.5 text-sm text-slate-800 dark:text-slate-200">{children}</div>
       </div>
+    </div>
+  );
+}
+
+interface CoverageGuard {
+  shiftId: string;
+  guardId: string;
+  firstName: string;
+  lastName: string;
+  phone: string;
+  role: string | null;
+  startAt: string;
+  endAt: string;
+  status: ShiftStatus;
+  isYou: boolean;
+}
+
+/**
+ * Supervisor-only: everyone else rostered at this site today. Fetched
+ * separately from the shift itself (only once shift.isSupervisor is known)
+ * so a non-supervisor's request never even happens.
+ */
+function TeamOnSite({ shiftId }: { shiftId: string }) {
+  const [guards, setGuards] = React.useState<CoverageGuard[] | null>(null);
+  const [error, setError] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/g/shifts/${shiftId}/coverage`);
+        const json = await res.json();
+        if (cancelled) return;
+        if (!res.ok) {
+          setError(json.error ?? "Couldn't load team");
+          return;
+        }
+        setGuards(json.guards as CoverageGuard[]);
+      } catch {
+        if (!cancelled) setError("Network error");
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [shiftId]);
+
+  return (
+    <div className="px-4 mt-4">
+      <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200 mb-2 flex items-center gap-1.5">
+        <Users className="h-4 w-4" /> Who&apos;s on site today
+      </h3>
+      {error && <p className="text-xs text-slate-400 dark:text-slate-500">{error}</p>}
+      {!error && guards === null && (
+        <div className="space-y-2">
+          <Skeleton className="h-14 w-full rounded-xl" />
+          <Skeleton className="h-14 w-full rounded-xl" />
+        </div>
+      )}
+      {guards && guards.length === 0 && (
+        <p className="text-xs text-slate-400 dark:text-slate-500">No one else rostered at this site today.</p>
+      )}
+      {guards && guards.length > 0 && (
+        <ul className="space-y-2">
+          {guards.map((g) => {
+            const start = new Date(g.startAt);
+            const end = new Date(g.endAt);
+            return (
+              <li
+                key={g.shiftId}
+                className="rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-3 flex items-center justify-between gap-3"
+              >
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-slate-800 dark:text-slate-200 truncate">
+                    {g.firstName} {g.lastName}
+                    {g.isYou && <span className="text-slate-400 dark:text-slate-500 font-normal"> (you)</span>}
+                  </p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    {start.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })} –{" "}
+                    {end.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}
+                    {g.role ? ` · ${g.role}` : ""}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <StatusPill status={g.status} />
+                  {!g.isYou && (
+                    <a
+                      href={`tel:${g.phone}`}
+                      aria-label={`Call ${g.firstName} ${g.lastName}`}
+                      className="rounded-full p-2 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 active:scale-95 transition"
+                    >
+                      <Phone className="h-4 w-4" />
+                    </a>
+                  )}
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
     </div>
   );
 }
