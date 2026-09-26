@@ -33,21 +33,53 @@ export function utcToLocalInput(d: Date | string, tz = APP_TZ): string {
   return fmtInTz(d, "yyyy-MM-dd'T'HH:mm", tz);
 }
 
-export function startOfWeekMon(d: Date): Date {
-  const x = new Date(d);
-  const day = x.getDay(); // 0..6, 0=Sun
+/**
+ * Start of the Mon-Sun week containing `d`, as a UTC instant representing
+ * midnight in `tz`.
+ *
+ * Must be timezone-aware, not based on the server's local clock: on a
+ * server running in UTC (e.g. a Vercel function), a shift at 00:30 Monday
+ * Melbourne time is still Sunday afternoon in UTC. Computing the boundary
+ * from `.getDay()`/`.setHours()` directly would put that shift — and its
+ * hours — in the wrong week's timesheet.
+ */
+export function startOfWeekMon(d: Date, tz: string = APP_TZ): Date {
+  const local = toZonedTime(d, tz);
+  const day = local.getDay(); // 0..6, 0=Sun
   const diff = day === 0 ? -6 : 1 - day;
-  x.setDate(x.getDate() + diff);
-  x.setHours(0, 0, 0, 0);
-  return x;
+  const startLocal = new Date(
+    local.getFullYear(),
+    local.getMonth(),
+    local.getDate() + diff,
+    0, 0, 0, 0,
+  );
+  return fromZonedTime(startLocal, tz);
 }
 
-export function endOfWeekSun(d: Date): Date {
-  const start = startOfWeekMon(d);
-  const end = new Date(start);
-  end.setDate(start.getDate() + 6);
-  end.setHours(23, 59, 59, 999);
-  return end;
+export function endOfWeekSun(d: Date, tz: string = APP_TZ): Date {
+  const start = startOfWeekMon(d, tz);
+  const startLocal = toZonedTime(start, tz);
+  const endLocal = new Date(
+    startLocal.getFullYear(),
+    startLocal.getMonth(),
+    startLocal.getDate() + 6,
+    23, 59, 59, 999,
+  );
+  return fromZonedTime(endLocal, tz);
+}
+
+/** Midnight at the start of the calendar day containing `d`, in `tz`. */
+export function startOfDayInTz(d: Date, tz: string = APP_TZ): Date {
+  const local = toZonedTime(d, tz);
+  const startLocal = new Date(local.getFullYear(), local.getMonth(), local.getDate(), 0, 0, 0, 0);
+  return fromZonedTime(startLocal, tz);
+}
+
+/** The last millisecond of the calendar day containing `d`, in `tz`. */
+export function endOfDayInTz(d: Date, tz: string = APP_TZ): Date {
+  const local = toZonedTime(d, tz);
+  const endLocal = new Date(local.getFullYear(), local.getMonth(), local.getDate(), 23, 59, 59, 999);
+  return fromZonedTime(endLocal, tz);
 }
 
 export function addDays(d: Date, n: number): Date {

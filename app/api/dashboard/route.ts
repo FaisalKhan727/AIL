@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/api";
-import { startOfWeekMon, endOfWeekSun } from "@/lib/date";
+import { startOfWeekMon, endOfWeekSun, startOfDayInTz, endOfDayInTz, APP_TZ } from "@/lib/date";
 
 const EXPIRY_WINDOW_DAYS = 60;
 
@@ -9,17 +9,23 @@ export async function GET() {
   const auth = await requireAdmin();
   if ("error" in auth) return auth.error;
 
+  const companyId = auth.companyId;
+
+  // Same timezone-awareness as /api/timesheets: on a UTC server, boundaries
+  // computed from the server's local clock would put shifts near midnight
+  // (Melbourne time) in the wrong day/week.
+  const tzRow = await prisma.setting.findUnique({
+    where: { companyId_key: { companyId, key: "timezone" } },
+  });
+  const tz = tzRow?.value || APP_TZ;
+
   const now = new Date();
-  const weekStart = startOfWeekMon(now);
-  const weekEnd = endOfWeekSun(now);
-  const dayStart = new Date(now);
-  dayStart.setHours(0, 0, 0, 0);
-  const dayEnd = new Date(now);
-  dayEnd.setHours(23, 59, 59, 999);
+  const weekStart = startOfWeekMon(now, tz);
+  const weekEnd = endOfWeekSun(now, tz);
+  const dayStart = startOfDayInTz(now, tz);
+  const dayEnd = endOfDayInTz(now, tz);
   const expiryHorizon = new Date(now);
   expiryHorizon.setDate(expiryHorizon.getDate() + EXPIRY_WINDOW_DAYS);
-
-  const companyId = auth.companyId;
   const rosterScope = { roster: { companyId } };
   const [
     shiftsThisWeek,

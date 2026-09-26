@@ -169,6 +169,31 @@ export function ShiftFormDialog({ open, onOpenChange, rosterId, initial, onSaved
 
   const previewCount = previewOccurrenceCount(watchStartAt, recurDays, recurUntil);
 
+  // Live shift-duration readout, shown next to Start/End so a wrong calendar
+  // day (e.g. End accidentally left on the next day, or set on the same day
+  // for an overnight shift) is obvious before saving — not discovered later
+  // as a wildly wrong timesheet total. This is the front-line fix for a real
+  // incident where a batch of shifts silently got a 24h-too-long End date
+  // and showed 30 hours worked for a 6-hour shift.
+  const watchEndAt = watch("endAt");
+  const durationHours = React.useMemo(() => {
+    if (!watchStartAt || !watchEndAt) return null;
+    const start = new Date(watchStartAt);
+    const end = new Date(watchEndAt);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return null;
+    return (end.getTime() - start.getTime()) / 3_600_000;
+  }, [watchStartAt, watchEndAt]);
+  const durationWarning =
+    durationHours === null
+      ? null
+      : durationHours <= 0
+        ? "End is not after Start — check the dates."
+        : durationHours > 16
+          ? `That's ${durationHours.toFixed(1)} hours — check the End date isn't a day later than intended.`
+          : durationHours < 1
+            ? `That's only ${(durationHours * 60).toFixed(0)} minutes — check the End time.`
+            : null;
+
   function toggleRecurDay(code: string) {
     setRecurDays((prev) => (prev.includes(code) ? prev.filter((x) => x !== code) : [...prev, code]));
   }
@@ -416,6 +441,12 @@ export function ShiftFormDialog({ open, onOpenChange, rosterId, initial, onSaved
             <div className="space-y-1"><Label>Start</Label><Input type="datetime-local" {...register("startAt", { required: true })} /></div>
             <div className="space-y-1"><Label>End</Label><Input type="datetime-local" {...register("endAt", { required: true })} /></div>
           </div>
+          {durationHours !== null && (
+            <p className={cn("text-xs", durationWarning ? "text-amber-700 font-medium" : "text-muted-foreground")}>
+              {durationWarning ? "⚠ " : ""}Duration: {durationHours.toFixed(2)}h
+              {durationWarning ? ` — ${durationWarning}` : ""}
+            </p>
+          )}
 
           <div className="space-y-1"><Label>Role</Label><Input placeholder="Static, Patrol, Crowd…" {...register("role")} /></div>
           <div className="space-y-1"><Label>Notes</Label><Textarea rows={2} {...register("notes")} /></div>

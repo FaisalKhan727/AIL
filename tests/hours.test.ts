@@ -84,6 +84,37 @@ describe("shiftHours", () => {
   });
 });
 
+// Documents the root cause of the "Elsternwick Park VAFA" production
+// incident: four CONFIRMED shifts displaying 30h for an 11:00-17:00 slot.
+// shiftHours() is correct here — it faithfully reports the scheduled
+// duration. The bug was that `endAt` was stored a full calendar day later
+// than intended (an admin/data-entry mistake when creating the shift), not
+// a computation error. The real fix is catching this at entry time (the
+// live "Duration: Xh" warning in ShiftFormDialog) plus
+// scripts/check-suspicious-duration-shifts.ts to find existing bad rows —
+// this test just pins down that shiftHours() itself isn't what to "fix".
+describe("shiftHours reflects bad scheduled data faithfully (not a bug in shiftHours itself)", () => {
+  it("reports 30h for an 11:00-17:00 shift whose endAt was mistakenly saved a day later", () => {
+    expect(
+      shiftHours({
+        status: "CONFIRMED",
+        startAt: d("2026-09-25T01:00:00Z"), // Fri 25 Sep 11:00 Melbourne (AEST, UTC+10)
+        endAt: d("2026-09-26T07:00:00Z"),   // Sat 26 Sep 17:00 Melbourne — should have been Fri
+      }),
+    ).toBe(30);
+  });
+
+  it("reports the intended 6h once endAt is corrected to the same day", () => {
+    expect(
+      shiftHours({
+        status: "CONFIRMED",
+        startAt: d("2026-09-25T01:00:00Z"), // Fri 25 Sep 11:00 Melbourne
+        endAt: d("2026-09-25T07:00:00Z"),   // Fri 25 Sep 17:00 Melbourne
+      }),
+    ).toBe(6);
+  });
+});
+
 describe("totalHours / totalPay", () => {
   const shifts = [
     { status: "CONFIRMED", startAt: d("2026-05-04T18:00:00Z"), endAt: d("2026-05-05T02:00:00Z") }, // 8h
