@@ -72,6 +72,10 @@ export const shiftUpdateSchema = shiftCreateSchema.partial().extend({
   status: z.enum(["PENDING", "CONFIRMED", "REJECTED", "WORKED", "NO_SHOW", "CANCELLED"]).optional(),
   workedStart: z.string().optional().or(z.literal("").transform(() => undefined)),
   workedEnd: z.string().optional().or(z.literal("").transform(() => undefined)),
+  // Payroll overrides: omit the key = leave unchanged, a number = set it,
+  // explicit null = clear it back to the computed/default value.
+  hoursOverride: z.number().nonnegative().nullable().optional(),
+  payRateOverride: z.number().nonnegative().nullable().optional(),
 });
 
 export const inboundSmsSchema = z.object({

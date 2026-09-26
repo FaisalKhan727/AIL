@@ -2,17 +2,33 @@
 import * as React from "react";
 import * as XLSX from "xlsx";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Wallet, CheckCircle2, Clock3, FileSpreadsheet, Undo2 } from "lucide-react";
+import { Wallet, CheckCircle2, Clock3, FileSpreadsheet, Undo2, ChevronDown, ChevronRight, Pencil, RotateCcw } from "lucide-react";
 import { PageHeader } from "@/components/shell/page-header";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { api } from "@/lib/fetcher";
-import { fmtIso, startOfWeekMon } from "@/lib/date";
+import { fmtIso, fmtDate, fmtTime } from "@/lib/date";
+import { startOfWeekMon } from "@/lib/date";
 import { useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
+
+interface PayrollShiftRow {
+  id: string;
+  startAt: string;
+  endAt: string;
+  status: string;
+  siteName: string;
+  hours: number;
+  hoursOverride: number | null;
+  payRate: number;
+  payRateOverride: number | null;
+  pay: number;
+}
 
 interface PayrollRow {
   guardId: string;
@@ -24,6 +40,7 @@ interface PayrollRow {
   status: "PENDING" | "PAID";
   paidAt: string | null;
   paidByName: string | null;
+  shifts: PayrollShiftRow[];
 }
 
 interface PayrollSummary {
@@ -93,9 +110,9 @@ function downloadFile(name: string, content: BlobPart, type: string) {
 
 /**
  * Build the financial statement workbook: a Statement summary sheet (total
- * payroll / paid / pending, as of when it was generated) and a per-guard
- * sheet showing exactly who's been paid and who's still owed — the actual
- * "financial statement" an owner can hand to a bookkeeper.
+ * payroll / paid / pending, as of when it was generated), a per-guard
+ * sheet showing who's paid and who's owed, and a per-shift sheet so any
+ * hours/rate override is visible in the exported record too.
  */
 function buildPayrollWorkbook(rows: PayrollRow[], summary: PayrollSummary, weekStart: string, weekEnd: string): XLSX.WorkBook {
   const wb = XLSX.utils.book_new();
@@ -129,7 +146,142 @@ function buildPayrollWorkbook(rows: PayrollRow[], summary: PayrollSummary, weekS
   ];
   XLSX.utils.book_append_sheet(wb, guardSheet, "By guard");
 
+  const shiftData = rows.flatMap((r) =>
+    r.shifts.map((s) => ({
+      Guard: r.guardName,
+      Date: fmtDate(s.startAt),
+      Start: fmtTime(s.startAt),
+      End: fmtTime(s.endAt),
+      Site: s.siteName,
+      Hours: s.hours,
+      "Hours overridden": s.hoursOverride != null ? "Yes" : "",
+      "Rate ($/hr)": s.payRate,
+      "Rate overridden": s.payRateOverride != null ? "Yes" : "",
+      "Pay ($)": s.pay,
+    })),
+  );
+  const shiftSheet = XLSX.utils.json_to_sheet(shiftData);
+  shiftSheet["!cols"] = [
+    { wch: 24 }, { wch: 12 }, { wch: 8 }, { wch: 8 }, { wch: 20 },
+    { wch: 8 }, { wch: 14 }, { wch: 10 }, { wch: 14 }, { wch: 10 },
+  ];
+  XLSX.utils.book_append_sheet(wb, shiftSheet, "By shift");
+
   return wb;
+}
+
+interface EditTarget {
+  shift: PayrollShiftRow;
+  guardName: string;
+  guardDefaultRate: number;
+}
+
+/** Edit one shift's payable hours and/or pay rate. Both default to the
+ *  computed/guard values and can be reset back to them independently. */
+function EditShiftPayDialog({
+  target,
+  onOpenChange,
+  onSaved,
+}: {
+  target: EditTarget | null;
+  onOpenChange: (v: boolean) => void;
+  onSaved: () => void;
+}) {
+  const { toast } = useToast();
+  const [hours, setHours] = React.useState("");
+  const [rate, setRate] = React.useState("");
+  const [saving, setSaving] = React.useState(false);
+
+  React.useEffect(() => {
+    if (!target) return;
+    setHours(String(target.shift.hoursOverride ?? target.shift.hours));
+    setRate(String(target.shift.payRateOverride ?? target.shift.payRate));
+  }, [target]);
+
+  if (!target) return null;
+  const { shift, guardName, guardDefaultRate } = target;
+
+  async function save() {
+    const hoursNum = hours.trim() === "" ? null : Number(hours);
+    const rateNum = rate.trim() === "" ? null : Number(rate);
+    if (hoursNum !== null && (Number.isNaN(hoursNum) || hoursNum < 0)) {
+      toast({ title: "Hours must be a number ≥ 0", variant: "error" });
+      return;
+    }
+    if (rateNum !== null && (Number.isNaN(rateNum) || rateNum < 0)) {
+      toast({ title: "Rate must be a number ≥ 0", variant: "error" });
+      return;
+    }
+    setSaving(true);
+    try {
+      await api(`/api/shifts/${shift.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          // Only send an override when it actually differs from the
+          // computed/default — otherwise clear it (null) so the shift goes
+          // back to tracking the normal computed hours / guard rate.
+          hoursOverride: hoursNum !== null && hoursNum !== shift.hours ? hoursNum : null,
+          payRateOverride: rateNum !== null && rateNum !== guardDefaultRate ? rateNum : null,
+        }),
+      });
+      toast({ title: "Shift pay updated", variant: "success" });
+      onOpenChange(false);
+      onSaved();
+    } catch (e: unknown) {
+      toast({ title: "Failed", description: e instanceof Error ? e.message : "", variant: "error" });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Dialog open={Boolean(target)} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Edit shift pay</DialogTitle>
+          <DialogDescription>
+            {guardName} · {fmtDate(shift.startAt)} · {shift.siteName}
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div className="space-y-1">
+            <div className="flex items-center justify-between">
+              <Label>Hours</Label>
+              <button
+                type="button"
+                onClick={() => setHours(String(shift.hours))}
+                className="text-xs text-muted-foreground hover:text-foreground inline-flex items-center gap-1"
+              >
+                <RotateCcw className="h-3 w-3" /> Reset to computed ({shift.hours}h)
+              </button>
+            </div>
+            <Input type="number" step="0.25" min="0" value={hours} onChange={(e) => setHours(e.target.value)} />
+          </div>
+          <div className="space-y-1">
+            <div className="flex items-center justify-between">
+              <Label>Pay rate ($/hr)</Label>
+              <button
+                type="button"
+                onClick={() => setRate(String(guardDefaultRate))}
+                className="text-xs text-muted-foreground hover:text-foreground inline-flex items-center gap-1"
+              >
+                <RotateCcw className="h-3 w-3" /> Reset to default (${guardDefaultRate.toFixed(2)})
+              </button>
+            </div>
+            <Input type="number" step="0.01" min="0" value={rate} onChange={(e) => setRate(e.target.value)} />
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Only this shift is affected — every other shift for {guardName.split(" ")[0]} keeps using the computed
+            hours and their usual ${guardDefaultRate.toFixed(2)}/hr rate.
+          </p>
+        </div>
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button type="button" onClick={save} disabled={saving}>{saving ? "Saving…" : "Save"}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
 }
 
 export default function PayrollPage() {
@@ -138,6 +290,8 @@ export default function PayrollPage() {
   const [week, setWeek] = React.useState<string>(fmtIso(startOfWeekMon(new Date())));
   const [busyGuardId, setBusyGuardId] = React.useState<string | null>(null);
   const [bulkBusy, setBulkBusy] = React.useState(false);
+  const [expanded, setExpanded] = React.useState<Set<string>>(new Set());
+  const [editTarget, setEditTarget] = React.useState<EditTarget | null>(null);
 
   const { data, isLoading } = useQuery<Resp>({
     queryKey: ["payroll", week],
@@ -146,6 +300,16 @@ export default function PayrollPage() {
 
   function refresh() {
     qc.invalidateQueries({ queryKey: ["payroll", week] });
+    qc.invalidateQueries({ queryKey: ["timesheets"] });
+  }
+
+  function toggleExpanded(guardId: string) {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(guardId)) next.delete(guardId);
+      else next.add(guardId);
+      return next;
+    });
   }
 
   async function markPaid(guardIds: string[]) {
@@ -262,55 +426,130 @@ export default function PayrollPage() {
       <Card><CardContent className="p-0">
         <Table>
           <TableHeader><TableRow>
+            <TableHead className="w-8"></TableHead>
             <TableHead>Guard</TableHead><TableHead>Shifts</TableHead><TableHead>Hours</TableHead>
             <TableHead>Rate</TableHead><TableHead>Pay</TableHead><TableHead>Status</TableHead><TableHead></TableHead>
           </TableRow></TableHeader>
           <TableBody>
-            {isLoading && <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">Loading…</TableCell></TableRow>}
-            {!isLoading && data && data.rows.length === 0 && <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">No payable shifts in this week.</TableCell></TableRow>}
-            {data?.rows.map((r) => (
-              <TableRow key={r.guardId}>
-                <TableCell className="font-medium">{r.guardName}</TableCell>
-                <TableCell>{r.shiftCount}</TableCell>
-                <TableCell>{r.totalHours}</TableCell>
-                <TableCell>${r.payRate.toFixed(2)}</TableCell>
-                <TableCell className="font-medium">${r.totalPay.toFixed(2)}</TableCell>
-                <TableCell>
-                  <Badge
-                    className={
-                      r.status === "PAID"
-                        ? "bg-emerald-100 text-emerald-800 border-emerald-300"
-                        : "bg-amber-100 text-amber-800 border-amber-300"
-                    }
-                  >
-                    <span className="mr-1.5 h-1.5 w-1.5 rounded-full bg-current opacity-80" aria-hidden />
-                    {r.status === "PAID" ? "Paid" : "Pending"}
-                  </Badge>
-                  {r.status === "PAID" && r.paidAt && (
-                    <div className="text-[11px] text-muted-foreground mt-1">
-                      {fmtIso(r.paidAt)}{r.paidByName ? ` · ${r.paidByName}` : ""}
-                    </div>
+            {isLoading && <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">Loading…</TableCell></TableRow>}
+            {!isLoading && data && data.rows.length === 0 && <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">No payable shifts in this week.</TableCell></TableRow>}
+            {data?.rows.map((r) => {
+              const isOpen = expanded.has(r.guardId);
+              const locked = r.status === "PAID";
+              return (
+                <React.Fragment key={r.guardId}>
+                  <TableRow className="cursor-pointer" onClick={() => toggleExpanded(r.guardId)}>
+                    <TableCell>
+                      {isOpen ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
+                    </TableCell>
+                    <TableCell className="font-medium">{r.guardName}</TableCell>
+                    <TableCell>{r.shiftCount}</TableCell>
+                    <TableCell>{r.totalHours}</TableCell>
+                    <TableCell>${r.payRate.toFixed(2)}</TableCell>
+                    <TableCell className="font-medium">${r.totalPay.toFixed(2)}</TableCell>
+                    <TableCell>
+                      <Badge
+                        className={
+                          r.status === "PAID"
+                            ? "bg-emerald-100 text-emerald-800 border-emerald-300"
+                            : "bg-amber-100 text-amber-800 border-amber-300"
+                        }
+                      >
+                        <span className="mr-1.5 h-1.5 w-1.5 rounded-full bg-current opacity-80" aria-hidden />
+                        {r.status === "PAID" ? "Paid" : "Pending"}
+                      </Badge>
+                      {r.status === "PAID" && r.paidAt && (
+                        <div className="text-[11px] text-muted-foreground mt-1">
+                          {fmtIso(r.paidAt)}{r.paidByName ? ` · ${r.paidByName}` : ""}
+                        </div>
+                      )}
+                    </TableCell>
+                    <TableCell onClick={(e) => e.stopPropagation()}>
+                      <Button
+                        size="sm"
+                        variant={r.status === "PAID" ? "outline" : "default"}
+                        onClick={() => onTogglePaid(r)}
+                        disabled={busyGuardId === r.guardId}
+                      >
+                        {r.status === "PAID" ? (
+                          <><Undo2 className="h-3 w-3" /> Mark pending</>
+                        ) : (
+                          <><CheckCircle2 className="h-3 w-3" /> Mark paid</>
+                        )}
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                  {isOpen && (
+                    <TableRow className="bg-muted/20 hover:bg-muted/20">
+                      <TableCell colSpan={8} className="p-0">
+                        <div className="px-4 py-3">
+                          {locked && (
+                            <p className="text-xs text-amber-700 mb-2">
+                              This week is marked paid — click &quot;Mark pending&quot; above before editing individual shifts.
+                            </p>
+                          )}
+                          <div className="rounded-md border bg-background overflow-x-auto">
+                            <table className="w-full text-xs">
+                              <thead>
+                                <tr className="bg-muted/40 text-muted-foreground">
+                                  <th className="text-left p-2 font-medium">Date</th>
+                                  <th className="text-left p-2 font-medium">Site</th>
+                                  <th className="text-left p-2 font-medium">Hours</th>
+                                  <th className="text-left p-2 font-medium">Rate</th>
+                                  <th className="text-left p-2 font-medium">Pay</th>
+                                  <th className="text-left p-2 font-medium"></th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {r.shifts.map((s) => (
+                                  <tr key={s.id} className="border-t">
+                                    <td className="p-2 whitespace-nowrap">{fmtDate(s.startAt)} {fmtTime(s.startAt)}–{fmtTime(s.endAt)}</td>
+                                    <td className="p-2">{s.siteName}</td>
+                                    <td className="p-2 tabular-nums">
+                                      {s.hours}h
+                                      {s.hoursOverride != null && (
+                                        <span className="ml-1 text-[10px] text-blue-700 font-medium">edited</span>
+                                      )}
+                                    </td>
+                                    <td className="p-2 tabular-nums">
+                                      ${s.payRate.toFixed(2)}
+                                      {s.payRateOverride != null && (
+                                        <span className="ml-1 text-[10px] text-blue-700 font-medium">custom</span>
+                                      )}
+                                    </td>
+                                    <td className="p-2 font-medium tabular-nums">${s.pay.toFixed(2)}</td>
+                                    <td className="p-2">
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        disabled={locked}
+                                        title={locked ? "Mark this guard's week pending first to edit" : undefined}
+                                        onClick={() => setEditTarget({ shift: s, guardName: r.guardName, guardDefaultRate: r.payRate })}
+                                      >
+                                        <Pencil className="h-3 w-3" /> Edit
+                                      </Button>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      </TableCell>
+                    </TableRow>
                   )}
-                </TableCell>
-                <TableCell>
-                  <Button
-                    size="sm"
-                    variant={r.status === "PAID" ? "outline" : "default"}
-                    onClick={() => onTogglePaid(r)}
-                    disabled={busyGuardId === r.guardId}
-                  >
-                    {r.status === "PAID" ? (
-                      <><Undo2 className="h-3 w-3" /> Mark pending</>
-                    ) : (
-                      <><CheckCircle2 className="h-3 w-3" /> Mark paid</>
-                    )}
-                  </Button>
-                </TableCell>
-              </TableRow>
-            ))}
+                </React.Fragment>
+              );
+            })}
           </TableBody>
         </Table>
       </CardContent></Card>
+
+      <EditShiftPayDialog
+        target={editTarget}
+        onOpenChange={(v) => { if (!v) setEditTarget(null); }}
+        onSaved={refresh}
+      />
     </>
   );
 }

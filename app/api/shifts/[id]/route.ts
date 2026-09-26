@@ -39,6 +39,10 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       status: data.status,
       workedStart: data.workedStart ? new Date(data.workedStart) : undefined,
       workedEnd: data.workedEnd ? new Date(data.workedEnd) : undefined,
+      // undefined (key omitted) = leave unchanged; null = clear back to
+      // computed/default; a number = set the override.
+      hoursOverride: data.hoursOverride,
+      payRateOverride: data.payRateOverride,
     },
   });
   return NextResponse.json(shift);

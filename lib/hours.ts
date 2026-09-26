@@ -4,6 +4,14 @@ export interface HoursShift {
   endAt: Date;
   workedStart?: Date | null;
   workedEnd?: Date | null;
+  /** Admin-entered exact payable hours for this one shift. When set, this
+   *  wins over everything else (worked times, scheduled times) — it's an
+   *  explicit correction, so nothing should second-guess it. */
+  hoursOverride?: number | null;
+  /** Per-shift pay rate ($/hr). When set, used instead of the guard's
+   *  default rate for this shift only — e.g. a higher-paying site, an
+   *  event loading, one day at a different rate than the rest of the week. */
+  payRateOverride?: number | null;
 }
 
 const PAYABLE = new Set(["CONFIRMED", "WORKED"]);
@@ -20,6 +28,11 @@ const MIN_WORKED_MS = 15 * 60 * 1000;
 
 export function shiftHours(shift: HoursShift): number {
   if (!PAYABLE.has(shift.status)) return 0;
+
+  if (shift.hoursOverride != null) {
+    const h = Number(shift.hoursOverride);
+    return h > 0 ? Math.round(h * 100) / 100 : 0;
+  }
 
   let start = shift.startAt;
   let end = shift.endAt;
@@ -45,10 +58,27 @@ export function shiftHours(shift: HoursShift): number {
   return Math.round((ms / 3_600_000) * 100) / 100;
 }
 
+/** The rate actually paid for this shift: its own override if set, else
+ *  the guard's default rate. */
+export function shiftPayRate(shift: HoursShift, guardDefaultRate: number): number {
+  return shift.payRateOverride != null ? Number(shift.payRateOverride) : guardDefaultRate;
+}
+
+/** Pay for one shift — its own hours at its own effective rate. */
+export function shiftPay(shift: HoursShift, guardDefaultRate: number): number {
+  return Math.round(shiftHours(shift) * shiftPayRate(shift, guardDefaultRate) * 100) / 100;
+}
+
 export function totalHours(shifts: HoursShift[]): number {
   return Math.round(shifts.reduce((sum, s) => sum + shiftHours(s), 0) * 100) / 100;
 }
 
-export function totalPay(shifts: HoursShift[], payRate: number): number {
-  return Math.round(totalHours(shifts) * payRate * 100) / 100;
+/**
+ * Total pay across shifts at `guardDefaultRate`, except any shift with its
+ * own payRateOverride is paid at that rate instead — so a guard who worked
+ * one day at a special rate and the rest of the week at their usual rate
+ * gets both reflected correctly in the same weekly total.
+ */
+export function totalPay(shifts: HoursShift[], guardDefaultRate: number): number {
+  return Math.round(shifts.reduce((sum, s) => sum + shiftPay(s, guardDefaultRate), 0) * 100) / 100;
 }

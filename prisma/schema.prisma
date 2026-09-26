@@ -169,6 +169,13 @@ model Shift {
   workedEnd       DateTime?
   publishedAt     DateTime?
   createdAt       DateTime  @default(now())
+  // Payroll overrides (both optional; null/absent falls back to the normal
+  // computed duration and the guard's default pay rate). Let an admin
+  // correct one specific shift's payable hours, and pay a different rate
+  // for one shift than the guard's usual rate (e.g. a higher-paying site,
+  // an event loading) without changing either for every other shift.
+  hoursOverride   Decimal?
+  payRateOverride Decimal?
 
   roster             Roster              @relation(fields: [rosterId], references: [id], onDelete: Cascade)
   guard              Guard?              @relation(fields: [guardId], references: [id])

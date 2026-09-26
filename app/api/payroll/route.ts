@@ -4,6 +4,19 @@ import { requireAdmin } from "@/lib/api";
 import { startOfWeekMon, endOfWeekSun } from "@/lib/date";
 import { resolveCompanyTz, computeWeeklyGuardHours } from "@/lib/payroll";
 
+export interface PayrollShiftRow {
+  id: string;
+  startAt: string;
+  endAt: string;
+  status: string;
+  siteName: string;
+  hours: number;
+  hoursOverride: number | null;
+  payRate: number;
+  payRateOverride: number | null;
+  pay: number;
+}
+
 export interface PayrollRow {
   guardId: string;
   guardName: string;
@@ -14,6 +27,7 @@ export interface PayrollRow {
   status: "PENDING" | "PAID";
   paidAt: string | null;
   paidByName: string | null;
+  shifts: PayrollShiftRow[];
 }
 
 // Returns this week's payroll: live-computed hours/pay per guard (same
@@ -66,6 +80,18 @@ export async function GET(req: Request) {
       status: paid ? "PAID" : "PENDING",
       paidAt: paid && payment?.paidAt ? payment.paidAt.toISOString() : null,
       paidByName: paid && payment?.paidBy ? adminNameById.get(payment.paidBy) ?? null : null,
+      shifts: r.shifts.map((s) => ({
+        id: s.id,
+        startAt: s.startAt.toISOString(),
+        endAt: s.endAt.toISOString(),
+        status: s.status,
+        siteName: s.siteName,
+        hours: s.hours,
+        hoursOverride: s.hoursOverride,
+        payRate: s.payRate,
+        payRateOverride: s.payRateOverride,
+        pay: s.pay,
+      })),
     };
   });
   rows.sort((a, b) => a.guardName.localeCompare(b.guardName));

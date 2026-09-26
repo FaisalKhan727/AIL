@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { shiftHours, totalHours, totalPay } from "../lib/hours";
+import { shiftHours, shiftPay, totalHours, totalPay } from "../lib/hours";
 
 const d = (iso: string) => new Date(iso);
 
@@ -128,5 +128,104 @@ describe("totalHours / totalPay", () => {
 
   it("multiplies by pay rate", () => {
     expect(totalPay(shifts, 38.5)).toBe(616);
+  });
+});
+
+describe("hoursOverride", () => {
+  it("wins over scheduled times", () => {
+    expect(
+      shiftHours({
+        status: "CONFIRMED",
+        startAt: d("2026-05-04T18:00:00Z"),
+        endAt: d("2026-05-05T02:00:00Z"), // 8h scheduled
+        hoursOverride: 6.5,
+      }),
+    ).toBe(6.5);
+  });
+
+  it("wins over worked times too", () => {
+    expect(
+      shiftHours({
+        status: "WORKED",
+        startAt: d("2026-05-04T18:00:00Z"),
+        endAt: d("2026-05-05T02:00:00Z"),
+        workedStart: d("2026-05-04T18:00:00Z"),
+        workedEnd: d("2026-05-05T02:00:00Z"), // 8h worked
+        hoursOverride: 5,
+      }),
+    ).toBe(5);
+  });
+
+  it("is ignored (falls back to 0) for a non-payable status", () => {
+    expect(
+      shiftHours({
+        status: "PENDING",
+        startAt: d("2026-05-04T18:00:00Z"),
+        endAt: d("2026-05-05T02:00:00Z"),
+        hoursOverride: 10,
+      }),
+    ).toBe(0);
+  });
+});
+
+describe("payRateOverride / shiftPay / totalPay with mixed rates", () => {
+  // The exact scenario a user asked for: a guard works one day at their
+  // usual rate and another day at a different (higher) rate — the weekly
+  // total must reflect both correctly, not just multiply everything by one
+  // flat rate.
+  const guardDefaultRate = 35;
+
+  it("shiftPay uses the guard's default rate when no override is set", () => {
+    expect(
+      shiftPay(
+        { status: "CONFIRMED", startAt: d("2026-05-04T18:00:00Z"), endAt: d("2026-05-05T02:00:00Z") }, // 8h
+        guardDefaultRate,
+      ),
+    ).toBe(280); // 8 * 35
+  });
+
+  it("shiftPay uses payRateOverride when set, ignoring the guard's default", () => {
+    expect(
+      shiftPay(
+        {
+          status: "CONFIRMED",
+          startAt: d("2026-05-04T18:00:00Z"),
+          endAt: d("2026-05-05T02:00:00Z"), // 8h
+          payRateOverride: 50,
+        },
+        guardDefaultRate,
+      ),
+    ).toBe(400); // 8 * 50
+  });
+
+  it("totalPay sums each shift at its own effective rate", () => {
+    const mixedRateWeek = [
+      // Mon: normal day at the guard's usual $35/hr -> 8h * 35 = 280
+      { status: "CONFIRMED", startAt: d("2026-05-04T18:00:00Z"), endAt: d("2026-05-05T02:00:00Z") },
+      // Wed: special event site at a bumped $50/hr -> 6h * 50 = 300
+      {
+        status: "WORKED",
+        startAt: d("2026-05-06T20:00:00Z"),
+        endAt: d("2026-05-07T02:00:00Z"),
+        payRateOverride: 50,
+      },
+    ];
+    expect(totalHours(mixedRateWeek)).toBe(14);
+    expect(totalPay(mixedRateWeek, guardDefaultRate)).toBe(580); // 280 + 300
+  });
+
+  it("combines an hours override and a rate override on the same shift", () => {
+    expect(
+      shiftPay(
+        {
+          status: "CONFIRMED",
+          startAt: d("2026-05-04T18:00:00Z"),
+          endAt: d("2026-05-05T02:00:00Z"), // 8h scheduled, but corrected to 6h
+          hoursOverride: 6,
+          payRateOverride: 45,
+        },
+        guardDefaultRate,
+      ),
+    ).toBe(270); // 6 * 45
   });
 });
