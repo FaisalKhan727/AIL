@@ -1,8 +1,9 @@
 "use client";
 import * as React from "react";
+import Link from "next/link";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useParams, useRouter } from "next/navigation";
-import { Pencil, Send, Trash2, ClipboardCheck, Eye, ShieldAlert } from "lucide-react";
+import { Pencil, Send, Trash2, ClipboardCheck, Eye, ShieldAlert, Building2, Wallet } from "lucide-react";
 import { PageHeader } from "@/components/shell/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -23,9 +24,23 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { api } from "@/lib/fetcher";
-import { fmtDateTime, fmtIso } from "@/lib/date";
+import { fmtDateTime, fmtIso, startOfWeekMon, endOfWeekSun } from "@/lib/date";
+import { totalHours, totalPay } from "@/lib/hours";
 import { formatPhoneAU } from "@/lib/utils";
 import { useToast } from "@/components/ui/toast";
+
+interface GuardShift {
+  id: string;
+  startAt: string;
+  endAt: string;
+  status: string;
+  workedStart: string | null;
+  workedEnd: string | null;
+  hoursOverride: string | null;
+  payRateOverride: string | null;
+  site: { id: string; name: string };
+  roster: { id: string; name: string };
+}
 
 interface GuardDetail {
   id: string;
@@ -39,7 +54,7 @@ interface GuardDetail {
   notes: string | null;
   active: boolean;
   isSupervisor: boolean;
-  shifts: Array<{ id: string; startAt: string; endAt: string; status: string; site: { name: string }; roster: { name: string } }>;
+  shifts: GuardShift[];
   smsLogs: Array<{ id: string; direction: string; body: string; receivedAt: string; status: string | null }>;
 }
 
@@ -312,6 +327,38 @@ export default function GuardDetailPage() {
 
   if (isLoading) return <PageSkeleton cards={3} />;
   if (!data) return <div className="text-muted-foreground">Not found.</div>;
+
+  const now = new Date();
+  const upcomingShifts = data.shifts
+    .filter((s) => new Date(s.startAt) >= now)
+    .sort((a, b) => a.startAt.localeCompare(b.startAt));
+  const pastShifts = data.shifts
+    .filter((s) => new Date(s.startAt) < now)
+    .sort((a, b) => b.startAt.localeCompare(a.startAt));
+
+  const siteCounts = new Map<string, { id: string; name: string; count: number }>();
+  for (const s of data.shifts) {
+    const existing = siteCounts.get(s.site.id);
+    if (existing) existing.count++;
+    else siteCounts.set(s.site.id, { id: s.site.id, name: s.site.name, count: 1 });
+  }
+  const assignedSites = Array.from(siteCounts.values()).sort((a, b) => b.count - a.count).slice(0, 6);
+
+  const hoursShifts = data.shifts.map((s) => ({
+    status: s.status,
+    startAt: new Date(s.startAt),
+    endAt: new Date(s.endAt),
+    workedStart: s.workedStart ? new Date(s.workedStart) : null,
+    workedEnd: s.workedEnd ? new Date(s.workedEnd) : null,
+    hoursOverride: s.hoursOverride ? Number(s.hoursOverride) : null,
+    payRateOverride: s.payRateOverride ? Number(s.payRateOverride) : null,
+  }));
+  const guardRate = data.payRate ? Number(data.payRate) : 0;
+  const weekStart = startOfWeekMon(now);
+  const weekEnd = endOfWeekSun(now);
+  const thisWeekShifts = hoursShifts.filter((s) => s.startAt >= weekStart && s.startAt <= weekEnd);
+  const fourWeeksAgo = new Date(weekStart.getTime() - 21 * 86_400_000);
+  const last4WeeksShifts = hoursShifts.filter((s) => s.startAt >= fourWeeksAgo && s.startAt <= weekEnd);
 
   return (
     <>
@@ -617,8 +664,53 @@ export default function GuardDetailPage() {
         </CardContent>
       </Card>
 
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+        <Card>
+          <CardHeader><CardTitle className="flex items-center gap-2"><Building2 className="h-4 w-4" /> Assigned sites</CardTitle></CardHeader>
+          <CardContent>
+            {assignedSites.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No shifts recorded yet.</p>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {assignedSites.map((s) => (
+                  <Link
+                    key={s.id}
+                    href={`/sites/${s.id}`}
+                    className="inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs hover:bg-muted/60 transition-colors"
+                  >
+                    {s.name}
+                    <span className="text-muted-foreground">· {s.count}</span>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center justify-between">
+              <span className="flex items-center gap-2"><Wallet className="h-4 w-4" /> Timesheet summary</span>
+              <Link href="/timesheets" className="text-xs font-normal text-brand-navy hover:underline">Full timesheets →</Link>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="grid grid-cols-2 gap-4">
+            <div>
+              <div className="text-xs text-muted-foreground">This week</div>
+              <div className="text-xl font-semibold tabular-nums">{totalHours(thisWeekShifts)}h</div>
+              <div className="text-xs text-muted-foreground">${totalPay(thisWeekShifts, guardRate).toFixed(2)}</div>
+            </div>
+            <div>
+              <div className="text-xs text-muted-foreground">Last 4 weeks</div>
+              <div className="text-xl font-semibold tabular-nums">{totalHours(last4WeeksShifts)}h</div>
+              <div className="text-xs text-muted-foreground">${totalPay(last4WeeksShifts, guardRate).toFixed(2)}</div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
       <Card className="mb-4">
-        <CardHeader><CardTitle>Shift history</CardTitle></CardHeader>
+        <CardHeader><CardTitle>Upcoming shifts</CardTitle></CardHeader>
         <CardContent className="p-0">
           <Table>
             <TableHeader><TableRow>
@@ -629,10 +721,37 @@ export default function GuardDetailPage() {
               <TableHead>Status</TableHead>
             </TableRow></TableHeader>
             <TableBody>
-              {data.shifts.length === 0 && <TableRow><TableCell colSpan={5} className="text-center py-6 text-muted-foreground">No shifts.</TableCell></TableRow>}
-              {data.shifts.map((s) => (
+              {upcomingShifts.length === 0 && <TableRow><TableCell colSpan={5} className="text-center py-6 text-muted-foreground">No upcoming shifts.</TableCell></TableRow>}
+              {upcomingShifts.map((s) => (
                 <TableRow key={s.id}>
-                  <TableCell>{s.roster.name}</TableCell>
+                  <TableCell><Link href={`/rosters/${s.roster.id}`} className="hover:underline">{s.roster.name}</Link></TableCell>
+                  <TableCell>{fmtDateTime(s.startAt)}</TableCell>
+                  <TableCell>{fmtDateTime(s.endAt)}</TableCell>
+                  <TableCell>{s.site.name}</TableCell>
+                  <TableCell><StatusBadge status={s.status} /></TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      <Card className="mb-4">
+        <CardHeader><CardTitle>Past shift history</CardTitle></CardHeader>
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader><TableRow>
+              <TableHead>Roster</TableHead>
+              <TableHead>Start</TableHead>
+              <TableHead>End</TableHead>
+              <TableHead>Site</TableHead>
+              <TableHead>Status</TableHead>
+            </TableRow></TableHeader>
+            <TableBody>
+              {pastShifts.length === 0 && <TableRow><TableCell colSpan={5} className="text-center py-6 text-muted-foreground">No past shifts.</TableCell></TableRow>}
+              {pastShifts.map((s) => (
+                <TableRow key={s.id}>
+                  <TableCell><Link href={`/rosters/${s.roster.id}`} className="hover:underline">{s.roster.name}</Link></TableCell>
                   <TableCell>{fmtDateTime(s.startAt)}</TableCell>
                   <TableCell>{fmtDateTime(s.endAt)}</TableCell>
                   <TableCell>{s.site.name}</TableCell>
