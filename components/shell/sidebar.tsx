@@ -17,18 +17,22 @@ import {
   AlertCircle,
   FileText,
   Wallet,
+  Radio,
+  BarChart3,
 } from "lucide-react";
 
 const NAV = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/live", label: "Live Operations", icon: Radio },
+  { href: "/rosters", label: "Rosters", icon: Calendar },
   { href: "/guards", label: "Guards", icon: Users },
   { href: "/sites", label: "Sites", icon: Building2 },
-  { href: "/rosters", label: "Rosters", icon: Calendar },
   { href: "/alarms", label: "Alarms", icon: AlertCircle },
-  { href: "/invoices", label: "Invoices", icon: FileText },
   { href: "/timesheets", label: "Timesheets", icon: ClipboardList },
   { href: "/payroll", label: "Payroll", icon: Wallet },
-  { href: "/sms-log", label: "SMS Log", icon: MessageSquare },
+  { href: "/invoices", label: "Invoices", icon: FileText },
+  { href: "/sms-log", label: "SMS Centre", icon: MessageSquare },
+  { href: "/reports", label: "Reports", icon: BarChart3 },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 

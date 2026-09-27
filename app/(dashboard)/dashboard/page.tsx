@@ -2,7 +2,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
-import { Plus, Users, Building2, Calendar, ClipboardList, MessageSquare, ShieldCheck, ShieldAlert, FileWarning } from "lucide-react";
+import { Plus, Users, Building2, Calendar, ClipboardList, MessageSquare, ShieldCheck, ShieldAlert, FileWarning, Radio, AlertTriangle, UserX, Send } from "lucide-react";
 import { PageHeader } from "@/components/shell/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,13 +10,31 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Badge } from "@/components/ui/badge";
+import { Select } from "@/components/ui/select";
 import { api } from "@/lib/fetcher";
 import { fmtDateTime, fmtTime } from "@/lib/date";
 import { formatPhoneAU, cn } from "@/lib/utils";
 
+interface AttentionItem {
+  type: string;
+  severity: "CRITICAL" | "HIGH" | "MEDIUM";
+  title: string;
+  description: string;
+  link: string;
+}
+
 interface DashResp {
-  kpis: { shiftsThisWeek: number; pendingCount: number; rejectedCount: number; activeGuards: number };
-  todayShifts: Array<{ id: string; startAt: string; endAt: string; status: string; guard: { firstName: string; lastName: string }; site: { name: string } }>;
+  kpis: {
+    shiftsThisWeek: number;
+    pendingCount: number;
+    rejectedCount: number;
+    activeGuards: number;
+    onDutyCount: number;
+    unfilledCount: number;
+    lateCheckInCount: number;
+  };
+  attention: AttentionItem[];
+  todayShifts: Array<{ id: string; startAt: string; endAt: string; status: string; guard: { id: string; firstName: string; lastName: string } | null; site: { id: string; name: string } }>;
   recentSms: Array<{ id: string; body: string; direction: string; status: string | null; receivedAt: string; fromNumber: string; toNumber: string; guard: { firstName: string; lastName: string } | null }>;
   onboarding: {
     totalActive: number;
@@ -89,20 +107,44 @@ export default function DashboardPage() {
     queryFn: () => api(`/api/dashboard`),
     refetchInterval: 5000,
   });
+  const [siteFilter, setSiteFilter] = React.useState("");
+  const [guardFilter, setGuardFilter] = React.useState("");
+
+  const siteOptions = React.useMemo(() => {
+    const map = new Map<string, string>();
+    for (const s of data?.todayShifts ?? []) map.set(s.site.id, s.site.name);
+    return Array.from(map, ([id, name]) => ({ id, name }));
+  }, [data]);
+  const guardOptions = React.useMemo(() => {
+    const map = new Map<string, string>();
+    for (const s of data?.todayShifts ?? []) if (s.guard) map.set(s.guard.id, `${s.guard.firstName} ${s.guard.lastName}`);
+    return Array.from(map, ([id, name]) => ({ id, name }));
+  }, [data]);
+  const filteredTodayShifts = React.useMemo(() => {
+    return (data?.todayShifts ?? []).filter((s) => {
+      if (siteFilter && s.site.id !== siteFilter) return false;
+      if (guardFilter && s.guard?.id !== guardFilter) return false;
+      return true;
+    });
+  }, [data, siteFilter, guardFilter]);
 
   return (
     <>
       <PageHeader
         title="Dashboard"
-        description="At-a-glance roster status"
+        description="Operational command centre — at-a-glance roster status"
         actions={
-          <>
-            <Button asChild variant="outline"><Link href="/guards"><Users className="h-4 w-4" /> Add Guard</Link></Button>
-            <Button asChild variant="outline"><Link href="/sites"><Building2 className="h-4 w-4" /> Add Site</Link></Button>
-            <Button asChild><Link href="/rosters"><Plus className="h-4 w-4" /> New Roster</Link></Button>
-          </>
+          <Button asChild><Link href="/rosters"><Plus className="h-4 w-4" /> New Roster</Link></Button>
         }
       />
+
+      <div className="flex flex-wrap gap-2 mb-6">
+        <Button asChild variant="outline" size="sm"><Link href="/rosters"><Calendar className="h-4 w-4" /> Create roster</Link></Button>
+        <Button asChild variant="outline" size="sm"><Link href="/guards"><Users className="h-4 w-4" /> Add guard</Link></Button>
+        <Button asChild variant="outline" size="sm"><Link href="/sites"><Building2 className="h-4 w-4" /> Add site</Link></Button>
+        <Button asChild variant="outline" size="sm"><Link href="/sms-log?compose=1"><Send className="h-4 w-4" /> Send SMS</Link></Button>
+        <Button asChild variant="outline" size="sm"><Link href="/live"><Radio className="h-4 w-4" /> View today&apos;s shifts</Link></Button>
+      </div>
 
       {isLoading && (
         <div className="space-y-4 mb-6">
@@ -117,12 +159,50 @@ export default function DashboardPage() {
       )}
       {data && (
         <>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
+            <Kpi label="On duty now" value={data.kpis.onDutyCount} icon={<Radio />} tone="emerald" />
             <Kpi label="Shifts this week" value={data.kpis.shiftsThisWeek} icon={<Calendar />} tone="navy" />
+            <Kpi label="Unfilled shifts" value={data.kpis.unfilledCount} icon={<UserX />} tone="rose" />
             <Kpi label="Pending confirmations" value={data.kpis.pendingCount} icon={<ClipboardList />} tone="amber" />
-            <Kpi label="Rejected upcoming" value={data.kpis.rejectedCount} icon={<MessageSquare />} tone="rose" />
-            <Kpi label="Active guards" value={data.kpis.activeGuards} icon={<Users />} tone="emerald" />
+            <Kpi label="Rejected shifts" value={data.kpis.rejectedCount} icon={<MessageSquare />} tone="rose" />
+            <Kpi label="Not checked in" value={data.kpis.lateCheckInCount} icon={<AlertTriangle />} tone="amber" />
           </div>
+
+          {data.attention.length > 0 && (
+            <Card className="mb-6 border-amber-300/60">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <ShieldAlert className="h-4 w-4 text-amber-600" /> Attention required
+                  <Badge className="bg-amber-100 text-amber-800 border-amber-300">{data.attention.length}</Badge>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {data.attention.slice(0, 8).map((item, i) => (
+                  <Link
+                    key={`${item.type}-${i}`}
+                    href={item.link}
+                    className="flex items-center justify-between gap-3 rounded-lg border p-3 hover:bg-muted/50 transition-colors"
+                  >
+                    <div className="min-w-0">
+                      <div className="font-medium text-sm truncate">{item.title}</div>
+                      <div className="text-xs text-muted-foreground truncate">{item.description}</div>
+                    </div>
+                    <Badge
+                      className={
+                        item.severity === "CRITICAL"
+                          ? "bg-red-100 text-red-800 border-red-300 shrink-0"
+                          : item.severity === "HIGH"
+                            ? "bg-amber-100 text-amber-800 border-amber-300 shrink-0"
+                            : "bg-slate-100 text-slate-700 border-slate-300 shrink-0"
+                      }
+                    >
+                      {item.severity}
+                    </Badge>
+                  </Link>
+                ))}
+              </CardContent>
+            </Card>
+          )}
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
             <Card>
@@ -239,18 +319,30 @@ export default function DashboardPage() {
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <Card>
-              <CardHeader><CardTitle>Today&apos;s shifts</CardTitle></CardHeader>
+              <CardHeader className="space-y-3">
+                <CardTitle>Today&apos;s shifts</CardTitle>
+                <div className="flex gap-2">
+                  <Select value={siteFilter} onChange={(e) => setSiteFilter(e.target.value)} className="h-8 text-xs">
+                    <option value="">All sites</option>
+                    {siteOptions.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  </Select>
+                  <Select value={guardFilter} onChange={(e) => setGuardFilter(e.target.value)} className="h-8 text-xs">
+                    <option value="">All guards</option>
+                    {guardOptions.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
+                  </Select>
+                </div>
+              </CardHeader>
               <CardContent className="p-0">
                 <Table>
                   <TableHeader><TableRow>
                     <TableHead>Time</TableHead><TableHead>Guard</TableHead><TableHead>Site</TableHead><TableHead>Status</TableHead>
                   </TableRow></TableHeader>
                   <TableBody>
-                    {data.todayShifts.length === 0 && <TableRow><TableCell colSpan={4} className="text-center py-6 text-muted-foreground">No shifts today.</TableCell></TableRow>}
-                    {data.todayShifts.map((s) => (
+                    {filteredTodayShifts.length === 0 && <TableRow><TableCell colSpan={4} className="text-center py-6 text-muted-foreground">No shifts match.</TableCell></TableRow>}
+                    {filteredTodayShifts.map((s) => (
                       <TableRow key={s.id}>
                         <TableCell>{fmtTime(s.startAt)}–{fmtTime(s.endAt)}</TableCell>
-                        <TableCell>{s.guard.firstName} {s.guard.lastName}</TableCell>
+                        <TableCell>{s.guard ? `${s.guard.firstName} ${s.guard.lastName}` : <span className="text-muted-foreground">Unassigned</span>}</TableCell>
                         <TableCell>{s.site.name}</TableCell>
                         <TableCell><StatusBadge status={s.status} /></TableCell>
                       </TableRow>
@@ -261,7 +353,14 @@ export default function DashboardPage() {
             </Card>
 
             <Card>
-              <CardHeader><CardTitle>Recent SMS activity</CardTitle></CardHeader>
+              <CardHeader>
+                <CardTitle className="flex items-center justify-between">
+                  <span>Recent SMS activity</span>
+                  <Link href="/sms-log" className="text-xs font-normal text-brand-navy hover:underline">
+                    View all in SMS Centre →
+                  </Link>
+                </CardTitle>
+              </CardHeader>
               <CardContent className="p-0">
                 <Table>
                   <TableHeader><TableRow>

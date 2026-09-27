@@ -17,22 +17,26 @@ import {
   AlertCircle,
   FileText,
   Wallet,
+  Radio,
+  BarChart3,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const PRIMARY = [
   { href: "/dashboard", label: "Home", icon: LayoutDashboard },
+  { href: "/live",      label: "Live",    icon: Radio },
   { href: "/rosters",   label: "Rosters", icon: Calendar },
   { href: "/alarms",    label: "Alarms",  icon: AlertCircle },
-  { href: "/guards",    label: "Guards",  icon: Users },
 ] as const;
 
 const MORE = [
+  { href: "/guards",     label: "Guards",     icon: Users },
   { href: "/invoices",   label: "Invoices",   icon: FileText },
   { href: "/sites",      label: "Sites",      icon: Building2 },
   { href: "/timesheets", label: "Timesheets", icon: ClipboardList },
   { href: "/payroll",    label: "Payroll",    icon: Wallet },
-  { href: "/sms-log",    label: "SMS Log",    icon: MessageSquare },
+  { href: "/sms-log",    label: "SMS Centre", icon: MessageSquare },
+  { href: "/reports",    label: "Reports",    icon: BarChart3 },
   { href: "/settings",   label: "Settings",   icon: Settings },
 ] as const;
 

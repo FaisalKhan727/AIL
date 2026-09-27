@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/api";
-import { startOfWeekMon, endOfWeekSun, startOfDayInTz, endOfDayInTz, APP_TZ } from "@/lib/date";
+import { startOfWeekMon, endOfWeekSun, startOfDayInTz, endOfDayInTz, fmtDate, fmtTime, APP_TZ } from "@/lib/date";
 
 const EXPIRY_WINDOW_DAYS = 60;
+const CHECKIN_GRACE_MINUTES = 15;
+const CONFIRMATION_HORIZON_HOURS = 48;
 
 export async function GET() {
   const auth = await requireAdmin();
@@ -26,6 +28,8 @@ export async function GET() {
   const dayEnd = endOfDayInTz(now, tz);
   const expiryHorizon = new Date(now);
   expiryHorizon.setDate(expiryHorizon.getDate() + EXPIRY_WINDOW_DAYS);
+  const checkInGraceTime = new Date(now.getTime() - CHECKIN_GRACE_MINUTES * 60_000);
+  const confirmationHorizon = new Date(now.getTime() + CONFIRMATION_HORIZON_HOURS * 3_600_000);
   const rosterScope = { roster: { companyId } };
   const [
     shiftsThisWeek,
@@ -37,6 +41,12 @@ export async function GET() {
     onboardingCounts,
     currentSop,
     expiringWorkingRights,
+    onDutyCount,
+    unfilledShifts,
+    lateCheckIns,
+    rejectedList,
+    missingConfirmations,
+    expiringLicences,
   ] = await Promise.all([
     prisma.shift.count({ where: { ...rosterScope, startAt: { gte: weekStart, lte: weekEnd } } }),
     prisma.shift.count({ where: { ...rosterScope, status: "PENDING", startAt: { gte: now } } }),
@@ -50,7 +60,7 @@ export async function GET() {
     prisma.smsLog.findMany({
       where: { guard: { companyId } },
       orderBy: { receivedAt: "desc" },
-      take: 20,
+      take: 6,
       include: { guard: true },
     }),
     // Grouped count of active guards by onboardingStatus — gives both
@@ -81,6 +91,60 @@ export async function GET() {
       },
       orderBy: { visaExpiry: "asc" },
       take: 50,
+    }),
+    // Guards currently on duty: CONFIRMED/WORKED shifts spanning right now
+    // that have actually been clocked in (workedStart set, no workedEnd yet).
+    prisma.shift.count({
+      where: {
+        ...rosterScope,
+        status: { in: ["CONFIRMED", "WORKED"] },
+        workedStart: { not: null, lte: now },
+        workedEnd: null,
+        endAt: { gte: now },
+      },
+    }),
+    // Unfilled: no guard assigned yet, still upcoming.
+    prisma.shift.findMany({
+      where: { ...rosterScope, guardId: null, startAt: { gte: now } },
+      orderBy: { startAt: "asc" },
+      include: { site: true },
+      take: 20,
+    }),
+    // Confirmed shifts that started (past grace period) but the guard never
+    // clocked in — surfaced as a possible no-show / late arrival.
+    prisma.shift.findMany({
+      where: {
+        ...rosterScope,
+        status: "CONFIRMED",
+        startAt: { gte: dayStart, lte: checkInGraceTime },
+        workedStart: null,
+      },
+      orderBy: { startAt: "asc" },
+      include: { guard: true, site: true },
+      take: 20,
+    }),
+    prisma.shift.findMany({
+      where: { ...rosterScope, status: "REJECTED", startAt: { gte: now } },
+      orderBy: { startAt: "asc" },
+      include: { guard: true, site: true },
+      take: 20,
+    }),
+    // Awaiting SMS/PWA confirmation with the shift starting soon.
+    prisma.shift.findMany({
+      where: {
+        ...rosterScope,
+        status: "PENDING",
+        startAt: { gte: now, lte: confirmationHorizon },
+      },
+      orderBy: { startAt: "asc" },
+      include: { guard: true, site: true },
+      take: 20,
+    }),
+    prisma.guard.findMany({
+      where: { companyId, active: true, licenceExpiry: { not: null, lte: expiryHorizon } },
+      select: { id: true, firstName: true, lastName: true, licenceNumber: true, licenceExpiry: true },
+      orderBy: { licenceExpiry: "asc" },
+      take: 20,
     }),
   ]);
 
@@ -141,8 +205,91 @@ export async function GET() {
     breakdown.NOT_STARTED + breakdown.IN_PROGRESS + breakdown.COMPLETE + breakdown.EXPIRED;
   const onboardedPct = totalActive === 0 ? 0 : Math.round((breakdown.COMPLETE / totalActive) * 100);
 
+  const fmtRange = (start: Date, end: Date) => `${fmtDate(start)} ${fmtTime(start)}–${fmtTime(end)}`;
+
+  // Attention required: one unified, pre-sorted feed of everything that
+  // needs an admin's eyes right now. Each item links straight to the
+  // record so clicking it takes you to where you'd act on it.
+  type AttentionItem = {
+    type: string;
+    severity: "CRITICAL" | "HIGH" | "MEDIUM";
+    title: string;
+    description: string;
+    link: string;
+  };
+  const attention: AttentionItem[] = [];
+
+  for (const s of rejectedList) {
+    attention.push({
+      type: "REJECTED_SHIFT",
+      severity: "CRITICAL",
+      title: `${s.guard ? `${s.guard.firstName} ${s.guard.lastName}` : "Unassigned"} rejected a shift`,
+      description: `${s.site.name} · ${fmtRange(s.startAt, s.endAt)}`,
+      link: `/rosters/${s.rosterId}`,
+    });
+  }
+  for (const s of lateCheckIns) {
+    attention.push({
+      type: "LATE_CHECKIN",
+      severity: "HIGH",
+      title: `${s.guard ? `${s.guard.firstName} ${s.guard.lastName}` : "Guard"} hasn't checked in`,
+      description: `${s.site.name} · shift started ${fmtRange(s.startAt, s.endAt)}`,
+      link: `/rosters/${s.rosterId}`,
+    });
+  }
+  for (const s of unfilledShifts) {
+    attention.push({
+      type: "UNFILLED_SHIFT",
+      severity: "HIGH",
+      title: `Unfilled shift at ${s.site.name}`,
+      description: fmtRange(s.startAt, s.endAt),
+      link: `/rosters/${s.rosterId}`,
+    });
+  }
+  for (const s of missingConfirmations) {
+    attention.push({
+      type: "MISSING_CONFIRMATION",
+      severity: "MEDIUM",
+      title: `${s.guard ? `${s.guard.firstName} ${s.guard.lastName}` : "Guard"} hasn't confirmed`,
+      description: `${s.site.name} · ${fmtRange(s.startAt, s.endAt)}`,
+      link: `/rosters/${s.rosterId}`,
+    });
+  }
+  for (const g of expiringLicences) {
+    const daysUntil = Math.ceil((g.licenceExpiry!.getTime() - now.getTime()) / 86_400_000);
+    attention.push({
+      type: "LICENCE_EXPIRING",
+      severity: daysUntil < 0 ? "CRITICAL" : daysUntil <= 14 ? "HIGH" : "MEDIUM",
+      title: `${g.firstName} ${g.lastName}'s licence ${daysUntil < 0 ? "has expired" : "is expiring"}`,
+      description: `${g.licenceNumber ?? "Licence"} · ${daysUntil < 0 ? `${Math.abs(daysUntil)}d overdue` : `in ${daysUntil}d`}`,
+      link: `/guards/${g.id}`,
+    });
+  }
+  for (const wr of workingRightsExpiring) {
+    if (wr.severity === "OK") continue;
+    attention.push({
+      type: "WORKING_RIGHTS_EXPIRING",
+      severity: wr.severity === "EXPIRED" ? "CRITICAL" : wr.severity === "URGENT" ? "HIGH" : "MEDIUM",
+      title: `${wr.guardName}'s working rights ${wr.daysUntil < 0 ? "have expired" : "are expiring"}`,
+      description: `${wr.visaSubclass ?? "Visa"} · ${wr.daysUntil < 0 ? `${Math.abs(wr.daysUntil)}d overdue` : `in ${wr.daysUntil}d`}`,
+      link: `/guards/${wr.guardId}`,
+    });
+  }
+
+  const severityRank: Record<AttentionItem["severity"], number> = { CRITICAL: 0, HIGH: 1, MEDIUM: 2 };
+  attention.sort((a, b) => severityRank[a.severity] - severityRank[b.severity]);
+
   return NextResponse.json({
-    kpis: { shiftsThisWeek, pendingCount, rejectedCount, activeGuards },
+    kpis: {
+      shiftsThisWeek,
+      pendingCount,
+      rejectedCount,
+      activeGuards,
+      onDutyCount,
+      unfilledCount: unfilledShifts.length,
+      lateCheckInCount: lateCheckIns.length,
+    },
+    attention: attention.slice(0, 30),
     todayShifts,
     recentSms,
     onboarding: {

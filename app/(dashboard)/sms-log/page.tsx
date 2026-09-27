@@ -1,8 +1,9 @@
 "use client";
 import * as React from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { RotateCw, RefreshCcw } from "lucide-react";
+import { RotateCw, RefreshCcw, Send } from "lucide-react";
 import { PageHeader } from "@/components/shell/page-header";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -11,6 +12,7 @@ import { Select } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { SendSmsDialog } from "@/components/sms/send-sms-dialog";
 import { api } from "@/lib/fetcher";
 import { fmtDateTime } from "@/lib/date";
 import { formatPhoneAU, cn } from "@/lib/utils";
@@ -65,10 +67,16 @@ function statusBadge(log: SmsLog) {
 export default function SmsLogPage() {
   const qc = useQueryClient();
   const { toast } = useToast();
+  const searchParams = useSearchParams();
   const [direction, setDirection] = React.useState<"" | "OUTBOUND" | "INBOUND">("");
   const [statusFilter, setStatusFilter] = React.useState<"" | "failed">("");
   const [q, setQ] = React.useState("");
   const [retryingId, setRetryingId] = React.useState<string | null>(null);
+  const [composeOpen, setComposeOpen] = React.useState(false);
+
+  React.useEffect(() => {
+    if (searchParams.get("compose") === "1") setComposeOpen(true);
+  }, [searchParams]);
 
   const { data: logs = [], isLoading, isFetching, dataUpdatedAt } = useQuery<SmsLog[]>({
     queryKey: ["sms-log", direction],
@@ -110,18 +118,24 @@ export default function SmsLogPage() {
   return (
     <>
       <PageHeader
-        title="SMS Log"
+        title="SMS Centre"
         description={
           lastUpdatedLabel
             ? `${filtered.length} message${filtered.length === 1 ? "" : "s"} · updated ${lastUpdatedLabel} · live every 5s`
             : `${filtered.length} message${filtered.length === 1 ? "" : "s"}`
         }
         actions={
-          <Button variant="outline" size="icon" aria-label="Refresh" title="Refresh" onClick={() => qc.invalidateQueries({ queryKey: ["sms-log"] })} disabled={isFetching}>
-            <RotateCw className={cn("h-4 w-4", isFetching && "animate-spin")} />
-          </Button>
+          <>
+            <Button onClick={() => setComposeOpen(true)}>
+              <Send className="h-4 w-4" /> Send message
+            </Button>
+            <Button variant="outline" size="icon" aria-label="Refresh" title="Refresh" onClick={() => qc.invalidateQueries({ queryKey: ["sms-log"] })} disabled={isFetching}>
+              <RotateCw className={cn("h-4 w-4", isFetching && "animate-spin")} />
+            </Button>
+          </>
         }
       />
+      <SendSmsDialog open={composeOpen} onOpenChange={setComposeOpen} />
       <Card className="mb-4"><CardContent className="pt-6 flex flex-col sm:flex-row gap-3">
         <Input placeholder="Search body, phone, guard…" value={q} onChange={(e) => setQ(e.target.value)} className="max-w-md" />
         <Select value={direction} onChange={(e) => setDirection(e.target.value as "" | "OUTBOUND" | "INBOUND")} className="max-w-[180px]">
