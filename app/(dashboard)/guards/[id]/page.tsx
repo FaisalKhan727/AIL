@@ -54,6 +54,7 @@ interface GuardDetail {
   notes: string | null;
   active: boolean;
   isSupervisor: boolean;
+  availability: { daysOfWeek: string; notes: string | null; updatedAt: string } | null;
   shifts: GuardShift[];
   smsLogs: Array<{ id: string; direction: string; body: string; receivedAt: string; status: string | null }>;
 }
@@ -664,7 +665,7 @@ export default function GuardDetailPage() {
         </CardContent>
       </Card>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
         <Card>
           <CardHeader><CardTitle className="flex items-center gap-2"><Building2 className="h-4 w-4" /> Assigned sites</CardTitle></CardHeader>
           <CardContent>
@@ -705,6 +706,27 @@ export default function GuardDetailPage() {
               <div className="text-xl font-semibold tabular-nums">{totalHours(last4WeeksShifts)}h</div>
               <div className="text-xs text-muted-foreground">${totalPay(last4WeeksShifts, guardRate).toFixed(2)}</div>
             </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader><CardTitle className="text-sm">Availability</CardTitle></CardHeader>
+          <CardContent>
+            {!data.availability || !data.availability.daysOfWeek ? (
+              <p className="text-sm text-muted-foreground">Not set by the guard yet.</p>
+            ) : (
+              <>
+                <div className="flex flex-wrap gap-1">
+                  {data.availability.daysOfWeek.split(",").filter(Boolean).map((d) => (
+                    <Badge key={d} className="bg-slate-100 text-slate-700 border-slate-300">{d}</Badge>
+                  ))}
+                </div>
+                {data.availability.notes && (
+                  <p className="text-xs text-muted-foreground mt-2">{data.availability.notes}</p>
+                )}
+              </>
+            )}
+            <p className="text-[10px] text-muted-foreground mt-2">Set by the guard from their app — read-only here.</p>
           </CardContent>
         </Card>
       </div>

@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "../globals.css";
 import { SopReackBanner } from "@/components/g/sop-reack-banner";
+import { BottomNav } from "@/components/g/bottom-nav";
 
 export const metadata: Metadata = {
   title: "Vigilo Guards",
@@ -48,6 +49,7 @@ export default function GuardAppLayout({ children }: { children: React.ReactNode
       />
       <SopReackBanner />
       {children}
+      <BottomNav />
     </div>
   );
 }

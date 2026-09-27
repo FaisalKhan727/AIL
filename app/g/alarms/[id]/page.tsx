@@ -117,7 +117,7 @@ export default function GuardAlarmDetailPage() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 pb-tabbar">
         <BackBar />
         <div className="mt-8 mx-4 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-6 text-center">
           <p className="text-base font-medium text-slate-900 dark:text-slate-100">{error}</p>
@@ -134,7 +134,7 @@ export default function GuardAlarmDetailPage() {
 
   if (!alarm) {
     return (
-      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 pb-12">
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 pb-tabbar">
         <BackBar />
         <div className="mt-4 mx-4 space-y-3">
           <Skeleton className="h-32 w-full rounded-2xl" />

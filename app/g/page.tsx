@@ -323,7 +323,7 @@ export default function GuardHomePage() {
   // ---------- render ----------
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 pb-12">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 pb-tabbar">
       <TopBar firstName={me?.identity.firstName} subline={subline} onAvatarTap={signOut} />
 
       {isMultiCompany && me && (

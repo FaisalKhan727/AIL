@@ -14,6 +14,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
   const guard = await prisma.guard.findFirst({
     where: { id: params.id, companyId: auth.companyId },
     include: {
+      availability: { select: { daysOfWeek: true, notes: true, updatedAt: true } },
       shifts: {
         orderBy: { startAt: "desc" },
         take: 50,

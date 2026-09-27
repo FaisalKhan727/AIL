@@ -122,7 +122,7 @@ export default function GuardTimesheetsPage() {
   const grandPay = weeks?.reduce((a, w) => a + w.totalPay, 0) ?? 0;
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 pb-8">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 pb-tabbar">
       {/* Top bar */}
       <header className="sticky top-0 z-10 bg-slate-50/95 dark:bg-slate-900/95 backdrop-blur px-4 pt-[calc(env(safe-area-inset-top)+0.75rem)] pb-3 border-b border-slate-200 dark:border-slate-700">
         <div className="flex items-center gap-2">

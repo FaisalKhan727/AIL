@@ -83,6 +83,7 @@ model Guard {
   smsLogs            SmsLog[]
   setupTokens        SetupToken[]
   appDispatch        CompanyAppDispatch?
+  availability       GuardAvailability?
   clockEvents        ClockEvent[]
   shiftCheckIns      ShiftCheckIn[]
   incidentReports    IncidentReport[]
@@ -372,6 +373,21 @@ model GuardPreferences {
   language             String       @default("en")
   createdAt            DateTime     @default(now())
   updatedAt            DateTime     @updatedAt
+}
+
+// Guard-editable general availability, per company employment (a guard can
+// work different days for different employers). Deliberately simple for v1:
+// a set of generally-available weekdays plus free-text notes — not a
+// calendar of specific date ranges. Admin sees it read-only on the guard
+// profile; the guard edits it from the PWA Availability tab.
+model GuardAvailability {
+  id         String   @id @default(cuid())
+  guardId    String   @unique
+  guard      Guard    @relation(fields: [guardId], references: [id], onDelete: Cascade)
+  daysOfWeek String   @default("") // comma-separated subset of MON..SUN
+  notes      String?
+  updatedAt  DateTime @updatedAt
+  createdAt  DateTime @default(now())
 }
 
 // Per-company toggle: does this company dispatch to the guard's app (vs SMS)?
