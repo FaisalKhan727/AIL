@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireGuard, assertGuardOwnsGuardId } from "@/lib/guard-auth";
+import { markShiftRejected } from "@/lib/shift-status";
 
 interface RejectBody {
   reason?: string;
@@ -38,14 +39,6 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     );
   }
 
-  const updated = await prisma.shift.update({
-    where: { id: shift.id },
-    data: {
-      status: "REJECTED",
-      rejectedAt: new Date(),
-      rejectionReason: reason,
-      confirmedAt: null,
-    },
-  });
+  const updated = await markShiftRejected(shift.id, reason);
   return NextResponse.json({ ok: true, status: updated.status });
 }

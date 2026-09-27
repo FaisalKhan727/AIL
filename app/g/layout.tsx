@@ -34,8 +34,18 @@ export default function GuardAppLayout({ children }: { children: React.ReactNode
   // Dynamic Island (top), home indicator (bottom), and landscape inset
   // (left/right). Inset values are ~0 with statusBarStyle="default" but
   // the padding is defensive against future device variations.
+  //
+  // The `dark:` classes throughout app/g only take effect once something
+  // adds a `dark` ancestor class — nothing did, so dark mode never
+  // activated. Scoped to this div (not <html>/<body>) so it only affects
+  // the guard app, not the admin dashboard's fixed light theme.
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 pt-safe-t pb-safe-b pl-safe-l pr-safe-r">
+    <div id="guard-app-root" className="min-h-screen bg-slate-50 dark:bg-slate-950 pt-safe-t pb-safe-b pl-safe-l pr-safe-r">
+      <script
+        dangerouslySetInnerHTML={{
+          __html: `(function(){try{var mq=window.matchMedia('(prefers-color-scheme: dark)');var el=document.getElementById('guard-app-root');function apply(isDark){if(el)el.classList.toggle('dark',isDark)}apply(mq.matches);mq.addEventListener('change',function(e){apply(e.matches)})}catch(e){}})();`,
+        }}
+      />
       <SopReackBanner />
       {children}
     </div>

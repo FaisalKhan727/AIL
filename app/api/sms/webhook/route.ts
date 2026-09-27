@@ -4,6 +4,7 @@ import { getSmsAdapter } from "@/lib/sms";
 import { parseInboundReply, type ParserShift } from "@/lib/sms/parser";
 import { buildUnparsedReply, buildAlarmAutoReply } from "@/lib/sms/templates";
 import { parseAlarmReply, combineHHmmWithDispatch } from "@/lib/alarms/parser";
+import { markShiftConfirmed, markShiftRejected } from "@/lib/shift-status";
 
 async function getSetting(companyId: string, key: string): Promise<string | undefined> {
   const row = await prisma.setting.findUnique({
@@ -140,18 +141,11 @@ export async function POST(req: Request) {
   }
 
   // Apply decisions.
-  const now = new Date();
   for (const d of result.decisions) {
     if (d.decision === "YES") {
-      await prisma.shift.update({
-        where: { id: d.shiftId },
-        data: { status: "CONFIRMED", confirmedAt: now, rejectedAt: null, rejectionReason: null },
-      });
+      await markShiftConfirmed(d.shiftId);
     } else {
-      await prisma.shift.update({
-        where: { id: d.shiftId },
-        data: { status: "REJECTED", rejectedAt: now, confirmedAt: null },
-      });
+      await markShiftRejected(d.shiftId);
     }
   }
 

@@ -5,6 +5,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ShieldCheck, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
+import { Skeleton } from "@/components/g/skeleton";
 
 interface PendingItem {
   companyId: string;
@@ -77,7 +78,14 @@ export default function ReackPage() {
   }
 
   if (isLoading) {
-    return <div className="p-6 text-slate-500">Loading…</div>;
+    return (
+      <div className="max-w-md mx-auto px-4 pb-32 pt-6 space-y-4">
+        <Skeleton className="h-16 w-full rounded-2xl" />
+        <Skeleton className="h-6 w-2/3" />
+        <Skeleton className="h-40 w-full rounded-xl" />
+        <Skeleton className="h-14 w-full rounded-xl" />
+      </div>
+    );
   }
   if (!current) return null;
 
@@ -86,41 +94,41 @@ export default function ReackPage() {
 
   return (
     <div className="max-w-md mx-auto px-4 pb-32 pt-6">
-      <div className="rounded-2xl bg-amber-50 border border-amber-200 p-4 flex items-start gap-3 mb-4">
-        <AlertCircle className="h-5 w-5 text-amber-700 mt-0.5 flex-shrink-0" />
-        <div className="text-sm text-amber-900">
+      <div className="rounded-2xl bg-amber-50 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-800 p-4 flex items-start gap-3 mb-4">
+        <AlertCircle className="h-5 w-5 text-amber-700 dark:text-amber-400 mt-0.5 flex-shrink-0" />
+        <div className="text-sm text-amber-900 dark:text-amber-100">
           <p className="font-semibold">{current.companyName} has updated their SOP.</p>
           <p className="mt-0.5">Read the new version below and acknowledge to continue using the app.</p>
         </div>
       </div>
 
-      <h1 className="text-xl font-bold text-slate-900">{current.sop.title}</h1>
-      <p className="text-xs text-slate-500 mb-3">Version {current.sop.version} · {current.companyName}</p>
+      <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">{current.sop.title}</h1>
+      <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">Version {current.sop.version} · {current.companyName}</p>
 
-      <div className="space-y-3 bg-white border border-slate-200 rounded-xl p-4 mb-4">
+      <div className="space-y-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-4 mb-4">
         {paragraphs.length === 0 ? (
-          <p className="text-sm text-slate-500">No SOP body provided.</p>
+          <p className="text-sm text-slate-500 dark:text-slate-400">No SOP body provided.</p>
         ) : (
           paragraphs.map((p, i) => (
-            <p key={i} className="text-sm text-slate-700 whitespace-pre-wrap">{p}</p>
+            <p key={i} className="text-sm text-slate-700 dark:text-slate-300 whitespace-pre-wrap">{p}</p>
           ))
         )}
       </div>
 
       {pending.length > 1 && (
-        <p className="text-xs text-slate-500 text-center mb-3">
+        <p className="text-xs text-slate-500 dark:text-slate-400 text-center mb-3">
           {pending.length - 1} more SOP{pending.length - 1 === 1 ? "" : "s"} to acknowledge after this
         </p>
       )}
 
-      <label className="flex items-start gap-3 rounded-xl bg-white border border-slate-200 p-3 cursor-pointer mb-3">
+      <label className="flex items-start gap-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 p-3 cursor-pointer mb-3">
         <input
           type="checkbox"
           checked={acked}
           onChange={(e) => setAcked(e.target.checked)}
           className="mt-0.5 h-5 w-5"
         />
-        <span className="text-sm text-slate-900">
+        <span className="text-sm text-slate-900 dark:text-slate-100">
           I have read and understood the {current.sop.title} (v{current.sop.version}).
         </span>
       </label>

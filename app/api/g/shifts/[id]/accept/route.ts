@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireGuard, assertGuardOwnsGuardId } from "@/lib/guard-auth";
+import { markShiftConfirmed } from "@/lib/shift-status";
 
 export async function POST(_req: Request, { params }: { params: { id: string } }) {
   const result = await requireGuard();
@@ -32,14 +33,6 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
     );
   }
 
-  const updated = await prisma.shift.update({
-    where: { id: shift.id },
-    data: {
-      status: "CONFIRMED",
-      confirmedAt: new Date(),
-      rejectedAt: null,
-      rejectionReason: null,
-    },
-  });
+  const updated = await markShiftConfirmed(shift.id);
   return NextResponse.json({ ok: true, status: updated.status });
 }
