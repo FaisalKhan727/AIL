@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "../globals.css";
 import { SopReackBanner } from "@/components/g/sop-reack-banner";
 import { BottomNav } from "@/components/g/bottom-nav";
+import { SwUpdateBanner } from "@/components/g/sw-update-banner";
 
 export const metadata: Metadata = {
   title: "Vigilo Guards",
@@ -47,6 +48,7 @@ export default function GuardAppLayout({ children }: { children: React.ReactNode
           __html: `(function(){try{var mq=window.matchMedia('(prefers-color-scheme: dark)');var el=document.getElementById('guard-app-root');function apply(isDark){if(el)el.classList.toggle('dark',isDark)}apply(mq.matches);mq.addEventListener('change',function(e){apply(e.matches)})}catch(e){}})();`,
         }}
       />
+      <SwUpdateBanner />
       <SopReackBanner />
       {children}
       <BottomNav />
