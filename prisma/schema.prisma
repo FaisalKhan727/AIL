@@ -95,6 +95,7 @@ model Guard {
 
   @@unique([companyId, phone])
   @@index([companyId])
+  @@index([companyId, active])
   @@index([phone])
   @@index([guardIdentityId])
 }
@@ -406,6 +407,7 @@ model ClockEvent {
   @@index([shiftId])
   @@index([guardId])
   @@index([companyId])
+  @@index([companyId, timestamp])
   @@index([timestamp])
 }
 
@@ -463,6 +465,8 @@ model IncidentReport {
 
   @@index([guardId])
   @@index([companyId])
+  @@index([companyId, createdAt])
+  @@index([companyId, occurredAt])
   @@index([status])
   @@index([severity])
 }

@@ -38,6 +38,9 @@ export async function POST(req: Request) {
 
   const baseUrl = process.env.PUBLIC_BASE_URL ?? "";
   const adapter = getSmsAdapter();
+  // Same company for every guard in this request, so the token TTL setting
+  // is identical for all of them — look it up once instead of once per guard.
+  const expiresAt = await tokenExpiry(auth.companyId);
 
   let sent = 0;
   const failed: Array<{ guardId: string; error: string }> = [];
@@ -45,7 +48,6 @@ export async function POST(req: Request) {
   for (const guard of guards) {
     try {
       const { token, tokenHash } = generateOnboardingToken();
-      const expiresAt = await tokenExpiry(auth.companyId);
 
       const session = await prisma.$transaction(async (tx) => {
         await tx.onboardingSession.updateMany({

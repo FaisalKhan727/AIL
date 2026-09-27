@@ -153,15 +153,17 @@ export async function GET() {
   // list — the per-guard detail lives on the Guards page already.
   let sopReackPending = 0;
   if (currentSop) {
-    const ackedRows = await prisma.sopAcknowledgement.findMany({
-      where: { companyId, sopVersionId: currentSop.id },
-      select: { guardId: true },
-    });
+    const [ackedRows, completed] = await Promise.all([
+      prisma.sopAcknowledgement.findMany({
+        where: { companyId, sopVersionId: currentSop.id },
+        select: { guardId: true },
+      }),
+      prisma.guard.findMany({
+        where: { companyId, active: true, onboardingStatus: "COMPLETE" },
+        select: { id: true },
+      }),
+    ]);
     const ackedSet = new Set(ackedRows.map((r) => r.guardId));
-    const completed = await prisma.guard.findMany({
-      where: { companyId, active: true, onboardingStatus: "COMPLETE" },
-      select: { id: true },
-    });
     sopReackPending = completed.filter((g) => !ackedSet.has(g.id)).length;
   }
 
