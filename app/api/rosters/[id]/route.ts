@@ -40,7 +40,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
           rejectedAt: true,
           workedStart: true,
           workedEnd: true,
-          guard: { select: { id: true, firstName: true, lastName: true } },
+          guard: { select: { id: true, firstName: true, lastName: true, licenceExpiry: true } },
           site: { select: { id: true, name: true } },
         },
       },

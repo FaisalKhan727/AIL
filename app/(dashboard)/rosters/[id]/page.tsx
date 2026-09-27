@@ -29,7 +29,7 @@ interface Shift {
   publishedAt: string | null;
   workedStart: string | null;
   workedEnd: string | null;
-  guard: { id: string; firstName: string; lastName: string } | null;
+  guard: { id: string; firstName: string; lastName: string; licenceExpiry: string | null } | null;
   site: { id: string; name: string };
 }
 
@@ -103,6 +103,18 @@ function detectConflicts(shifts: Shift[]): Set<string> {
   return conflicting;
 }
 
+/** Shifts assigned to a guard whose security licence has expired (or will
+ *  have expired) by the shift's start date — a compliance conflict distinct
+ *  from a scheduling overlap. */
+function detectLicenceConflicts(shifts: Shift[]): Set<string> {
+  const conflicting = new Set<string>();
+  for (const s of shifts) {
+    if (!s.guard?.licenceExpiry || !OCCUPYING_STATUSES.has(s.status)) continue;
+    if (new Date(s.guard.licenceExpiry) < new Date(s.startAt)) conflicting.add(s.id);
+  }
+  return conflicting;
+}
+
 export default function RosterBuilderPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
@@ -110,6 +122,8 @@ export default function RosterBuilderPage() {
   const { toast } = useToast();
   const [shiftOpen, setShiftOpen] = React.useState(false);
   const [editing, setEditing] = React.useState<Shift | null>(null);
+  const [draggingId, setDraggingId] = React.useState<string | null>(null);
+  const [dragOverCell, setDragOverCell] = React.useState<string | null>(null);
   const [presetGuardId, setPresetGuardId] = React.useState<string | undefined>();
   const [presetSiteId, setPresetSiteId] = React.useState<string | undefined>();
   const [presetStart, setPresetStart] = React.useState<Date | undefined>();
@@ -212,6 +226,7 @@ export default function RosterBuilderPage() {
   }
 
   const conflicts = detectConflicts(data.shifts);
+  const licenceConflicts = detectLicenceConflicts(data.shifts);
 
   // Mutually-exclusive buckets: every shift in the roster lands in exactly
   // one of these so the counts on the summary line always sum to total.
@@ -346,6 +361,60 @@ export default function RosterBuilderPage() {
     setShiftOpen(true);
   }
 
+  /**
+   * Drag-and-drop reassignment: dropping a shift card on another row moves
+   * it to that guard (Guard view) or site (Site view); dropping on another
+   * day keeps the guard/site but shifts the date, preserving the original
+   * time-of-day and duration (so an overnight 19:00->07:00 shift stays
+   * 12h when moved a day). A no-op drop (same row + same day) is ignored.
+   */
+  async function moveShift(shiftId: string, targetRowId: string, targetDay: Date) {
+    const shift = data!.shifts.find((s) => s.id === shiftId);
+    if (!shift) return;
+
+    const origStart = new Date(shift.startAt);
+    const origEnd = new Date(shift.endAt);
+    const duration = origEnd.getTime() - origStart.getTime();
+    const sameDay = origStart.toDateString() === targetDay.toDateString();
+    const sameRow = viewMode === "guard" ? shift.guardId === targetRowId : shift.siteId === targetRowId;
+    if (sameDay && sameRow) return;
+
+    // A guard already confirmed this shift for its original guard/date —
+    // moving it now would silently change what they agreed to. Rather than
+    // keep it CONFIRMED under different conditions, drop it back to PENDING
+    // so the admin has to explicitly re-publish, and make that visible
+    // instead of silent.
+    const wasCommitted = shift.status === "CONFIRMED" || shift.status === "WORKED";
+    if (wasCommitted) {
+      const confirmed = window.confirm(
+        "This shift was already confirmed. Moving it will reset it to Pending so it can be re-sent for confirmation. Continue?",
+      );
+      if (!confirmed) return;
+    }
+
+    const newStart = new Date(targetDay);
+    newStart.setHours(origStart.getHours(), origStart.getMinutes(), 0, 0);
+    const newEnd = new Date(newStart.getTime() + duration);
+
+    const payload: Record<string, unknown> = {
+      startAt: newStart.toISOString(),
+      endAt: newEnd.toISOString(),
+    };
+    if (viewMode === "guard") payload.guardId = targetRowId;
+    else payload.siteId = targetRowId;
+    if (wasCommitted) {
+      payload.status = "PENDING";
+    }
+
+    try {
+      await api(`/api/shifts/${shiftId}`, { method: "PATCH", body: JSON.stringify(payload) });
+      toast({ title: "Shift moved", variant: "success" });
+      refetch();
+    } catch (e: unknown) {
+      toast({ title: "Move failed", description: e instanceof Error ? e.message : "", variant: "error" });
+    }
+  }
+
   return (
     <>
       <PageHeader
@@ -407,6 +476,14 @@ export default function RosterBuilderPage() {
           <CardContent className="pt-6 flex items-center gap-2 text-sm">
             <AlertTriangle className="h-4 w-4 text-amber-600" />
             <span><strong>{conflicts.size / 2}</strong> overlapping shift pair(s) detected. Resolve before publishing.</span>
+          </CardContent>
+        </Card>
+      )}
+      {licenceConflicts.size > 0 && (
+        <Card className="mb-4 border-purple-300 bg-purple-50">
+          <CardContent className="pt-6 flex items-center gap-2 text-sm">
+            <AlertTriangle className="h-4 w-4 text-purple-600" />
+            <span><strong>{licenceConflicts.size}</strong> shift(s) assigned to a guard whose security licence has expired.</span>
           </CardContent>
         </Card>
       )}
@@ -486,8 +563,28 @@ export default function RosterBuilderPage() {
                   </td>
                   {days.map((d) => {
                     const cellShifts = shiftsForRowDay(row.id, d);
+                    const cellKey = `${row.id}|${d.toDateString()}`;
                     return (
-                      <td key={d.toISOString()} className="p-1 border-b border-l align-top">
+                      <td
+                        key={d.toISOString()}
+                        className={cn(
+                          "p-1 border-b border-l align-top transition-colors",
+                          dragOverCell === cellKey && "bg-blue-50",
+                        )}
+                        onDragOver={(e) => {
+                          if (!draggingId) return;
+                          e.preventDefault();
+                          e.dataTransfer.dropEffect = "move";
+                          if (dragOverCell !== cellKey) setDragOverCell(cellKey);
+                        }}
+                        onDragLeave={() => setDragOverCell((c) => (c === cellKey ? null : c))}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          setDragOverCell(null);
+                          const shiftId = e.dataTransfer.getData("text/plain");
+                          void moveShift(shiftId, row.id, d);
+                        }}
+                      >
                         <div className="flex flex-col gap-1">
                           {cellShifts.map((s) => {
                             // Card title shows the OTHER dimension: site name in
@@ -502,10 +599,20 @@ export default function RosterBuilderPage() {
                             return (
                               <div
                                 key={s.id}
+                                draggable
+                                onDragStart={(e) => {
+                                  e.dataTransfer.effectAllowed = "move";
+                                  e.dataTransfer.setData("text/plain", s.id);
+                                  setDraggingId(s.id);
+                                }}
+                                onDragEnd={() => setDraggingId(null)}
                                 className={cn(
-                                  "rounded border hover:shadow-sm transition-shadow relative",
+                                  "rounded border hover:shadow-sm transition-shadow relative cursor-grab active:cursor-grabbing",
                                   statusCellClass(s),
-                                  conflicts.has(s.id) && "ring-2 ring-amber-500",
+                                  licenceConflicts.has(s.id)
+                                    ? "ring-2 ring-purple-500"
+                                    : conflicts.has(s.id) && "ring-2 ring-amber-500",
+                                  draggingId === s.id && "opacity-40",
                                 )}
                               >
                                 <button
