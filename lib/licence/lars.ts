@@ -62,7 +62,9 @@ export function buildSearchPacket(securityToken: string, licenceNumber: string, 
     `<XML><HEADER><PROCESS>SEARCH</PROCESS><TIMESTAMP>${ts}</TIMESTAMP>` +
     `<SECURITYTOKEN>${xmlEscape(securityToken)}</SECURITYTOKEN></HEADER>` +
     `<PAYLOAD><GNDTLE01 id='idSearchPane'>` +
-    `<CONTROL name='dropdownlist'>L</CONTROL>` +
+    // "All" registers, as the page defaults to: searching by number with "L"
+    // (Licence Holders) returns no results even for individual licences.
+    `<CONTROL name='dropdownlist'>%</CONTROL>` +
     `<CONTROL name='searchtext'></CONTROL>` +
     `<CONTROL name='SearchCriteriadropdownlist'>X</CONTROL>` +
     `<CONTROL name='SearchAuthNb'>${xmlEscape(normaliseLicenceNumber(licenceNumber))}</CONTROL>` +

@@ -33,11 +33,11 @@ describe("normaliseLicenceNumber", () => {
 });
 
 describe("buildSearchPacket", () => {
-  it("searches the licence register by number with the session token", () => {
+  it("searches all registers by number with the session token", () => {
     const xml = buildSearchPacket("TOKEN-1", "12345678a", new Date(2026, 8, 30, 11, 39, 12));
     expect(xml).toContain("<TIMESTAMP>20260930113912</TIMESTAMP>");
     expect(xml).toContain("<SECURITYTOKEN>TOKEN-1</SECURITYTOKEN>");
-    expect(xml).toContain("<CONTROL name='dropdownlist'>L</CONTROL>");
+    expect(xml).toContain("<CONTROL name='dropdownlist'>%</CONTROL>");
     expect(xml).toContain("<CONTROL name='SearchAuthNb'>123-456-78A</CONTROL>");
     expect(xml).toContain("<CONTROL name='Page'>1</CONTROL>");
   });
