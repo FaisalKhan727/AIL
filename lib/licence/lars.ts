@@ -129,13 +129,45 @@ function nameTokens(s: string): string[] {
   return s.toUpperCase().replace(/[^A-Z\s-]/g, " ").split(/[\s-]+/).filter(Boolean);
 }
 
-/** LARS lists "SURNAME, GIVEN NAMES". Match surname exactly and the first given name. */
-export function namesMatch(larsName: string, firstName: string, lastName: string): boolean {
-  const [larsSurname = "", larsGiven = ""] = larsName.split(",");
-  const surnameOk = nameTokens(larsSurname).join(" ") === nameTokens(lastName).join(" ");
-  const givenFirst = nameTokens(firstName)[0];
-  const givenOk = !!givenFirst && nameTokens(larsGiven).includes(givenFirst);
-  return surnameOk && givenOk;
+function editDistance(a: string, b: string): number {
+  let prev = Array.from({ length: b.length + 1 }, (_, j) => j);
+  for (let i = 1; i <= a.length; i++) {
+    const cur = [i];
+    for (let j = 1; j <= b.length; j++) {
+      cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    }
+    prev = cur;
+  }
+  return prev[b.length];
+}
+
+/** Tolerates transliteration/typo differences: none for ≤3 letters, 1 for 4–6, 2 for 7+. */
+function similar(a: string, b: string): boolean {
+  if (!a || !b) return false;
+  const len = Math.max(a.length, b.length);
+  const allowed = len <= 3 ? 0 : len <= 6 ? 1 : 2;
+  return editDistance(a, b) <= allowed;
+}
+
+export type NameMatch = "EXACT" | "CLOSE" | "NONE";
+
+/**
+ * LARS lists "SURNAME, GIVEN NAMES". EXACT = surname and the guard's first
+ * given name match exactly. CLOSE = small spelling differences (Redhwan vs
+ * Radhwan) or first/last name entered the wrong way round.
+ */
+export function matchNames(larsName: string, firstName: string, lastName: string): NameMatch {
+  const [larsSurnamePart = "", larsGivenPart = ""] = larsName.split(",");
+  const larsSurname = nameTokens(larsSurnamePart).join("");
+  const larsGiven = nameTokens(larsGivenPart);
+  const surname = nameTokens(lastName).join("");
+  const given = nameTokens(firstName)[0] ?? "";
+
+  if (surname === larsSurname && larsGiven.includes(given)) return "EXACT";
+  const closeInOrder = similar(surname, larsSurname) && larsGiven.some((g) => similar(given, g));
+  const swapped = nameTokens(firstName).join("");
+  const closeSwapped = similar(swapped, larsSurname) && larsGiven.some((g) => similar(nameTokens(lastName)[0] ?? "", g));
+  return closeInOrder || closeSwapped ? "CLOSE" : "NONE";
 }
 
 export function evaluateLicence(
@@ -152,7 +184,8 @@ export function evaluateLicence(
       record: null,
     };
   }
-  if (!namesMatch(record.name, guard.firstName, guard.lastName)) {
+  const nameMatch = matchNames(record.name, guard.firstName, guard.lastName);
+  if (nameMatch === "NONE") {
     return {
       status: "NAME_MISMATCH",
       message: `Licence is registered to ${record.name}, not ${guard.firstName} ${guard.lastName}`,
@@ -162,7 +195,8 @@ export function evaluateLicence(
   if (record.expiry && record.expiry.getTime() < now.getTime()) {
     return { status: "EXPIRED", message: "Licence expiry date on LARS has passed", record };
   }
-  return { status: "VERIFIED", message: `Verified on LARS: ${record.type}`, record };
+  const spelling = nameMatch === "CLOSE" ? ` (name on licence: ${record.name})` : "";
+  return { status: "VERIFIED", message: `Verified on LARS: ${record.type}${spelling}`, record };
 }
 
 function readCookies(res: Response): string {

@@ -6,7 +6,7 @@ import {
   evaluateLicence,
   extractSecurityToken,
   lookupLarsLicence,
-  namesMatch,
+  matchNames,
   normaliseLicenceNumber,
   parseSearchResults,
 } from "@/lib/licence/lars";
@@ -74,19 +74,30 @@ describe("parseSearchResults", () => {
   });
 });
 
-describe("namesMatch", () => {
-  it("matches surname and first given name, ignoring case and middle names", () => {
-    expect(namesMatch("CITIZEN, JANE MARIE", "jane", "Citizen")).toBe(true);
+describe("matchNames", () => {
+  it("is EXACT on surname + first given name, ignoring case and middle names", () => {
+    expect(matchNames("CITIZEN, JANE MARIE", "jane", "Citizen")).toBe("EXACT");
   });
 
   it("handles hyphenated and multi-word surnames", () => {
-    expect(namesMatch("SMITH-JONES, AMY", "Amy", "Smith Jones")).toBe(true);
-    expect(namesMatch("VAN DER BERG, TOM", "Tom", "van der Berg")).toBe(true);
+    expect(matchNames("SMITH-JONES, AMY", "Amy", "Smith Jones")).toBe("EXACT");
+    expect(matchNames("VAN DER BERG, TOM", "Tom", "van der Berg")).toBe("EXACT");
   });
 
-  it("rejects a different person", () => {
-    expect(namesMatch("CITIZEN, JOHN", "Jane", "Citizen")).toBe(false);
-    expect(namesMatch("CITIZENS, JANE", "Jane", "Citizen")).toBe(false);
+  it("is CLOSE for small spelling differences", () => {
+    expect(matchNames("DHANNOON, RADHWAN YOUSIF", "Redhwan Y", "Dhannoon")).toBe("CLOSE");
+    expect(matchNames("CITIZENS, JANE", "Jane", "Citizen")).toBe("CLOSE");
+    expect(matchNames("MOHAMMED, ALI", "Ali", "Mohamed")).toBe("CLOSE");
+  });
+
+  it("is CLOSE when first and last name were entered the wrong way round", () => {
+    expect(matchNames("CITIZEN, JANE", "Citizen", "Jane")).toBe("CLOSE");
+  });
+
+  it("is NONE for a different person", () => {
+    expect(matchNames("CITIZEN, JOHN", "Jane", "Citizen")).toBe("NONE");
+    expect(matchNames("NGUYEN, JANE", "Jane", "Citizen")).toBe("NONE");
+    expect(matchNames("CITIZEN, ALI", "Eli", "Citizen")).toBe("NONE"); // short names must match exactly
   });
 });
 
@@ -106,6 +117,12 @@ describe("evaluateLicence", () => {
   it("flags an expired licence", () => {
     const ev = evaluateLicence(parseSearchResults(FOUND), guard, new Date("2029-07-17T00:00:00Z"));
     expect(ev.status).toBe("EXPIRED");
+  });
+
+  it("verifies a close spelling and shows the name on the licence", () => {
+    const ev = evaluateLicence(parseSearchResults(FOUND), { ...guard, firstName: "Jayne" }, NOW);
+    expect(ev.status).toBe("VERIFIED");
+    expect(ev.message).toContain("name on licence: CITIZEN, JANE MARIE");
   });
 
   it("reports NOT_FOUND when LARS has no match", () => {
