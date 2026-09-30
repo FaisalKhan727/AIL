@@ -5,6 +5,10 @@ import { renderContractPdf } from "@/lib/onboarding/pdf-contract";
 import { renderPackagePdf } from "@/lib/onboarding/pdf-package";
 import { uploadPdfToBlob } from "@/lib/onboarding/pdf-storage";
 import { getSmsAdapter } from "@/lib/sms";
+import { CLEARED_LICENCE_CHECK, verifyGuardLicence } from "@/lib/licence/verify";
+
+// PDF render + LARS lookup both run after commit.
+export const maxDuration = 60;
 
 /**
  * POST /api/onboarding/[token]/submit
@@ -91,6 +95,7 @@ export async function POST(req: Request, { params }: { params: { token: string }
         licenceNumber: d.licenceNumber,
         licenceExpiry: d.licenceExpiry,
         email: d.email ?? session.guard.email,
+        ...CLEARED_LICENCE_CHECK,
       },
     }),
     // SopAcknowledgement (idempotent via the (guardId, sopVersionId, source)
@@ -258,6 +263,12 @@ export async function POST(req: Request, { params }: { params: { token: string }
     // GET /api/guards/[id]/onboarding/pdf?regen=1 endpoint.
     console.warn("[onboarding/submit] PDF generation failed:", pdfErr);
   }
+
+  // Check the submitted licence against the Victoria Police LARS register.
+  // verifyGuardLicence records failures on the Guard row rather than throwing.
+  await verifyGuardLicence(session.guardId).catch((err) =>
+    console.warn("[onboarding/submit] licence check failed:", err),
+  );
 
   return NextResponse.json({ ok: true, contractUrl, packageUrl });
 }
