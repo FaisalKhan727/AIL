@@ -169,10 +169,28 @@ function readCookies(res: Response): string {
   return raw.map((c) => c.split(";")[0]).join("; ");
 }
 
+/** Node's fetch reports network failures as a bare "fetch failed"; surface the cause. */
+function describeNetworkError(e: unknown): string {
+  if (!(e instanceof Error)) return "unknown error";
+  if (e.name === "TimeoutError") return `timed out after ${TIMEOUT_MS / 1000}s`;
+  const cause = e.cause as { code?: string; message?: string } | undefined;
+  const detail = cause?.code ?? cause?.message;
+  return detail ? `${e.message} (${detail})` : e.message;
+}
+
 export async function lookupLarsLicence(
   licenceNumber: string,
   fetchImpl: typeof fetch = fetch,
 ): Promise<LarsSearchResult> {
+  try {
+    return await lookup(licenceNumber, fetchImpl);
+  } catch (e: unknown) {
+    if (e instanceof LarsError) throw e;
+    throw new LarsError(`could not reach LARS: ${describeNetworkError(e)}`);
+  }
+}
+
+async function lookup(licenceNumber: string, fetchImpl: typeof fetch): Promise<LarsSearchResult> {
   const page = await fetchImpl(SEARCH_PAGE, {
     headers: { "User-Agent": USER_AGENT },
     signal: AbortSignal.timeout(TIMEOUT_MS),

@@ -4,6 +4,8 @@ import { verifyGuardLicence } from "@/lib/licence/verify";
 
 export const maxDuration = 60;
 export const dynamic = "force-dynamic";
+// LARS refuses connections from Vercel's default US region; run lookups from Sydney.
+export const preferredRegion = "syd1";
 
 const RECHECK_AFTER_DAYS = 7;
 const BATCH_SIZE = 20; // keeps each run well inside maxDuration

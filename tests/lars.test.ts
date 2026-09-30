@@ -135,6 +135,13 @@ describe("lookupLarsLicence", () => {
     expect(String(calls[1].init?.body)).toContain("<SECURITYTOKEN>TOK</SECURITYTOKEN>");
   });
 
+  it("includes the network cause instead of a bare 'fetch failed'", async () => {
+    const fakeFetch = (async () => {
+      throw new TypeError("fetch failed", { cause: Object.assign(new Error("read ECONNRESET"), { code: "ECONNRESET" }) });
+    }) as unknown as typeof fetch;
+    await expect(lookupLarsLicence("12345678A", fakeFetch)).rejects.toThrow("could not reach LARS: fetch failed (ECONNRESET)");
+  });
+
   it("fails clearly when the token is missing", async () => {
     const fakeFetch = (async () => new Response("<html></html>")) as unknown as typeof fetch;
     await expect(lookupLarsLicence("12345678A", fakeFetch)).rejects.toThrow(/security token/);
