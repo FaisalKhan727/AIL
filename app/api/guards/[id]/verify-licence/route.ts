@@ -4,6 +4,8 @@ import { jsonError, requireAdmin } from "@/lib/api";
 import { verifyGuardLicence } from "@/lib/licence/verify";
 
 export const maxDuration = 60;
+// LARS refuses connections from Vercel's default US region; run lookups from Sydney.
+export const preferredRegion = "syd1";
 
 // Manual "Verify with LARS" from the guard page.
 export async function POST(_req: Request, { params }: { params: { id: string } }) {
