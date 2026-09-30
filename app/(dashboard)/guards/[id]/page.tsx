@@ -3,13 +3,14 @@ import * as React from "react";
 import Link from "next/link";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useParams, useRouter } from "next/navigation";
-import { Pencil, Send, Trash2, ClipboardCheck, Eye, ShieldAlert, Building2, Wallet } from "lucide-react";
+import { Pencil, Send, Trash2, ClipboardCheck, Eye, ShieldAlert, ShieldCheck, Building2, Wallet } from "lucide-react";
 import { PageHeader } from "@/components/shell/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { PageSkeleton } from "@/components/ui/skeleton";
 import { GuardFormDialog } from "@/components/guards/guard-form-dialog";
+import { LicenceCheckBadge } from "@/components/guards/licence-check-badge";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -50,6 +51,13 @@ interface GuardDetail {
   email: string | null;
   licenceNumber: string | null;
   licenceExpiry: string | null;
+  licenceCheckStatus: string | null;
+  licenceCheckMessage: string | null;
+  licenceCheckedAt: string | null;
+  larsName: string | null;
+  larsLicenceType: string | null;
+  larsExpiry: string | null;
+  larsActivities: string | null;
   payRate: string | null;
   notes: string | null;
   active: boolean;
@@ -183,6 +191,25 @@ export default function GuardDetailPage() {
   const [editOpen, setEditOpen] = React.useState(false);
   const [inviting, setInviting] = React.useState(false);
   const [sendingOnboard, setSendingOnboard] = React.useState(false);
+  const [verifyingLicence, setVerifyingLicence] = React.useState(false);
+
+  async function verifyLicence() {
+    setVerifyingLicence(true);
+    try {
+      const r = await api<{ status: string; message: string }>(`/api/guards/${id}/verify-licence`, { method: "POST" });
+      toast({
+        title: r.status === "VERIFIED" ? "Licence verified on LARS" : "LARS check: attention needed",
+        description: r.message,
+        variant: r.status === "VERIFIED" ? "success" : "error",
+      });
+      qc.invalidateQueries({ queryKey: ["guard", id] });
+      qc.invalidateQueries({ queryKey: ["guards"] });
+    } catch (e: unknown) {
+      toast({ title: "LARS check failed", description: e instanceof Error ? e.message : "", variant: "error" });
+    } finally {
+      setVerifyingLicence(false);
+    }
+  }
 
   // Reveal flow state. `revealing` = which field is currently in the
   // reason dialog. `revealedValues` = plaintexts that are currently
@@ -410,6 +437,27 @@ export default function GuardDetailPage() {
         <Card><CardHeader><CardTitle className="text-sm">Licence</CardTitle></CardHeader><CardContent>
           <div className="text-sm">{data.licenceNumber || "—"}</div>
           <div className="text-xs text-muted-foreground">Expires: {data.licenceExpiry ? new Date(data.licenceExpiry).toISOString().slice(0, 10) : "—"}</div>
+          {data.licenceNumber && (
+            <div className="mt-3 space-y-1.5">
+              <div className="flex items-center gap-2 flex-wrap">
+                <LicenceCheckBadge status={data.licenceCheckStatus} />
+                <Button size="sm" variant="outline" onClick={verifyLicence} disabled={verifyingLicence}>
+                  <ShieldCheck className="h-4 w-4" /> {verifyingLicence ? "Checking…" : "Verify with LARS"}
+                </Button>
+              </div>
+              {data.licenceCheckMessage && <p className="text-xs text-muted-foreground">{data.licenceCheckMessage}</p>}
+              {data.larsName && (
+                <div className="text-xs text-muted-foreground">
+                  LARS: {data.larsName} · {data.larsLicenceType}
+                  {data.larsExpiry && <> · expires {new Date(data.larsExpiry).toISOString().slice(0, 10)}</>}
+                  {data.larsActivities && <> · {data.larsActivities}</>}
+                </div>
+              )}
+              {data.licenceCheckedAt && (
+                <div className="text-[11px] text-muted-foreground">Checked {fmtDateTime(data.licenceCheckedAt)}</div>
+              )}
+            </div>
+          )}
         </CardContent></Card>
         <Card><CardHeader><CardTitle className="text-sm">Pay Rate</CardTitle></CardHeader><CardContent>
           <div className="text-2xl font-semibold">{data.payRate ? `$${Number(data.payRate).toFixed(2)}` : "—"}</div>

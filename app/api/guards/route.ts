@@ -42,6 +42,8 @@ export async function GET(req: Request) {
       email: true,
       licenceNumber: true,
       licenceExpiry: true,
+      licenceCheckStatus: true,
+      licenceCheckMessage: true,
       payRate: true,
       active: true,
       isSupervisor: true,

@@ -76,6 +76,15 @@ model Guard {
   dispatchOverrideBy         String? // AdminUser.id
   dispatchOverrideAt         DateTime?
   dispatchOverrideReviewAt   DateTime? // 30-day prompt
+  // ---- LARS licence verification (lib/licence) ----
+  // Advisory only: does not gate dispatch. Reset to null when licenceNumber changes.
+  licenceCheckStatus         String? // VERIFIED | NOT_FOUND | NAME_MISMATCH | EXPIRED | ERROR
+  licenceCheckMessage        String?
+  licenceCheckedAt           DateTime?
+  larsName                   String?
+  larsLicenceType            String?
+  larsExpiry                 DateTime?
+  larsActivities             String? // comma-separated, as listed on LARS
   // ---- existing relations below ----
   company            Company             @relation(fields: [companyId], references: [id])
   guardIdentity      GuardIdentity?      @relation(fields: [guardIdentityId], references: [id])

@@ -16,6 +16,7 @@ import { ImportGuardsDialog } from "@/components/guards/import-guards-dialog";
 import { useToast } from "@/components/ui/toast";
 import { useDebouncedValue } from "@/lib/use-debounced-value";
 import Link from "next/link";
+import { LicenceCheckBadge } from "@/components/guards/licence-check-badge";
 
 interface Guard {
   id: string;
@@ -25,6 +26,8 @@ interface Guard {
   email: string | null;
   licenceNumber: string | null;
   licenceExpiry: string | null;
+  licenceCheckStatus: string | null;
+  licenceCheckMessage: string | null;
   payRate: string | null;
   active: boolean;
   isSupervisor: boolean;
@@ -290,6 +293,7 @@ export default function GuardsPage() {
                   {g.isSupervisor && <Badge className="bg-blue-100 text-blue-800 border-blue-300">Supervisor</Badge>}
                   <OnboardingBadge status={g.onboardingStatus} />
                   {g.licenceNumber && <span className="text-muted-foreground">Lic {g.licenceNumber}</span>}
+                  {g.licenceNumber && <LicenceCheckBadge status={g.licenceCheckStatus} title={g.licenceCheckMessage} />}
                   {g.payRate && <span className="text-muted-foreground">${Number(g.payRate).toFixed(2)}/hr</span>}
                   {expiryBadge(g.licenceExpiry)}
                 </div>
@@ -364,7 +368,12 @@ export default function GuardsPage() {
                     {g.email && <div className="text-xs text-muted-foreground">{g.email}</div>}
                   </TableCell>
                   <TableCell className="font-mono text-sm">{formatPhoneAU(g.phone)}</TableCell>
-                  <TableCell>{g.licenceNumber ?? "—"}</TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span>{g.licenceNumber ?? "—"}</span>
+                      {g.licenceNumber && <LicenceCheckBadge status={g.licenceCheckStatus} title={g.licenceCheckMessage} />}
+                    </div>
+                  </TableCell>
                   <TableCell>{expiryBadge(g.licenceExpiry)}</TableCell>
                   <TableCell>{g.payRate ? `$${Number(g.payRate).toFixed(2)}/hr` : "—"}</TableCell>
                   <TableCell>

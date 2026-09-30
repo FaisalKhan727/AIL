@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { jsonError, requireAdmin } from "@/lib/api";
 import { guardUpdateSchema } from "@/lib/validators";
+import { CLEARED_LICENCE_CHECK } from "@/lib/licence/verify";
 
 async function ensureGuardInCompany(id: string, companyId: string) {
   const g = await prisma.guard.findFirst({ where: { id, companyId } });
@@ -41,11 +42,14 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
   const auth = await requireAdmin();
   if ("error" in auth) return auth.error;
-  if (!(await ensureGuardInCompany(params.id, auth.companyId))) return jsonError("not found", 404);
+  const existing = await ensureGuardInCompany(params.id, auth.companyId);
+  if (!existing) return jsonError("not found", 404);
   const body = await req.json().catch(() => null);
   const parsed = guardUpdateSchema.safeParse(body);
   if (!parsed.success) return jsonError("validation", 400, parsed.error.flatten());
   const data = parsed.data;
+  // A new licence number invalidates any previous LARS result.
+  const licenceChanged = data.licenceNumber !== undefined && data.licenceNumber !== existing.licenceNumber;
   try {
     const guard = await prisma.guard.update({
       where: { id: params.id },
@@ -60,6 +64,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
         notes: data.notes,
         active: data.active,
         isSupervisor: data.isSupervisor,
+        ...(licenceChanged ? CLEARED_LICENCE_CHECK : {}),
       },
     });
     return NextResponse.json(guard);
