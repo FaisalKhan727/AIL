@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { jsonError, requireAdmin } from "@/lib/api";
 import { guardUpdateSchema } from "@/lib/validators";
+import { adoptLegacyLicence, licenceInclude, serialiseLicence } from "@/lib/server/licences";
 
 async function ensureGuardInCompany(id: string, companyId: string) {
   const g = await prisma.guard.findFirst({ where: { id, companyId } });
@@ -20,10 +21,11 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
         include: { site: true, roster: true },
       },
       smsLogs: { orderBy: { receivedAt: "desc" }, take: 50 },
+      licences: { include: licenceInclude, orderBy: { expiryDate: "asc" } },
     },
   });
   if (!guard) return jsonError("not found", 404);
-  return NextResponse.json(guard);
+  return NextResponse.json({ ...guard, licences: guard.licences.map((l) => serialiseLicence(l)) });
 }
 
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
@@ -49,6 +51,13 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
         active: data.active,
       },
     });
+    await adoptLegacyLicence(
+      auth.companyId,
+      guard.id,
+      data.licenceNumber,
+      data.licenceExpiry ? new Date(data.licenceExpiry) : undefined,
+      auth.session.user.name || "Admin",
+    );
     return NextResponse.json(guard);
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "update failed";

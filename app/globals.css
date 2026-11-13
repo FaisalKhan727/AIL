@@ -2,28 +2,45 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * Vigilo runs dark only. Tokens are the brand palette expressed as HSL
+ * triplets so Tailwind's opacity modifiers (bg-muted/40 etc.) keep working.
+ *
+ *   base      #0B1520   page background
+ *   surface   #121E2D   cards, sidebar
+ *   elevated  #1A2B3C   dialogs, menus, inputs
+ *   highlight #1F3347   hover, selected row
+ *   accent    #0052EA   primary actions, active nav
+ *   cyan      #00C2FF   live indicators
+ */
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222 47% 11%;
-    --card: 0 0% 100%;
-    --card-foreground: 222 47% 11%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 222 47% 11%;
-    --primary: 217 71% 15%;          /* navy #0B1E3F */
+    color-scheme: dark;
+    --background: 211 49% 8%;
+    --foreground: 210 28% 93%;
+    --card: 213 43% 12%;
+    --card-foreground: 210 28% 93%;
+    --popover: 210 40% 17%;
+    --popover-foreground: 210 28% 93%;
+    --primary: 219 100% 46%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 210 40% 96%;
-    --secondary-foreground: 222 47% 11%;
-    --muted: 210 40% 96%;
-    --muted-foreground: 215 16% 47%;
-    --accent: 38 92% 50%;            /* amber #F59E0B */
-    --accent-foreground: 222 47% 11%;
+    --secondary: 210 40% 17%;
+    --secondary-foreground: 210 28% 93%;
+    --muted: 210 39% 20%;
+    --muted-foreground: 206 21% 57%;
+    --accent: 210 39% 20%;
+    --accent-foreground: 210 28% 93%;
     --destructive: 0 84% 60%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 214 32% 91%;
-    --input: 214 32% 91%;
-    --ring: 217 71% 15%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 213 28% 19%;
+    --input: 212 27% 26%;
+    --ring: 219 100% 56%;
     --radius: 0.5rem;
+
+    --cyan: 194 100% 50%;
+    --success: 142 71% 45%;
+    --warning: 38 92% 50%;
+    --critical: 349 100% 55%;
   }
 }
 
@@ -33,13 +50,75 @@
   }
   body {
     @apply bg-background text-foreground;
-    font-feature-settings: "rlig" 1, "calt" 1;
+    font-feature-settings: "ss01" 1, "calt" 1;
   }
+  h1, h2 {
+    font-family: var(--font-display), var(--font-sans), system-ui, sans-serif;
+    letter-spacing: -0.01em;
+  }
+  code {
+    font-family: var(--font-mono), ui-monospace, monospace;
+    font-size: 0.92em;
+    @apply rounded bg-muted px-1 py-px;
+  }
+  /* Native pickers and option lists follow the dark scheme. */
+  select option { background-color: hsl(var(--popover)); color: hsl(var(--foreground)); }
+  input[type="checkbox"], input[type="radio"] { accent-color: hsl(var(--primary)); }
+
+  /* Thin scrollbars: dark track, accent thumb. */
+  * { scrollbar-width: thin; scrollbar-color: hsl(var(--primary) / 0.7) hsl(var(--popover)); }
+  ::-webkit-scrollbar { width: 4px; height: 4px; }
+  ::-webkit-scrollbar-track { background: hsl(var(--popover)); }
+  ::-webkit-scrollbar-thumb { background: hsl(var(--primary) / 0.7); border-radius: 2px; }
 }
 
 @layer components {
   .label {
     @apply text-sm font-medium leading-none;
+  }
+
+  /* Small-caps section label used across the console. */
+  .eyebrow {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: hsl(var(--muted-foreground));
+  }
+
+  /* Numbers that line up in columns. */
+  .num {
+    font-family: var(--font-mono), ui-monospace, monospace;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .notice-danger {
+    border-color: hsl(var(--destructive) / 0.45);
+    background-color: hsl(var(--destructive) / 0.1);
+    color: hsl(0 90% 82%);
+  }
+  .notice-warn {
+    border-color: hsl(var(--warning) / 0.45);
+    background-color: hsl(var(--warning) / 0.1);
+    color: hsl(40 95% 76%);
+  }
+
+  /* Status dot; .live adds a slow pulse for things happening right now. */
+  .dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 9999px;
+    background: currentColor;
+    flex: none;
+  }
+  .dot.live { animation: dot-pulse 2s ease-in-out infinite; }
+  @keyframes dot-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 currentColor; opacity: 1; }
+    50% { box-shadow: 0 0 0 4px transparent; opacity: 0.65; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .dot.live { animation: none; }
   }
 
   /*
@@ -59,8 +138,8 @@
     gap: 1rem;
     border-width: 1px;
     border-color: hsl(var(--border));
-    background-color: hsl(var(--background));
-    box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+    background-color: hsl(var(--popover));
+    box-shadow: 0 24px 60px -12px rgb(0 0 0 / 0.6);
     overflow-y: auto;
     inset: 0;
     width: 100%;
@@ -87,7 +166,7 @@
       max-width: 32rem;
       height: auto;
       max-height: 95vh;
-      border-radius: 0.5rem;
+      border-radius: 10px;
       padding: 1.5rem;
       scroll-padding-bottom: 0;
     }
@@ -106,7 +185,7 @@
     margin-right: -1rem;
     padding: 0.75rem 1rem;
     padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
-    background-color: hsl(var(--background));
+    background-color: hsl(var(--popover));
     border-top: 1px solid hsl(var(--border));
     z-index: 1;
   }

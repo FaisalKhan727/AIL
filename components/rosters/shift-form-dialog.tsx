@@ -12,6 +12,7 @@ import { useToast } from "@/components/ui/toast";
 import { api } from "@/lib/fetcher";
 import { utcToLocalInput, localInputToUtc } from "@/lib/date";
 import { cn } from "@/lib/utils";
+import { guardCompliance, type LicenceLike } from "@/lib/licences";
 
 interface FormValues {
   guardId: string;
@@ -96,7 +97,7 @@ export function ShiftFormDialog({ open, onOpenChange, rosterId, initial, onSaved
   // assigned to a guard who has since been deactivated still shows their
   // name instead of silently falling back to "Select guard…" — which used
   // to blank out guardId on save and fail validation.
-  const { data: allGuards = [] } = useQuery<{ id: string; firstName: string; lastName: string; active: boolean }[]>({
+  const { data: allGuards = [] } = useQuery<{ id: string; firstName: string; lastName: string; active: boolean; licences?: LicenceLike[] }[]>({
     queryKey: ["guards", "all"],
     queryFn: () => api(`/api/guards`),
     enabled: open,
@@ -152,6 +153,7 @@ export function ShiftFormDialog({ open, onOpenChange, rosterId, initial, onSaved
     setRecurDays([]);
     setRecurUntil("");
     setDuplicateDate("");
+    setOverride("");
   }, [open, reset]);
 
   // When the user edits the start date and recurrence is on, default the
@@ -172,6 +174,17 @@ export function ShiftFormDialog({ open, onOpenChange, rosterId, initial, onSaved
   }, [recurEnabled, watchStartAt, recurDays.length, recurUntil]);
 
   const previewCount = previewOccurrenceCount(watchStartAt, recurDays, recurUntil);
+
+  // Licence check for the selected guard on the selected date. Advisory by
+  // default; the server enforces it when the company has blocking switched on.
+  const watchGuardId = watch("guardId");
+  const [override, setOverride] = React.useState("");
+  const compliance = React.useMemo(() => {
+    const g = allGuards.find((x) => x.id === watchGuardId);
+    if (!g || !g.licences) return null;
+    const at = watchStartAt ? new Date(watchStartAt) : new Date();
+    return guardCompliance(g.licences, Number.isNaN(at.getTime()) ? new Date() : at);
+  }, [allGuards, watchGuardId, watchStartAt]);
 
   function toggleRecurDay(code: string) {
     setRecurDays((prev) => (prev.includes(code) ? prev.filter((x) => x !== code) : [...prev, code]));
@@ -198,7 +211,11 @@ export function ShiftFormDialog({ open, onOpenChange, rosterId, initial, onSaved
         const recurrence = recurEnabled && recurDays.length > 0 && recurUntil
           ? { daysOfWeek: recurDays, untilDate: recurUntil }
           : undefined;
-        const payload = recurrence ? { ...basePayload, recurrence } : basePayload;
+        const payload = {
+          ...basePayload,
+          ...(recurrence ? { recurrence } : {}),
+          ...(override.trim() ? { complianceOverride: override.trim() } : {}),
+        };
         const created = await api<CreateResp>(`/api/shifts`, {
           method: "POST",
           body: JSON.stringify(payload),
@@ -292,6 +309,29 @@ export function ShiftFormDialog({ open, onOpenChange, rosterId, initial, onSaved
                 </option>
               ))}
             </Select>
+            {compliance && compliance.level !== "ok" && (
+              <div
+                className={cn(
+                  "rounded-md border px-3 py-2 text-xs space-y-1.5",
+                  compliance.level === "block" ? "notice-danger" : "notice-warn",
+                )}
+              >
+                <div className="font-medium">
+                  {compliance.level === "block" ? "Not cleared to work this shift" : "Licence needs attention"}
+                </div>
+                <ul className="list-disc pl-4 space-y-0.5">
+                  {compliance.issues.map((i) => <li key={i.message}>{i.message}</li>)}
+                </ul>
+                {compliance.level === "block" && !isEdit && (
+                  <Input
+                    className="h-8 text-xs"
+                    placeholder="Reason for rostering anyway (recorded on the shift)"
+                    value={override}
+                    onChange={(e) => setOverride(e.target.value)}
+                  />
+                )}
+              </div>
+            )}
           </div>
 
           <div className="space-y-1">
@@ -337,7 +377,7 @@ export function ShiftFormDialog({ open, onOpenChange, rosterId, initial, onSaved
                           className={cn(
                             "rounded border px-3 py-1 text-xs",
                             recurDays.includes(d.code)
-                              ? "bg-blue-50 border-blue-300 text-blue-800"
+                              ? "bg-blue-500/10 border-blue-500/40 text-blue-300"
                               : "bg-background",
                           )}
                         >

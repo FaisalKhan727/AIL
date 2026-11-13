@@ -15,15 +15,10 @@ const config: Config = {
     },
     extend: {
       colors: {
-        brand: {
-          navy: "#0B1E3F",
-          amber: "#F59E0B",
-        },
-        status: {
-          confirmed: "#10B981",
-          rejected: "#EF4444",
-          pending: "#64748B",
-        },
+        cyan: "hsl(var(--cyan))",
+        success: "hsl(var(--success))",
+        warning: "hsl(var(--warning))",
+        critical: "hsl(var(--critical))",
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",
@@ -64,7 +59,9 @@ const config: Config = {
         sm: "calc(var(--radius) - 4px)",
       },
       fontFamily: {
-        sans: ["var(--font-inter)", "system-ui", "sans-serif"],
+        sans: ["var(--font-sans)", "system-ui", "sans-serif"],
+        display: ["var(--font-display)", "var(--font-sans)", "system-ui", "sans-serif"],
+        mono: ["var(--font-mono)", "ui-monospace", "monospace"],
       },
       keyframes: {
         "accordion-down": {

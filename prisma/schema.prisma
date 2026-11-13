@@ -18,6 +18,7 @@ model Company {
   sites      Site[]
   rosters    Roster[]
   settings   Setting[]
+  licences   Licence[]
 }
 
 model AdminUser {
@@ -49,6 +50,7 @@ model Guard {
   company       Company   @relation(fields: [companyId], references: [id])
   shifts        Shift[]
   smsLogs       SmsLog[]
+  licences      Licence[]
 
   @@unique([companyId, phone])
   @@index([companyId])
@@ -125,6 +127,14 @@ model Shift {
   rejectionReason String?
   workedStart     DateTime?
   workedEnd       DateTime?
+  // Set by the guard app on clock-in / clock-out (null when the device
+  // declined to share a location, or the times were entered by an admin).
+  clockInAt       DateTime?
+  clockOutAt      DateTime?
+  clockInLat      Float?
+  clockInLng      Float?
+  clockOutLat     Float?
+  clockOutLng     Float?
   publishedAt     DateTime?
   createdAt       DateTime  @default(now())
 
@@ -184,4 +194,75 @@ model Setting {
   company   Company @relation(fields: [companyId], references: [id])
 
   @@id([companyId, key])
+}
+
+// One row per credential a guard holds (security licence, first aid, RSA…).
+// The legacy Guard.licenceNumber / licenceExpiry columns are kept in sync with
+// the guard's primary security licence so older screens keep working.
+model Licence {
+  id            String    @id @default(cuid())
+  companyId     String
+  guardId       String
+  type          String // key from LICENCE_TYPES in lib/licences.ts
+  number        String
+  state         String    @default("VIC") // issuing state / territory
+  issueDate     DateTime?
+  expiryDate    DateTime?
+  verification  String    @default("UNVERIFIED") // UNVERIFIED | VERIFIED | REJECTED
+  source        String    @default("ADMIN") // ADMIN | GUARD | IMPORT
+  verifiedAt    DateTime?
+  verifiedBy    String? // admin display name at the time of verification
+  verifyMethod  String? // MANUAL | REGISTER | API
+  verifyNote    String?
+  lastAlertDays Int? // smallest expiry threshold (in days) already alerted on
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  company  Company          @relation(fields: [companyId], references: [id])
+  guard    Guard            @relation(fields: [guardId], references: [id], onDelete: Cascade)
+  document LicenceDocument?
+  events   LicenceEvent[]
+
+  @@index([companyId])
+  @@index([guardId])
+  @@index([expiryDate])
+}
+
+// Photo / scan of the credential. Kept in its own table so list queries never
+// drag the image bytes along.
+model LicenceDocument {
+  licenceId  String   @id
+  mime       String
+  name       String
+  data       Bytes
+  uploadedAt DateTime @default(now())
+
+  licence Licence @relation(fields: [licenceId], references: [id], onDelete: Cascade)
+}
+
+// Append-only verification history for a licence.
+model LicenceEvent {
+  id        String   @id @default(cuid())
+  licenceId String
+  at        DateTime @default(now())
+  actor     String // admin name, "Guard", or "System"
+  action    String // CREATED | UPDATED | DOCUMENT | REGISTER_CHECK | VERIFIED | REJECTED | ALERT
+  detail    String?
+
+  licence Licence @relation(fields: [licenceId], references: [id], onDelete: Cascade)
+
+  @@index([licenceId])
+}
+
+// One-time sign-in codes for the guard app. Only a hash of the code is stored.
+model GuardOtp {
+  id        String    @id @default(cuid())
+  phone     String
+  codeHash  String
+  expiresAt DateTime
+  attempts  Int       @default(0)
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([phone, createdAt])
 }

@@ -82,8 +82,8 @@ export default function SitesPage() {
                 <div className="text-sm text-muted-foreground truncate">{s.address}</div>
                 <div className="mt-1 flex items-center gap-2 flex-wrap text-xs">
                   {s.active
-                    ? <Badge className="bg-emerald-100 text-emerald-800 border-emerald-300">Active</Badge>
-                    : <Badge className="bg-zinc-100 text-zinc-700 border-zinc-300">Inactive</Badge>}
+                    ? <Badge className="bg-emerald-500/15 text-emerald-300 border-emerald-500/40">Active</Badge>
+                    : <Badge className="bg-muted text-muted-foreground border-border">Inactive</Badge>}
                   {s.contactName && (
                     <span className="text-muted-foreground truncate">
                       {s.contactName}{s.contactPhone ? ` · ${s.contactPhone}` : ""}
@@ -96,7 +96,7 @@ export default function SitesPage() {
                 size="icon"
                 aria-label="Delete site"
                 onClick={() => deleteSite(s)}
-                className="text-red-600 hover:bg-red-50 -mr-1"
+                className="text-red-300 hover:bg-red-500/10 -mr-1"
               >
                 <Trash2 className="h-5 w-5" />
               </Button>
@@ -122,8 +122,8 @@ export default function SitesPage() {
                 <TableCell className="text-sm">{s.contactName ? `${s.contactName}${s.contactPhone ? ` · ${s.contactPhone}` : ""}` : "—"}</TableCell>
                 <TableCell>
                   {s.active
-                    ? <Badge className="bg-emerald-100 text-emerald-800 border-emerald-300">Active</Badge>
-                    : <Badge className="bg-zinc-100 text-zinc-700 border-zinc-300">Inactive</Badge>}
+                    ? <Badge className="bg-emerald-500/15 text-emerald-300 border-emerald-500/40">Active</Badge>
+                    : <Badge className="bg-muted text-muted-foreground border-border">Inactive</Badge>}
                 </TableCell>
                 <TableCell>
                   <Button
@@ -131,7 +131,7 @@ export default function SitesPage() {
                     size="sm"
                     aria-label="Delete site"
                     onClick={() => deleteSite(s)}
-                    className="text-red-600 hover:bg-red-50"
+                    className="text-red-300 hover:bg-red-500/10"
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>

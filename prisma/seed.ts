@@ -114,6 +114,25 @@ async function main() {
 
   const guards = await prisma.guard.findMany({ where: { companyId: auswide.id } });
 
+  // Mirror each seeded licence number into the compliance registry. They
+  // start unverified, exactly like licences carried over from older data.
+  for (const g of guards) {
+    if (!g.licenceNumber) continue;
+    const has = await prisma.licence.findFirst({ where: { guardId: g.id } });
+    if (has) continue;
+    await prisma.licence.create({
+      data: {
+        companyId: auswide.id,
+        guardId: g.id,
+        type: "SECURITY_1A",
+        number: g.licenceNumber,
+        state: "VIC",
+        expiryDate: g.licenceExpiry,
+        source: "IMPORT",
+      },
+    });
+  }
+
   const siteSeed = [
     { name: "Crown Casino",    address: "8 Whiteman St, Southbank VIC" },
     { name: "QV Square",       address: "210 Lonsdale St, Melbourne VIC" },

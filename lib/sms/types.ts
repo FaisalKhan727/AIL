@@ -1,6 +1,8 @@
 export interface OutboundMeta {
   guardId?: string;
   shiftId?: string;
+  /** Stored in the SMS log instead of the real body (for one-time codes). */
+  logBody?: string;
 }
 
 export interface SmsAdapter {

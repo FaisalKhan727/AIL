@@ -32,7 +32,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   const toast = React.useCallback((t: Omit<ToastItem, "id">) => {
     const id = Date.now() + Math.random();
     setItems((prev) => [...prev, { ...t, id }]);
-    setTimeout(() => setItems((prev) => prev.filter((x) => x.id !== id)), 4500);
+    setTimeout(() => setItems((prev) => prev.filter((x) => x.id !== id)), 3500);
   }, []);
 
   return (
@@ -50,9 +50,9 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
             key={t.id}
             role={t.variant === "error" ? "alert" : undefined}
             className={cn(
-              "rounded-lg border bg-card text-card-foreground shadow-lg p-4 pr-9 relative",
-              t.variant === "success" && "border-emerald-300",
-              t.variant === "error" && "border-red-300",
+              "rounded-md border bg-popover text-popover-foreground shadow-[0_12px_32px_-8px_rgb(0_0_0/0.6)] p-3.5 pr-9 relative animate-in fade-in slide-in-from-bottom-2 duration-200",
+              t.variant === "success" && "border-emerald-500/40",
+              t.variant === "error" && "border-red-500/40",
             )}
           >
             <button

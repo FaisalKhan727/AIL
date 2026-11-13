@@ -14,6 +14,7 @@ import {
   Settings,
   LogOut,
   X,
+  BadgeCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -25,6 +26,7 @@ const PRIMARY = [
 ] as const;
 
 const MORE = [
+  { href: "/compliance", label: "Licences & Compliance", icon: BadgeCheck },
   { href: "/timesheets", label: "Timesheets", icon: ClipboardList },
   { href: "/sms-log",    label: "SMS Log",    icon: MessageSquare },
   { href: "/settings",   label: "Settings",   icon: Settings },
@@ -54,7 +56,7 @@ export function BottomTabs() {
         <div
           role="dialog"
           aria-label="More menu"
-          className="fixed inset-x-0 bottom-0 z-50 md:hidden bg-background border-t rounded-t-2xl shadow-2xl pb-safe"
+          className="fixed inset-x-0 bottom-0 z-50 md:hidden bg-popover border-t rounded-t-xl pb-safe"
         >
           <div className="flex items-center justify-between px-4 pt-3 pb-2">
             <span className="text-base font-semibold">More</span>
@@ -77,7 +79,7 @@ export function BottomTabs() {
                   className={cn(
                     "flex items-center gap-3 rounded-lg px-3 py-3 text-base",
                     active
-                      ? "bg-muted text-brand-navy font-medium"
+                      ? "bg-primary/20 text-foreground font-medium"
                       : "text-foreground/80 hover:bg-muted/60",
                   )}
                 >
@@ -88,7 +90,7 @@ export function BottomTabs() {
             })}
             <button
               onClick={() => signOut({ callbackUrl: "/login" })}
-              className="w-full flex items-center gap-3 rounded-lg px-3 py-3 text-base text-red-600 hover:bg-red-50"
+              className="w-full flex items-center gap-3 rounded-lg px-3 py-3 text-base text-red-300 hover:bg-red-500/10"
             >
               <LogOut className="h-5 w-5" />
               Sign out
@@ -98,7 +100,7 @@ export function BottomTabs() {
       )}
 
       <nav
-        className="fixed inset-x-0 bottom-0 z-40 md:hidden bg-background border-t pb-safe"
+        className="fixed inset-x-0 bottom-0 z-40 md:hidden bg-card border-t pb-safe"
         aria-label="Primary"
       >
         <ul className="grid grid-cols-5 h-16">
@@ -111,10 +113,10 @@ export function BottomTabs() {
                   href={item.href}
                   className={cn(
                     "flex flex-col items-center justify-center gap-0.5 text-[11px] tracking-tight",
-                    active ? "text-brand-navy" : "text-muted-foreground",
+                    active ? "text-foreground" : "text-muted-foreground",
                   )}
                 >
-                  <Icon className={cn("h-5 w-5", active && "text-brand-amber")} />
+                  <Icon className={cn("h-5 w-5", active && "text-cyan")} />
                   <span className={cn(active && "font-semibold")}>{item.label}</span>
                 </Link>
               </li>
@@ -126,10 +128,10 @@ export function BottomTabs() {
               onClick={() => setMoreOpen(true)}
               className={cn(
                 "flex flex-col items-center justify-center gap-0.5 text-[11px] tracking-tight",
-                moreActive ? "text-brand-navy" : "text-muted-foreground",
+                moreActive ? "text-foreground" : "text-muted-foreground",
               )}
             >
-              <MoreHorizontal className={cn("h-5 w-5", moreActive && "text-brand-amber")} />
+              <MoreHorizontal className={cn("h-5 w-5", moreActive && "text-cyan")} />
               <span className={cn(moreActive && "font-semibold")}>More</span>
             </button>
           </li>

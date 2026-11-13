@@ -1,13 +1,13 @@
 {
-  "name": "Vigilo Roster",
+  "name": "Vigilo Console",
   "short_name": "Vigilo",
-  "description": "Security rostering and timesheets",
+  "description": "Security workforce operations",
   "start_url": "/dashboard",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#0B1E3F",
-  "theme_color": "#0B1E3F",
+  "background_color": "#0B1520",
+  "theme_color": "#0B1520",
   "icons": [
     {
       "src": "/icon-192.svg",

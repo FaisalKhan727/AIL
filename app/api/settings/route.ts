@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { jsonError, requireAdmin } from "@/lib/api";
+import { nswApiConfigured } from "@/lib/licence-register";
 
 export async function GET() {
   const auth = await requireAdmin();
@@ -19,6 +20,10 @@ export async function GET() {
       configured,
       twilioSidMasked: masked,
       twilioFromNumber: from,
+    },
+    compliance: {
+      nswApi: nswApiConfigured(),
+      reminderJob: Boolean(process.env.CRON_SECRET),
     },
   });
 }

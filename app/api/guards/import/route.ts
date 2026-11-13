@@ -3,6 +3,7 @@ import Papa from "papaparse";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { jsonError, requireAdmin } from "@/lib/api";
+import { adoptLegacyLicence } from "@/lib/server/licences";
 import { phoneE164 } from "@/lib/validators";
 
 const rowSchema = z.object({
@@ -18,6 +19,7 @@ const rowSchema = z.object({
 export async function POST(req: Request) {
   const auth = await requireAdmin();
   if ("error" in auth) return auth.error;
+  const actor = `${auth.session.user.name || "Admin"} (CSV import)`;
 
   const { csv } = await req.json().catch(() => ({ csv: "" }));
   if (typeof csv !== "string" || !csv.trim()) return jsonError("csv content required");
@@ -59,9 +61,10 @@ export async function POST(req: Request) {
             payRate: data.payRate?.toString(),
           },
         });
+        await adoptLegacyLicence(auth.companyId, existing.id, data.licenceNumber, data.licenceExpiry ? new Date(data.licenceExpiry) : null, actor);
         updated.push(data.phone);
       } else {
-        await prisma.guard.create({
+        const guard = await prisma.guard.create({
           data: {
             firstName: data.firstName,
             lastName: data.lastName,
@@ -74,6 +77,7 @@ export async function POST(req: Request) {
             companyId: auth.companyId,
           },
         });
+        await adoptLegacyLicence(auth.companyId, guard.id, data.licenceNumber, guard.licenceExpiry, actor);
         created.push(data.phone);
       }
     } catch (e: unknown) {

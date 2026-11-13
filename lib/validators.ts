@@ -56,6 +56,9 @@ export const shiftCreateSchema = z.object({
   role: z.string().optional().or(z.literal("").transform(() => undefined)),
   notes: z.string().optional().or(z.literal("").transform(() => undefined)),
   recurrence: recurrenceSchema.optional(),
+  // Why a guard without a current, verified security licence is being
+  // rostered anyway. Only consulted when the company blocks such shifts.
+  complianceOverride: z.string().trim().max(200).optional(),
 });
 
 export const shiftBatchCreateSchema = z.object({

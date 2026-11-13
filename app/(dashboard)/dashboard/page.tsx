@@ -2,7 +2,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
-import { Plus, Users, Building2, Calendar, ClipboardList, MessageSquare } from "lucide-react";
+import { BadgeCheck, Plus, Users, Building2, Calendar, ClipboardList, MessageSquare } from "lucide-react";
 import { PageHeader } from "@/components/shell/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,25 +14,26 @@ import { fmtDateTime, fmtTime } from "@/lib/date";
 import { formatPhoneAU } from "@/lib/utils";
 
 interface DashResp {
-  kpis: { shiftsThisWeek: number; pendingCount: number; rejectedCount: number; activeGuards: number };
+  kpis: { shiftsThisWeek: number; pendingCount: number; rejectedCount: number; activeGuards: number; complianceAlerts: number };
   // Unassigned placeholder shifts (e.g. created by "copy roster forward"
   // when the original guard is no longer eligible) have no guard yet.
   todayShifts: Array<{ id: string; startAt: string; endAt: string; status: string; guard: { firstName: string; lastName: string } | null; site: { name: string } }>;
   recentSms: Array<{ id: string; body: string; direction: string; status: string | null; receivedAt: string; fromNumber: string; toNumber: string; guard: { firstName: string; lastName: string } | null }>;
 }
 
-function Kpi({ label, value, icon }: { label: string; value: number | string; icon: React.ReactNode }) {
-  return (
-    <Card>
-      <CardContent className="pt-6 flex items-center justify-between">
-        <div>
-          <div className="text-xs uppercase tracking-wider text-muted-foreground">{label}</div>
-          <div className="text-2xl font-semibold mt-1">{value}</div>
+function Kpi({ label, value, icon, tone, href }: { label: string; value: number | string; icon: React.ReactNode; tone?: "warn"; href?: string }) {
+  const body = (
+    <Card className={tone === "warn" ? "border-warning/40" : undefined}>
+      <CardContent className="!p-4 flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="eyebrow truncate">{label}</div>
+          <div className={`num font-display text-[28px] font-bold leading-none mt-2 ${tone === "warn" ? "text-warning" : ""}`}>{value}</div>
         </div>
-        <div className="text-brand-navy/40">{icon}</div>
+        <div className={tone === "warn" ? "text-warning" : "text-muted-foreground/50"}>{icon}</div>
       </CardContent>
     </Card>
   );
+  return href ? <Link href={href} className="block transition-opacity hover:opacity-90">{body}</Link> : body;
 }
 
 export default function DashboardPage() {
@@ -59,11 +60,18 @@ export default function DashboardPage() {
       {isLoading && <p className="text-muted-foreground">Loading…</p>}
       {data && (
         <>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-            <Kpi label="Shifts this week" value={data.kpis.shiftsThisWeek} icon={<Calendar className="h-8 w-8" />} />
-            <Kpi label="Pending confirmations" value={data.kpis.pendingCount} icon={<ClipboardList className="h-8 w-8" />} />
-            <Kpi label="Rejected upcoming" value={data.kpis.rejectedCount} icon={<MessageSquare className="h-8 w-8" />} />
-            <Kpi label="Active guards" value={data.kpis.activeGuards} icon={<Users className="h-8 w-8" />} />
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-5">
+            <Kpi label="Shifts this week" value={data.kpis.shiftsThisWeek} icon={<Calendar className="h-5 w-5" />} />
+            <Kpi label="Awaiting reply" value={data.kpis.pendingCount} icon={<ClipboardList className="h-5 w-5" />} />
+            <Kpi label="Declined upcoming" value={data.kpis.rejectedCount} icon={<MessageSquare className="h-5 w-5" />} />
+            <Kpi label="Active guards" value={data.kpis.activeGuards} icon={<Users className="h-5 w-5" />} />
+            <Kpi
+              label="Compliance alerts"
+              value={data.kpis.complianceAlerts}
+              icon={<BadgeCheck className="h-5 w-5" />}
+              tone={data.kpis.complianceAlerts > 0 ? "warn" : undefined}
+              href="/compliance"
+            />
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -105,8 +113,8 @@ export default function DashboardPage() {
                         <TableCell className="whitespace-nowrap text-xs">{fmtDateTime(l.receivedAt)}</TableCell>
                         <TableCell>
                           {l.direction === "OUTBOUND"
-                            ? <Badge className="bg-blue-100 text-blue-800 border-blue-300">OUT</Badge>
-                            : <Badge className="bg-purple-100 text-purple-800 border-purple-300">IN</Badge>}
+                            ? <Badge className="bg-blue-500/15 text-blue-300 border-blue-500/40">OUT</Badge>
+                            : <Badge className="bg-purple-500/15 text-purple-300 border-purple-500/40">IN</Badge>}
                         </TableCell>
                         <TableCell className="text-xs">
                           {l.guard ? `${l.guard.firstName} ${l.guard.lastName}` : <span className="font-mono">{formatPhoneAU(l.fromNumber)}</span>}

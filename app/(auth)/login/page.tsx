@@ -3,15 +3,15 @@ import * as React from "react";
 import { Suspense } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import Link from "next/link";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { ShieldCheck } from "lucide-react";
+import { VigiloMark, VigiloWordmark } from "@/components/shell/logo";
 
 export default function LoginPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen grid place-items-center bg-brand-navy text-white">Loading…</div>}>
+    <Suspense fallback={<div className="min-h-screen grid place-items-center bg-primary text-primary-foreground">Loading…</div>}>
       <LoginInner />
     </Suspense>
   );
@@ -41,17 +41,35 @@ function LoginInner() {
   }
 
   return (
-    <div className="min-h-screen grid place-items-center bg-brand-navy p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="text-center">
-          <div className="mx-auto h-12 w-12 rounded-full bg-brand-navy text-brand-amber grid place-items-center mb-2">
-            <ShieldCheck className="h-7 w-7" />
+    <div className="min-h-screen grid lg:grid-cols-[1.1fr_1fr] bg-background">
+      {/* Brand panel — desktop only */}
+      <div className="hidden lg:flex flex-col justify-between border-r bg-card p-12">
+        <div className="flex items-center gap-2.5">
+          <VigiloMark className="h-7 w-7" />
+          <VigiloWordmark className="text-xl" />
+        </div>
+        <div className="max-w-md">
+          <h1 className="font-display text-4xl font-extrabold leading-[1.1]">Every shift covered. Every licence current.</h1>
+          <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
+            Rostering, SMS confirmations, licence verification and timesheets for security teams, with a mobile app your guards actually use.
+          </p>
+        </div>
+        <dl className="grid grid-cols-3 gap-6 border-t pt-6 text-xs text-muted-foreground">
+          <div><dt className="eyebrow">Roster</dt><dd className="mt-1">Publish by SMS, confirm by reply</dd></div>
+          <div><dt className="eyebrow">Comply</dt><dd className="mt-1">Verify and track every credential</dd></div>
+          <div><dt className="eyebrow">Pay</dt><dd className="mt-1">Clock-ins become timesheets</dd></div>
+        </dl>
+      </div>
+
+      <div className="grid place-items-center p-6">
+        <div className="w-full max-w-sm">
+          <div className="mb-8 flex items-center gap-2.5 lg:hidden">
+            <VigiloMark className="h-7 w-7" />
+            <VigiloWordmark className="text-xl" />
           </div>
-          <CardTitle>Vigilo Roster</CardTitle>
-          <CardDescription>Admin sign-in</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={onSubmit} className="space-y-4">
+          <h2 className="font-display text-2xl font-bold">Sign in</h2>
+          <p className="mt-1 text-sm text-muted-foreground">Operations console for administrators.</p>
+          <form onSubmit={onSubmit} className="mt-6 space-y-4">
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
               <Input id="email" type="email" autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} required />
@@ -60,13 +78,16 @@ function LoginInner() {
               <Label htmlFor="password">Password</Label>
               <Input id="password" type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required />
             </div>
-            {error && <p className="text-sm text-destructive">{error}</p>}
+            {error && <p className="text-sm text-red-300">{error}</p>}
             <Button type="submit" className="w-full" disabled={loading}>
               {loading ? "Signing in…" : "Sign in"}
             </Button>
           </form>
-        </CardContent>
-      </Card>
+          <p className="mt-8 border-t pt-4 text-xs text-muted-foreground">
+            Guard? <Link href="/m" className="text-cyan hover:underline">Open the guard app</Link> and sign in with your mobile number.
+          </p>
+        </div>
+      </div>
     </div>
   );
 }

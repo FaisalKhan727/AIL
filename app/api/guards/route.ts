@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { jsonError, requireAdmin } from "@/lib/api";
 import { guardCreateSchema } from "@/lib/validators";
+import { guardCompliance } from "@/lib/licences";
+import { adoptLegacyLicence } from "@/lib/server/licences";
 
 export async function GET(req: Request) {
   const auth = await requireAdmin();
@@ -27,8 +29,11 @@ export async function GET(req: Request) {
         : {}),
     },
     orderBy: [{ active: "desc" }, { lastName: "asc" }],
+    // Just enough for the roster to check eligibility on a given shift date.
+    include: { licences: { select: { type: true, expiryDate: true, verification: true } } },
   });
-  return NextResponse.json(guards);
+  const now = new Date();
+  return NextResponse.json(guards.map((g) => ({ ...g, compliance: guardCompliance(g.licences, now) })));
 }
 
 export async function POST(req: Request) {
@@ -53,6 +58,7 @@ export async function POST(req: Request) {
         companyId: auth.companyId,
       },
     });
+    await adoptLegacyLicence(auth.companyId, guard.id, data.licenceNumber, guard.licenceExpiry, auth.session.user.name || "Admin");
     return NextResponse.json(guard, { status: 201 });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "create failed";

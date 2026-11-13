@@ -5,6 +5,7 @@ import { jsonError, requireAdmin } from "@/lib/api";
 import { shiftCreateSchema, shiftBatchCreateSchema } from "@/lib/validators";
 import { generateConfirmCode } from "@/lib/codes";
 import { APP_TZ } from "@/lib/date";
+import { guardCompliance } from "@/lib/licences";
 
 const DAY_MS = 86_400_000;
 const DOW_INDEX: Record<string, number> = {
@@ -139,6 +140,40 @@ export async function POST(req: Request) {
     }
   }
 
+  // Licence gate. Companies that switch on `compliance_block` can't roster a
+  // guard who has no current, verified security licence on the shift date
+  // unless the admin records why.
+  const blockRow = await prisma.setting.findUnique({
+    where: { companyId_key: { companyId: auth.companyId, key: "compliance_block" } },
+  });
+  const override = (data as { complianceOverride?: string }).complianceOverride?.trim();
+  let notes = data.notes;
+  if (blockRow?.value === "true") {
+    const licences = await prisma.licence.findMany({
+      where: { guardId: { in: dedupedGuardIds } },
+      select: { guardId: true, type: true, expiryDate: true, verification: true },
+    });
+    const problems: string[] = [];
+    for (const g of guards) {
+      const own = licences.filter((l) => l.guardId === g.id);
+      for (const occ of occurrences) {
+        const result = guardCompliance(own, occ.startAt);
+        if (result.level === "block") {
+          const why = result.issues.find((i) => i.severity === "block")?.message ?? "Not compliant";
+          problems.push(`${g.firstName} ${g.lastName}: ${why}`);
+          break;
+        }
+      }
+    }
+    if (problems.length > 0) {
+      if (!override) {
+        return jsonError(`Licence check failed — ${problems.join("; ")}. Add an override reason to roster anyway.`, 409, { compliance: problems });
+      }
+      const stamp = `[Licence override by ${auth.session.user.name || "admin"}: ${override}]`;
+      notes = notes ? `${notes}\n${stamp}` : stamp;
+    }
+  }
+
   const createdShifts: { id: string; guardId: string; startAt: Date; endAt: Date }[] = [];
 
   for (const guardId of dedupedGuardIds) {
@@ -152,7 +187,7 @@ export async function POST(req: Request) {
           startAt: occ.startAt,
           endAt: occ.endAt,
           role: data.role,
-          notes: data.notes,
+          notes,
           confirmCode: code,
         },
       });

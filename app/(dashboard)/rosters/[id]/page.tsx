@@ -47,21 +47,21 @@ interface Roster {
 function statusCellClass(s: Shift): string {
   switch (s.status) {
     case "CONFIRMED":
-      return "bg-emerald-50 border-emerald-300";
+      return "bg-emerald-500/10 border-emerald-500/40";
     case "WORKED":
-      return "bg-emerald-100 border-emerald-500";
+      return "bg-emerald-500/15 border-emerald-500";
     case "REJECTED":
-      return "bg-red-50 border-red-300";
+      return "bg-red-500/10 border-red-500/40";
     case "NO_SHOW":
-      return "bg-rose-200 border-rose-500";
+      return "bg-rose-500/25 border-rose-500";
     case "CANCELLED":
-      return "bg-zinc-100 border-zinc-300 opacity-60";
+      return "bg-muted border-border opacity-60";
     case "PENDING":
       return s.publishedAt
-        ? "bg-blue-50 border-blue-300"  // sent, awaiting reply
-        : "bg-amber-50 border-amber-300"; // unsent
+        ? "bg-blue-500/10 border-blue-500/40"  // sent, awaiting reply
+        : "bg-amber-500/10 border-amber-500/40"; // unsent
     default:
-      return "bg-slate-50 border-slate-300";
+      return "bg-muted border-border";
   }
 }
 
@@ -319,9 +319,9 @@ export default function RosterBuilderPage() {
       />
 
       {conflicts.size > 0 && (
-        <Card className="mb-4 border-amber-300 bg-amber-50">
+        <Card className="mb-4 border-amber-500/40 bg-amber-500/10">
           <CardContent className="pt-6 flex items-center gap-2 text-sm">
-            <AlertTriangle className="h-4 w-4 text-amber-600" />
+            <AlertTriangle className="h-4 w-4 text-amber-300" />
             <span><strong>{conflicts.size / 2}</strong> overlapping shift pair(s) detected. Resolve before publishing.</span>
           </CardContent>
         </Card>
@@ -336,7 +336,7 @@ export default function RosterBuilderPage() {
           className={cn(
             "px-3 py-1.5 rounded",
             viewMode === "guard"
-              ? "bg-brand-navy text-white font-medium"
+              ? "bg-primary text-primary-foreground font-medium"
               : "text-muted-foreground hover:text-foreground",
           )}
         >
@@ -348,7 +348,7 @@ export default function RosterBuilderPage() {
           className={cn(
             "px-3 py-1.5 rounded",
             viewMode === "site"
-              ? "bg-brand-navy text-white font-medium"
+              ? "bg-primary text-primary-foreground font-medium"
               : "text-muted-foreground hover:text-foreground",
           )}
         >
@@ -409,8 +409,8 @@ export default function RosterBuilderPage() {
                                   )}
                                 >
                                   <div className="font-medium truncate">{cardTitle}</div>
-                                  <div className="flex items-center justify-between gap-1">
-                                    <span className="text-muted-foreground">{fmtTime(s.startAt)}–{fmtTime(s.endAt)}</span>
+                                  <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
+                                    <span className="num whitespace-nowrap text-muted-foreground">{fmtTime(s.startAt)}–{fmtTime(s.endAt)}</span>
                                     <StatusBadge status={s.status} />
                                   </div>
                                   {s.role && <div className="text-[10px] text-muted-foreground">{s.role}</div>}
@@ -420,8 +420,8 @@ export default function RosterBuilderPage() {
                                   title={s.publishedAt ? "Resend SMS" : "Publish (send SMS)"}
                                   aria-label={s.publishedAt ? "Resend SMS" : "Publish shift"}
                                   className={cn(
-                                    "absolute top-1 right-1 rounded p-0.5 hover:bg-white/60",
-                                    s.publishedAt ? "text-emerald-700" : "text-blue-700",
+                                    "absolute top-1 right-1 rounded p-0.5 hover:bg-white/10",
+                                    s.publishedAt ? "text-emerald-300" : "text-blue-300",
                                   )}
                                 >
                                   {s.publishedAt

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/api";
+import { licenceStatus } from "@/lib/licences";
 import { startOfWeekMon, endOfWeekSun, startOfDayInTz, endOfDayInTz, APP_TZ } from "@/lib/date";
 
 export async function GET() {
@@ -23,7 +24,7 @@ export async function GET() {
   const dayStart = startOfDayInTz(now, tz);
   const dayEnd = endOfDayInTz(now, tz);
   const rosterScope = { roster: { companyId } };
-  const [shiftsThisWeek, pendingCount, rejectedCount, activeGuards, todayShifts, recentSms] = await Promise.all([
+  const [shiftsThisWeek, pendingCount, rejectedCount, activeGuards, todayShifts, recentSms, licences] = await Promise.all([
     prisma.shift.count({ where: { ...rosterScope, startAt: { gte: weekStart, lte: weekEnd } } }),
     prisma.shift.count({ where: { ...rosterScope, status: "PENDING", startAt: { gte: now } } }),
     prisma.shift.count({ where: { ...rosterScope, status: "REJECTED", startAt: { gte: now } } }),
@@ -39,10 +40,20 @@ export async function GET() {
       take: 20,
       include: { guard: true },
     }),
+    prisma.licence.findMany({
+      where: { companyId, guard: { active: true } },
+      select: { type: true, expiryDate: true, verification: true },
+    }),
   ]);
 
+  // Anything an admin has to act on: lapsed, about to lapse, or unverified.
+  const complianceAlerts = licences.filter((l) => {
+    const s = licenceStatus(l, now);
+    return s === "EXPIRED" || s === "URGENT" || s === "UNVERIFIED";
+  }).length;
+
   return NextResponse.json({
-    kpis: { shiftsThisWeek, pendingCount, rejectedCount, activeGuards },
+    kpis: { shiftsThisWeek, pendingCount, rejectedCount, activeGuards, complianceAlerts },
     todayShifts,
     recentSms,
   });

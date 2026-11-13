@@ -8,6 +8,7 @@ import { prisma } from "@/lib/prisma";
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.companyId) redirect("/login");
+  if (session.user.role === "GUARD") redirect("/m");
 
   const setting = await prisma.setting.findUnique({
     where: { companyId_key: { companyId: session.user.companyId, key: "company_name" } },
@@ -15,9 +16,9 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const companyName = setting?.value || process.env.COMPANY_NAME || "Vigilo";
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-background">
       <Sidebar companyName={companyName} />
-      <main className="md:pl-64 pb-tabbar md:pb-0">
+      <main className="md:pl-60 pb-tabbar md:pb-0">
         <div className="p-3 md:p-6 max-w-screen-2xl mx-auto">{children}</div>
       </main>
       <BottomTabs />

@@ -16,6 +16,7 @@ import { api } from "@/lib/fetcher";
 interface SettingsResp {
   settings: Record<string, string>;
   sms: { configured: boolean; twilioSidMasked: string; twilioFromNumber: string };
+  compliance?: { nswApi: boolean; reminderJob: boolean };
 }
 interface Admin { id: string; email: string; name: string; role: string; createdAt: string; }
 
@@ -70,8 +71,8 @@ export default function SettingsPage() {
             <div className="flex items-center justify-between gap-2 flex-wrap">
               <CardTitle>SMS Provider</CardTitle>
               {data?.sms.configured
-                ? <Badge className="bg-emerald-100 text-emerald-800 border-emerald-300">LIVE — Twilio</Badge>
-                : <Badge className="bg-rose-100 text-rose-800 border-rose-300">NOT CONFIGURED</Badge>}
+                ? <Badge className="bg-emerald-500/15 text-emerald-300 border-emerald-500/40">LIVE — Twilio</Badge>
+                : <Badge className="bg-rose-500/15 text-rose-300 border-rose-500/40">NOT CONFIGURED</Badge>}
             </div>
             <CardDescription>Outbound and inbound SMS run through Twilio.</CardDescription>
           </CardHeader>
@@ -111,6 +112,51 @@ export default function SettingsPage() {
 
         <Card className="lg:col-span-2">
           <CardHeader>
+            <CardTitle>Licence compliance</CardTitle>
+            <CardDescription>How licence status affects rostering, and who gets reminded.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <label className="flex items-start gap-3 text-sm">
+              <input
+                type="checkbox"
+                className="mt-1"
+                checked={form.compliance_block === "true"}
+                onChange={(e) => setForm((f) => ({ ...f, compliance_block: e.target.checked ? "true" : "false" }))}
+              />
+              <span>
+                <span className="font-medium">Block shifts for guards without a current, verified security licence</span>
+                <span className="block text-xs text-muted-foreground">
+                  When off, the roster only warns. When on, a shift can still be created with an override reason, which is recorded on the shift.
+                </span>
+              </span>
+            </label>
+            <label className="flex items-start gap-3 text-sm">
+              <input
+                type="checkbox"
+                className="mt-1"
+                checked={form.compliance_reminders !== "false"}
+                onChange={(e) => setForm((f) => ({ ...f, compliance_reminders: e.target.checked ? "true" : "false" }))}
+              />
+              <span>
+                <span className="font-medium">Text guards before a licence expires</span>
+                <span className="block text-xs text-muted-foreground">
+                  Sent at 60, 30, 14 and 7 days, on the day, and a week after expiry if no renewal is on file.
+                  {data?.compliance && !data.compliance.reminderJob && " The daily job isn't scheduled yet: set CRON_SECRET in the environment."}
+                </span>
+              </span>
+            </label>
+            <div className="text-xs text-muted-foreground border-t pt-3">
+              NSW register lookups:{" "}
+              {data?.compliance?.nswApi
+                ? <span className="text-emerald-300 font-medium">connected (API NSW)</span>
+                : <>not connected. Set <code>NSW_API_KEY</code> and <code>NSW_API_SECRET</code> to check NSW security licences automatically. Other states are checked by an operator against the public register.</>}
+            </div>
+            <Button onClick={save}>Save settings</Button>
+          </CardContent>
+        </Card>
+
+        <Card className="lg:col-span-2">
+          <CardHeader>
             <CardTitle>SMS templates</CardTitle>
             <CardDescription>
               Placeholders: <code>{`{firstName}`}</code>, <code>{`{rosterName}`}</code>, <code>{`{shiftList}`}</code>,
@@ -138,7 +184,7 @@ export default function SettingsPage() {
                   <TableRow key={a.id}>
                     <TableCell className="font-mono">{a.email}</TableCell>
                     <TableCell>{a.name}</TableCell>
-                    <TableCell><Badge className={a.role === "OWNER" ? "bg-amber-100 text-amber-800 border-amber-300" : "bg-slate-100 text-slate-800 border-slate-300"}>{a.role}</Badge></TableCell>
+                    <TableCell><Badge className={a.role === "OWNER" ? "bg-amber-500/15 text-amber-300 border-amber-500/40" : "bg-muted text-muted-foreground border-border"}>{a.role}</Badge></TableCell>
                     <TableCell className="text-xs text-muted-foreground">{new Date(a.createdAt).toISOString().slice(0, 10)}</TableCell>
                   </TableRow>
                 ))}
