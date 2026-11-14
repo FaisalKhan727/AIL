@@ -2,13 +2,14 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BadgeCheck, CalendarDays, Home, UserRound } from "lucide-react";
+import { BadgeCheck, CalendarDays, Home, ListChecks, UserRound } from "lucide-react";
 import { VigiloMark, VigiloWordmark } from "@/components/shell/logo";
 import { cn } from "@/lib/utils";
 
 const TABS = [
   { href: "/m", label: "Today", icon: Home },
   { href: "/m/shifts", label: "Shifts", icon: CalendarDays },
+  { href: "/m/work", label: "Tasks", icon: ListChecks },
   { href: "/m/licences", label: "Licences", icon: BadgeCheck },
   { href: "/m/profile", label: "Profile", icon: UserRound },
 ];
@@ -26,7 +27,7 @@ export function GuardShell({ children }: { children: React.ReactNode }) {
       </header>
       <main className="px-4 pb-tabbar pt-4">{children}</main>
       <nav className="fixed inset-x-0 bottom-0 z-40 mx-auto max-w-md border-t bg-card pb-safe sm:border-x" aria-label="Primary">
-        <ul className="grid h-16 grid-cols-4">
+        <ul className="grid h-16 grid-cols-5">
           {TABS.map((t) => {
             const active = t.href === "/m" ? pathname === "/m" : pathname.startsWith(t.href);
             const Icon = t.icon;

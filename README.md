@@ -54,6 +54,16 @@ npm run db:reset    # wipe DB and reseed
 | Guard app: confirm shifts, clock in/out   | ✅ |
 | Guard app: upload licences for checking   | ✅ |
 | NSW register lookup (API NSW)             | ⚠️ needs credentials, untested live |
+| Alarm response & dispatch console         | ✅ (alarms are logged by an operator) |
+| Incident reports (console + guard app)    | ✅ |
+| Patrol runs, jobs, runsheets              | ✅ |
+| Vehicles, vehicle checks, equipment       | ✅ |
+| Client invoicing from patrol jobs         | ✅ |
+| Training courses, quizzes, certificates   | ✅ |
+| Clients and SLA terms                     | ✅ |
+| Subcontractors, job requests, invoices    | ✅ |
+| Analytics                                 | ✅ |
+| Billing (plan + usage)                    | ✅ read-only, no payment processing |
 
 ---
 
@@ -133,6 +143,62 @@ call it once a day with `Authorization: Bearer $CRON_SECRET`.
 
 ---
 
+## Operations modules
+
+All of these are scoped to the signed-in admin's company, and every foreign
+key in a request is checked to belong to that company before it is written.
+
+**Alarm Response & Dispatch** (`/alarms`). An operator logs an alarm (site,
+zone, type, priority). The queue sorts critical-first with a live response
+clock against the target for the priority (5 / 8 / 15 / 30 minutes). From an
+alarm you can dispatch a guard (nearest first: on shift at that site, then on
+shift elsewhere), text third parties from a saved contact list, tick the
+procedure for that alarm type, add notes, escalate, mark it a false alarm or
+resolve it. The dispatched guard gets an SMS and a prompt in their app, and
+their "en route" / "on scene" taps update the console. Everything lands in
+the alarm's timeline; resolved alarms are in History with response-time,
+false-alarm and SLA figures and a CSV export. There is no alarm-panel or
+monitoring-centre integration: alarms are entered by hand.
+
+**Incident Reports** (`/incidents`). Guards file reports with an optional
+photo from the app; the office can also create them. Each incident has a
+status, an investigator, a link to an alarm and a timeline that records every
+change.
+
+**Patrol Runs** (`/patrols`). A run is a reusable route (ordered stops, a
+vehicle, the client it is billed to and a rate per completed run). A job is
+one execution of a run on a date by a guard. The guard does the vehicle
+check, starts the job, checks in at each stop (location recorded) or marks it
+missed with a reason, then finishes. Jobs close as COMPLETED, PARTIAL or
+MISSED. Runsheets print from the job. Patrol jobs never touch timesheets.
+
+**Vehicles & Equipment** (`/vehicles`). Fleet register with service and
+insurance dates, the pre-patrol checks guards submit, and issued equipment.
+
+**Patrol Invoicing** (`/invoicing`). Pick a client and period; finished,
+unbilled patrol jobs are pulled in at the full rate (completed) or pro-rata
+(partial). Add extra charges or credits, save a draft, mark it sent (due date
+from the client's payment terms), then paid. Voiding releases the jobs to be
+billed again. Invoices print as a tax invoice. Amounts are computed on the
+server from the jobs. There is no accounting-system export yet.
+
+**Training** (`/training`). Write a course (text material, optional
+multiple-choice quiz, pass mark, renewal period), assign it to guards with an
+optional due date and SMS. Guards read it and take the quiz in the app;
+answers are marked on the server and correct answers are never sent to the
+device. Passing records a completion with an expiry.
+
+**Clients** (`/clients`) hold contacts, contract dates, payment terms, SLA
+targets and their sites. **Subcontractors** (`/subcontractors`) hold partner
+companies, which of your guard records they supply, job requests sent to them
+and the invoices they send you. **Analytics** (`/analytics`) summarises
+incidents, alarms, patrol completion and revenue, guard hours, compliance and
+training over 7–365 days. **Billing** (`/billing`) shows the company's plan
+and usage against it; the plan is a column on `Company` set by you, and no
+payment is taken in the app.
+
+---
+
 ## Guard app (`/m`)
 
 Guards open `https://<your-domain>/m` and add it to their home screen.
@@ -143,6 +209,9 @@ Guards open `https://<your-domain>/m` and add it to their home screen.
   out. The device location is stored with each clock event when permitted.
 - **Shifts** — confirm or decline published shifts (same effect as replying
   to the roster SMS), plus five weeks of history.
+- **Tasks** — acknowledge an alarm dispatch and report arrival, run a patrol
+  job stop by stop, report an incident with a photo, and complete assigned
+  training.
 - **Licences** — photograph and submit a new or renewed licence. It lands in
   the console's verification queue.
 

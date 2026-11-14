@@ -15,6 +15,16 @@ import {
   LogOut,
   X,
   BadgeCheck,
+  Siren,
+  FileWarning,
+  GraduationCap,
+  Route,
+  Truck,
+  Receipt,
+  Briefcase,
+  Handshake,
+  BarChart3,
+  CreditCard,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -26,9 +36,19 @@ const PRIMARY = [
 ] as const;
 
 const MORE = [
+  { href: "/alarms", label: "Alarm Response", icon: Siren },
+  { href: "/incidents", label: "Incident Reports", icon: FileWarning },
+  { href: "/patrols", label: "Patrol Runs", icon: Route },
   { href: "/compliance", label: "Licences & Compliance", icon: BadgeCheck },
   { href: "/timesheets", label: "Timesheets", icon: ClipboardList },
   { href: "/sms-log",    label: "SMS Log",    icon: MessageSquare },
+  { href: "/training", label: "Training", icon: GraduationCap },
+  { href: "/vehicles", label: "Vehicles & Equipment", icon: Truck },
+  { href: "/invoicing", label: "Patrol Invoicing", icon: Receipt },
+  { href: "/clients", label: "Clients", icon: Briefcase },
+  { href: "/subcontractors", label: "Subcontractors", icon: Handshake },
+  { href: "/analytics", label: "Analytics", icon: BarChart3 },
+  { href: "/billing", label: "Billing", icon: CreditCard },
   { href: "/settings",   label: "Settings",   icon: Settings },
 ] as const;
 
@@ -68,7 +88,7 @@ export function BottomTabs() {
               <X className="h-5 w-5" />
             </button>
           </div>
-          <nav className="px-2 pb-2">
+          <nav className="max-h-[70vh] overflow-y-auto px-2 pb-2">
             {MORE.map((item) => {
               const Icon = item.icon;
               const active = isActive(item.href);

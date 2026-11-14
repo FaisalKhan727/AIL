@@ -17,35 +17,63 @@ import {
   Settings,
   BadgeCheck,
   LogOut,
+  Siren,
+  FileWarning,
+  GraduationCap,
+  Route,
+  Truck,
+  Receipt,
+  Briefcase,
+  Handshake,
+  BarChart3,
+  CreditCard,
   type LucideIcon,
 } from "lucide-react";
 
-interface NavItem { href: string; label: string; icon: LucideIcon; badge?: "compliance" }
+type BadgeKey = "compliance" | "alarms" | "incidents" | "patrols";
+interface NavItem { href: string; label: string; icon: LucideIcon; badge?: BadgeKey }
 
 const NAV: { section: string; items: NavItem[] }[] = [
   {
     section: "Operations",
     items: [
       { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-      { href: "/rosters", label: "Rosters", icon: CalendarDays },
+      { href: "/alarms", label: "Alarm Response", icon: Siren, badge: "alarms" },
+      { href: "/incidents", label: "Incident Reports", icon: FileWarning, badge: "incidents" },
     ],
   },
   {
     section: "Workforce",
     items: [
       { href: "/guards", label: "Guards", icon: Users },
-      { href: "/compliance", label: "Licences & Compliance", icon: BadgeCheck, badge: "compliance" },
+      { href: "/rosters", label: "Rosters", icon: CalendarDays },
       { href: "/timesheets", label: "Timesheets", icon: ClipboardList },
+      { href: "/compliance", label: "Licences & Compliance", icon: BadgeCheck, badge: "compliance" },
+      { href: "/training", label: "Training", icon: GraduationCap },
+    ],
+  },
+  {
+    section: "Patrol",
+    items: [
+      { href: "/patrols", label: "Patrol Runs", icon: Route, badge: "patrols" },
+      { href: "/vehicles", label: "Vehicles & Equipment", icon: Truck },
+      { href: "/invoicing", label: "Patrol Invoicing", icon: Receipt },
     ],
   },
   {
     section: "Business",
-    items: [{ href: "/sites", label: "Sites", icon: Building2 }],
+    items: [
+      { href: "/clients", label: "Clients", icon: Briefcase },
+      { href: "/sites", label: "Sites", icon: Building2 },
+      { href: "/subcontractors", label: "Subcontractors", icon: Handshake },
+      { href: "/analytics", label: "Analytics", icon: BarChart3 },
+    ],
   },
   {
     section: "Platform",
     items: [
       { href: "/sms-log", label: "SMS Log", icon: MessageSquare },
+      { href: "/billing", label: "Billing", icon: CreditCard },
       { href: "/settings", label: "Settings", icon: Settings },
     ],
   },
@@ -53,7 +81,7 @@ const NAV: { section: string; items: NavItem[] }[] = [
 
 /** Shared with the dashboard page, so this costs no extra request there. */
 export function useShellStatus() {
-  const dash = useQuery<{ kpis: { complianceAlerts?: number } }>({
+  const dash = useQuery<{ kpis: { complianceAlerts?: number; activeAlarms?: number; openIncidents?: number; activePatrols?: number } }>({
     queryKey: ["dashboard"],
     queryFn: () => api(`/api/dashboard`),
     staleTime: 30_000,
@@ -64,7 +92,12 @@ export function useShellStatus() {
     staleTime: 300_000,
   });
   return {
-    complianceAlerts: dash.data?.kpis.complianceAlerts ?? 0,
+    badges: {
+      compliance: dash.data?.kpis.complianceAlerts ?? 0,
+      alarms: dash.data?.kpis.activeAlarms ?? 0,
+      incidents: dash.data?.kpis.openIncidents ?? 0,
+      patrols: dash.data?.kpis.activePatrols ?? 0,
+    } as Record<BadgeKey, number>,
     smsLive: settings.data?.sms.configured,
   };
 }
@@ -82,7 +115,7 @@ function SmsStatus({ live }: { live: boolean | undefined }) {
 export function Sidebar({ companyName }: { companyName: string }) {
   const pathname = usePathname();
   const { data: session } = useSession();
-  const { complianceAlerts, smsLive } = useShellStatus();
+  const { badges, smsLive } = useShellStatus();
   const user = session?.user;
   const initials = (user?.name || "?").split(/\s+/).map((p) => p[0]).slice(0, 2).join("").toUpperCase();
 
@@ -141,19 +174,19 @@ export function Sidebar({ companyName }: { companyName: string }) {
         </div>
         <nav className="flex-1 overflow-y-auto py-3">
           {NAV.map((group) => (
-            <div key={group.section} className="mb-4">
+            <div key={group.section} className="mb-2.5">
               <div className="eyebrow px-5 pb-1.5">{group.section}</div>
               {group.items.map((item) => {
                 const Icon = item.icon;
                 const active = pathname === item.href || pathname.startsWith(item.href + "/");
-                const badge = item.badge === "compliance" ? complianceAlerts : 0;
+                const badge = item.badge ? badges[item.badge] : 0;
                 return (
                   <Link
                     key={item.href}
                     href={item.href}
                     aria-current={active ? "page" : undefined}
                     className={cn(
-                      "flex items-center gap-3 border-l-[3px] py-2 pl-[17px] pr-4 text-[13px] transition-colors",
+                      "flex items-center gap-3 border-l-[3px] py-1.5 pl-[17px] pr-4 text-[13px] transition-colors",
                       active
                         ? "border-primary bg-primary/[0.18] font-medium text-foreground"
                         : "border-transparent text-muted-foreground hover:bg-muted/50 hover:text-foreground",
@@ -162,7 +195,7 @@ export function Sidebar({ companyName }: { companyName: string }) {
                     <Icon className={cn("h-4 w-4 shrink-0", active && "text-cyan")} />
                     <span className="flex-1 truncate">{item.label}</span>
                     {badge > 0 && (
-                      <span className="num rounded bg-warning/20 px-1.5 text-[10.5px] font-medium leading-4 text-warning">{badge}</span>
+                      <span className={cn("num rounded px-1.5 text-[10.5px] font-medium leading-4", item.badge === "alarms" ? "bg-critical/25 text-red-200" : item.badge === "patrols" ? "bg-cyan/15 text-cyan" : "bg-warning/20 text-warning")}>{badge}</span>
                     )}
                   </Link>
                 );

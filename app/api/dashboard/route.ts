@@ -24,7 +24,7 @@ export async function GET() {
   const dayStart = startOfDayInTz(now, tz);
   const dayEnd = endOfDayInTz(now, tz);
   const rosterScope = { roster: { companyId } };
-  const [shiftsThisWeek, pendingCount, rejectedCount, activeGuards, todayShifts, recentSms, licences] = await Promise.all([
+  const [shiftsThisWeek, pendingCount, rejectedCount, activeGuards, todayShifts, recentSms, licences, activeAlarms, openIncidents, activePatrols] = await Promise.all([
     prisma.shift.count({ where: { ...rosterScope, startAt: { gte: weekStart, lte: weekEnd } } }),
     prisma.shift.count({ where: { ...rosterScope, status: "PENDING", startAt: { gte: now } } }),
     prisma.shift.count({ where: { ...rosterScope, status: "REJECTED", startAt: { gte: now } } }),
@@ -44,6 +44,9 @@ export async function GET() {
       where: { companyId, guard: { active: true } },
       select: { type: true, expiryDate: true, verification: true },
     }),
+    prisma.alarm.count({ where: { companyId, status: { not: "RESOLVED" } } }),
+    prisma.incident.count({ where: { companyId, status: { in: ["OPEN", "UNDER_REVIEW", "ESCALATED"] } } }),
+    prisma.patrolJob.count({ where: { companyId, status: "ACTIVE" } }),
   ]);
 
   // Anything an admin has to act on: lapsed, about to lapse, or unverified.
@@ -53,7 +56,7 @@ export async function GET() {
   }).length;
 
   return NextResponse.json({
-    kpis: { shiftsThisWeek, pendingCount, rejectedCount, activeGuards, complianceAlerts },
+    kpis: { shiftsThisWeek, pendingCount, rejectedCount, activeGuards, complianceAlerts, activeAlarms, openIncidents, activePatrols },
     todayShifts,
     recentSms,
   });

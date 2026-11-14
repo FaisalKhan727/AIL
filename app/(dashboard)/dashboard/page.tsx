@@ -2,7 +2,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
-import { BadgeCheck, Plus, Users, Building2, Calendar, ClipboardList, MessageSquare } from "lucide-react";
+import { BadgeCheck, FileWarning, Route, Siren, Plus, Users, Building2, Calendar, ClipboardList, MessageSquare } from "lucide-react";
 import { PageHeader } from "@/components/shell/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,7 +14,7 @@ import { fmtDateTime, fmtTime } from "@/lib/date";
 import { formatPhoneAU } from "@/lib/utils";
 
 interface DashResp {
-  kpis: { shiftsThisWeek: number; pendingCount: number; rejectedCount: number; activeGuards: number; complianceAlerts: number };
+  kpis: { shiftsThisWeek: number; pendingCount: number; rejectedCount: number; activeGuards: number; complianceAlerts: number; activeAlarms: number; openIncidents: number; activePatrols: number };
   // Unassigned placeholder shifts (e.g. created by "copy roster forward"
   // when the original guard is no longer eligible) have no guard yet.
   todayShifts: Array<{ id: string; startAt: string; endAt: string; status: string; guard: { firstName: string; lastName: string } | null; site: { name: string } }>;
@@ -47,7 +47,7 @@ export default function DashboardPage() {
     <>
       <PageHeader
         title="Dashboard"
-        description="At-a-glance roster status"
+        description="What needs attention right now"
         actions={
           <>
             <Button asChild variant="outline"><Link href="/guards"><Users className="h-4 w-4" /> Add Guard</Link></Button>
@@ -60,18 +60,15 @@ export default function DashboardPage() {
       {isLoading && <p className="text-muted-foreground">Loading…</p>}
       {data && (
         <>
-          <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-5">
-            <Kpi label="Shifts this week" value={data.kpis.shiftsThisWeek} icon={<Calendar className="h-5 w-5" />} />
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
+            <Kpi label="Active alarms" value={data.kpis.activeAlarms} icon={<Siren className="h-5 w-5" />} tone={data.kpis.activeAlarms > 0 ? "warn" : undefined} href="/alarms" />
+            <Kpi label="Open incidents" value={data.kpis.openIncidents} icon={<FileWarning className="h-5 w-5" />} tone={data.kpis.openIncidents > 0 ? "warn" : undefined} href="/incidents" />
+            <Kpi label="Patrols in progress" value={data.kpis.activePatrols} icon={<Route className="h-5 w-5" />} href="/patrols" />
+            <Kpi label="Compliance alerts" value={data.kpis.complianceAlerts} icon={<BadgeCheck className="h-5 w-5" />} tone={data.kpis.complianceAlerts > 0 ? "warn" : undefined} href="/compliance" />
+            <Kpi label="Shifts this week" value={data.kpis.shiftsThisWeek} icon={<Calendar className="h-5 w-5" />} href="/rosters" />
             <Kpi label="Awaiting reply" value={data.kpis.pendingCount} icon={<ClipboardList className="h-5 w-5" />} />
             <Kpi label="Declined upcoming" value={data.kpis.rejectedCount} icon={<MessageSquare className="h-5 w-5" />} />
-            <Kpi label="Active guards" value={data.kpis.activeGuards} icon={<Users className="h-5 w-5" />} />
-            <Kpi
-              label="Compliance alerts"
-              value={data.kpis.complianceAlerts}
-              icon={<BadgeCheck className="h-5 w-5" />}
-              tone={data.kpis.complianceAlerts > 0 ? "warn" : undefined}
-              href="/compliance"
-            />
+            <Kpi label="Active guards" value={data.kpis.activeGuards} icon={<Users className="h-5 w-5" />} href="/guards" />
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">

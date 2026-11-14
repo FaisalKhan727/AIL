@@ -46,6 +46,8 @@ export default function GuardHome() {
   const { data, isLoading } = useQuery<Me>({ queryKey: ["m-me"], queryFn: () => api(`/api/m/me`), refetchInterval: 30_000 });
   const [busy, setBusy] = React.useState(false);
   const elapsed = useElapsed(data?.activeShift?.clockInAt ?? null);
+  // An alarm dispatch outranks everything else on this screen.
+  const work = useQuery<{ dispatches: { id: string; type: string; site: { name: string } }[] }>({ queryKey: ["m-work"], queryFn: () => api(`/api/m/work`), refetchInterval: 15_000 });
 
   async function clock(shift: GuardShift, action: "clock-in" | "clock-out") {
     if (action === "clock-out" && !confirm("Clock out and end this shift?")) return;
@@ -78,6 +80,14 @@ export default function GuardHome() {
         <div className="eyebrow">{today} · {data.companyName}</div>
         <h1 className="mt-1 font-display text-2xl font-extrabold">Hi {data.guard.firstName}</h1>
       </div>
+
+      {work.data?.dispatches.map((d) => (
+        <Link key={d.id} href="/m/work" className="alarm-critical flex items-center gap-3 rounded-[10px] border p-3.5 text-sm">
+          <AlertTriangle className="h-5 w-5 shrink-0 text-red-200" />
+          <span className="flex-1"><span className="block font-semibold">Alarm dispatch: {d.type}</span><span className="block opacity-90">{d.site.name} — tap to respond</span></span>
+          <ChevronRight className="h-4 w-4 shrink-0" />
+        </Link>
+      ))}
 
       {data.compliance.level !== "ok" && (
         <Link

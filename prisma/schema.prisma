@@ -19,6 +19,8 @@ model Company {
   rosters    Roster[]
   settings   Setting[]
   licences   Licence[]
+  // SaaS tier. Changed by Vigilo staff, not by the customer.
+  plan       String    @default("PROFESSIONAL") // STARTER | PROFESSIONAL | ENTERPRISE
 }
 
 model AdminUser {
@@ -51,6 +53,9 @@ model Guard {
   shifts        Shift[]
   smsLogs       SmsLog[]
   licences      Licence[]
+  // Set when the guard is supplied by a subcontractor rather than employed.
+  subcontractorId String?
+  subcontractor   Subcontractor? @relation(fields: [subcontractorId], references: [id], onDelete: SetNull)
 
   @@unique([companyId, phone])
   @@index([companyId])
@@ -69,6 +74,8 @@ model Site {
   company        Company         @relation(fields: [companyId], references: [id])
   shifts         Shift[]
   shiftTemplates ShiftTemplate[]
+  clientId       String?
+  client         Client?         @relation(fields: [clientId], references: [id], onDelete: SetNull)
 
   @@index([companyId])
 }
@@ -265,4 +272,399 @@ model GuardOtp {
   createdAt DateTime  @default(now())
 
   @@index([phone, createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// Clients
+// ---------------------------------------------------------------------------
+
+model Client {
+  id               String    @id @default(cuid())
+  companyId        String
+  name             String
+  abn              String?
+  contactName      String?
+  contactPhone     String?
+  contactEmail     String?
+  billingEmail     String?
+  contractStart    DateTime?
+  contractEnd      DateTime?
+  paymentTermsDays Int       @default(14)
+  // Service levels the client is promised; actuals are computed from patrol
+  // jobs and alarms.
+  slaPatrolPct     Int       @default(95)
+  slaAlarmMins     Int       @default(15)
+  notes            String?
+  active           Boolean   @default(true)
+  createdAt        DateTime  @default(now())
+
+  sites    Site[]
+  runs     PatrolRun[]
+  invoices Invoice[]
+
+  @@index([companyId])
+}
+
+// ---------------------------------------------------------------------------
+// Alarm response
+// ---------------------------------------------------------------------------
+
+model Alarm {
+  id           String    @id @default(cuid())
+  companyId    String
+  ref          Int // ALM-<ref>, sequential per company
+  siteId       String
+  zone         String?
+  type         String
+  priority     String // CRITICAL | HIGH | MEDIUM | LOW
+  verification String    @default("UNVERIFIED") // UNVERIFIED | CCTV_CONFIRMED | GUARD_CONFIRMED | FALSE_ALARM
+  status       String    @default("UNASSIGNED") // UNASSIGNED | DISPATCHED | EN_ROUTE | ON_SCENE | RESOLVED
+  guardId      String?
+  etaMins      Int?
+  triggeredAt  DateTime  @default(now())
+  dispatchedAt DateTime?
+  onSceneAt    DateTime?
+  resolvedAt   DateTime?
+  resolvedBy   String?
+  outcome      String?
+  sopDone      Json      @default("[]") // indexes of ticked SOP steps
+
+  events    AlarmEvent[]
+  incidents Incident[]
+
+  @@unique([companyId, ref])
+  @@index([companyId, status])
+  @@index([guardId])
+}
+
+model AlarmEvent {
+  id      String   @id @default(cuid())
+  alarmId String
+  at      DateTime @default(now())
+  actor   String
+  text    String
+
+  alarm Alarm @relation(fields: [alarmId], references: [id], onDelete: Cascade)
+
+  @@index([alarmId])
+}
+
+// ---------------------------------------------------------------------------
+// Incidents
+// ---------------------------------------------------------------------------
+
+model Incident {
+  id           String   @id @default(cuid())
+  companyId    String
+  ref          Int // INC-<ref>
+  siteId       String
+  guardId      String? // reporting guard
+  alarmId      String?
+  type         String
+  severity     String // CRITICAL | HIGH | MEDIUM | LOW
+  status       String   @default("OPEN") // OPEN | UNDER_REVIEW | ESCALATED | RESOLVED | ARCHIVED
+  zone         String?
+  narrative    String
+  persons      String?
+  lossValue    Decimal?
+  assignedTo   String?
+  notifyClient Boolean  @default(false)
+  occurredAt   DateTime @default(now())
+  createdAt    DateTime @default(now())
+
+  alarm   Alarm?           @relation(fields: [alarmId], references: [id], onDelete: SetNull)
+  updates IncidentUpdate[]
+  photo   IncidentPhoto?
+
+  @@unique([companyId, ref])
+  @@index([companyId, status])
+}
+
+model IncidentUpdate {
+  id         String   @id @default(cuid())
+  incidentId String
+  at         DateTime @default(now())
+  actor      String
+  text       String
+
+  incident Incident @relation(fields: [incidentId], references: [id], onDelete: Cascade)
+
+  @@index([incidentId])
+}
+
+model IncidentPhoto {
+  incidentId String @id
+  mime       String
+  data       Bytes
+
+  incident Incident @relation(fields: [incidentId], references: [id], onDelete: Cascade)
+}
+
+// ---------------------------------------------------------------------------
+// Vehicles & equipment
+// ---------------------------------------------------------------------------
+
+model Vehicle {
+  id              String    @id @default(cuid())
+  companyId       String
+  code            String // V-01
+  rego            String
+  make            String?
+  model           String?
+  year            Int?
+  status          String    @default("ACTIVE") // ACTIVE | IN_SERVICE | DECOMMISSIONED
+  odometer        Int?
+  serviceDue      DateTime?
+  insuranceExpiry DateTime?
+  notes           String?
+
+  checks VehicleCheck[]
+  runs   PatrolRun[]
+
+  @@index([companyId])
+}
+
+model VehicleCheck {
+  id        String   @id @default(cuid())
+  companyId String
+  vehicleId String
+  guardId   String?
+  at        DateTime @default(now())
+  odometer  Int?
+  fuel      String?
+  failed    Json     @default("[]") // labels of failed checklist items
+  notes     String?
+
+  vehicle Vehicle @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@index([vehicleId])
+}
+
+model Equipment {
+  id        String  @id @default(cuid())
+  companyId String
+  name      String
+  kind      String
+  serial    String?
+  status    String  @default("AVAILABLE") // AVAILABLE | IN_USE | MAINTENANCE | LOST
+  guardId   String? // who has it
+  notes     String?
+
+  @@index([companyId])
+}
+
+// ---------------------------------------------------------------------------
+// Patrol runs. A run is a reusable route billed to a client per completed
+// run; a job is one night's execution of it. Deliberately separate from
+// shifts/timesheets: patrol jobs drive client invoices, never payroll.
+// ---------------------------------------------------------------------------
+
+model PatrolRun {
+  id        String  @id @default(cuid())
+  companyId String
+  code      String // R01
+  name      String
+  clientId  String?
+  vehicleId String?
+  rate      Decimal @default(0) // $ billed per fully completed run
+  active    Boolean @default(true)
+
+  client  Client?      @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  vehicle Vehicle?     @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
+  stops   PatrolStop[]
+  jobs    PatrolJob[]
+
+  @@index([companyId])
+}
+
+model PatrolStop {
+  id           String  @id @default(cuid())
+  runId        String
+  position     Int
+  name         String
+  address      String?
+  instructions String?
+
+  run PatrolRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@index([runId])
+}
+
+model PatrolJob {
+  id          String    @id @default(cuid())
+  companyId   String
+  runId       String
+  date        DateTime // date-only, UTC midnight
+  guardId     String?
+  status      String    @default("SCHEDULED") // SCHEDULED | ACTIVE | COMPLETED | PARTIAL | MISSED
+  stopCount   Int // stops on the run when the job was created
+  rate        Decimal // run rate at the time, so later price changes don't rewrite history
+  startedAt   DateTime?
+  completedAt DateTime?
+  invoiceId   String?
+
+  run   PatrolRun    @relation(fields: [runId], references: [id], onDelete: Cascade)
+  scans PatrolScan[]
+
+  @@index([companyId, date])
+  @@index([guardId])
+}
+
+model PatrolScan {
+  id       String   @id @default(cuid())
+  jobId    String
+  stopId   String
+  stopName String
+  status   String // SCANNED | MISSED
+  at       DateTime @default(now())
+  lat      Float?
+  lng      Float?
+  note     String?
+
+  job PatrolJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@unique([jobId, stopId])
+}
+
+// ---------------------------------------------------------------------------
+// Client invoicing (patrol work)
+// ---------------------------------------------------------------------------
+
+model Invoice {
+  id          String    @id @default(cuid())
+  companyId   String
+  number      Int // INV-<number>
+  clientId    String
+  periodStart DateTime
+  periodEnd   DateTime
+  status      String    @default("DRAFT") // DRAFT | SENT | PAID | VOID
+  issuedAt    DateTime?
+  dueAt       DateTime?
+  paidAt      DateTime?
+  gstRate     Decimal   @default(10)
+  notes       String?
+  createdAt   DateTime  @default(now())
+
+  client Client        @relation(fields: [clientId], references: [id])
+  lines  InvoiceLine[]
+
+  @@unique([companyId, number])
+  @@index([companyId])
+}
+
+model InvoiceLine {
+  id          String  @id @default(cuid())
+  invoiceId   String
+  description String
+  quantity    Decimal @default(1)
+  unitPrice   Decimal
+  jobId       String? // patrol job this line bills, if any
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId])
+}
+
+// ---------------------------------------------------------------------------
+// Training
+// ---------------------------------------------------------------------------
+
+model Course {
+  id            String   @id @default(cuid())
+  companyId     String
+  title         String
+  category      String
+  description   String?
+  content       String // course material shown to the guard
+  mandatory     Boolean  @default(false)
+  renewalMonths Int? // certificate lifetime; null = never expires
+  passMark      Int      @default(80)
+  // [{ q: string, options: string[], answer: number }]
+  questions     Json     @default("[]")
+  active        Boolean  @default(true)
+  createdAt     DateTime @default(now())
+
+  enrollments Enrollment[]
+
+  @@index([companyId])
+}
+
+model Enrollment {
+  id          String    @id @default(cuid())
+  companyId   String
+  courseId    String
+  guardId     String
+  status      String    @default("ASSIGNED") // ASSIGNED | PASSED | FAILED
+  dueAt       DateTime?
+  score       Int?
+  attempts    Int       @default(0)
+  completedAt DateTime?
+  expiresAt   DateTime?
+  createdAt   DateTime  @default(now())
+
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@unique([courseId, guardId])
+  @@index([guardId])
+  @@index([companyId])
+}
+
+// ---------------------------------------------------------------------------
+// Subcontractors
+// ---------------------------------------------------------------------------
+
+model Subcontractor {
+  id              String    @id @default(cuid())
+  companyId       String
+  name            String
+  abn             String?
+  contactName     String?
+  phone           String?
+  email           String?
+  status          String    @default("ACTIVE") // ACTIVE | PENDING | SUSPENDED
+  specialties     String?
+  insuranceExpiry DateTime?
+  rating          Int?
+  notes           String?
+  createdAt       DateTime  @default(now())
+
+  guards      Guard[]
+  jobRequests JobRequest[]
+  invoices    SubInvoice[]
+
+  @@index([companyId])
+}
+
+model JobRequest {
+  id              String   @id @default(cuid())
+  companyId       String
+  subcontractorId String
+  siteId          String?
+  description     String
+  startDate       DateTime
+  endDate         DateTime
+  headcount       Int      @default(1)
+  status          String   @default("PENDING") // PENDING | ACCEPTED | DECLINED | COMPLETED
+  createdAt       DateTime @default(now())
+
+  subcontractor Subcontractor @relation(fields: [subcontractorId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+}
+
+model SubInvoice {
+  id              String   @id @default(cuid())
+  companyId       String
+  subcontractorId String
+  number          String
+  period          String?
+  amount          Decimal
+  status          String   @default("PENDING") // PENDING | APPROVED | PAID | DISPUTED
+  note            String?
+  receivedAt      DateTime @default(now())
+
+  subcontractor Subcontractor @relation(fields: [subcontractorId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
 }

@@ -216,3 +216,24 @@
    on long content (dialogs, scrollers handle their own pan). */
 html { -webkit-tap-highlight-color: transparent; }
 button, [role="button"] { touch-action: manipulation; }
+
+/* Critical alarms and SOS: a hard one-second flash that is impossible to
+   miss on a wall display. Held steady for people who ask for less motion. */
+@keyframes critical-flash {
+  0%, 49% { border-color: hsl(var(--critical)); background-color: hsl(var(--critical) / 0.16); }
+  50%, 100% { border-color: hsl(var(--critical) / 0.45); background-color: hsl(var(--critical) / 0.05); }
+}
+.alarm-critical { animation: critical-flash 1s steps(1) infinite; border-color: hsl(var(--critical)); }
+@media (prefers-reduced-motion: reduce) {
+  .alarm-critical { animation: none; background-color: hsl(var(--critical) / 0.12); }
+}
+
+/* Printable documents (runsheets, invoices, certificates) are black on white. */
+.print-sheet { background: #fff; color: #111; }
+.print-sheet .eyebrow { color: #555; }
+@media print {
+  body { background: #fff !important; }
+  .no-print, aside, header, nav[aria-label="Primary"] { display: none !important; }
+  main { padding: 0 !important; margin: 0 !important; }
+  .print-sheet { box-shadow: none !important; margin: 0 !important; max-width: none !important; }
+}
