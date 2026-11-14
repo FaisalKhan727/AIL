@@ -17,13 +17,13 @@ import { cn } from "@/lib/utils";
 export type Tone = "green" | "amber" | "red" | "crit" | "blue" | "grey" | "cyan" | "purple";
 
 const TONE: Record<Tone, string> = {
-  green: "bg-emerald-500/15 text-emerald-300 border-emerald-500/40",
-  amber: "bg-amber-500/15 text-amber-300 border-amber-500/40",
-  red: "bg-red-500/15 text-red-300 border-red-500/40",
-  crit: "bg-red-500/35 text-red-50 border-red-500/80",
-  blue: "bg-sky-500/15 text-sky-300 border-sky-500/40",
+  green: "bg-emerald-500/15 text-emerald-700 border-emerald-500/40",
+  amber: "bg-amber-500/15 text-amber-700 border-amber-500/40",
+  red: "bg-red-500/15 text-red-700 border-red-500/40",
+  crit: "bg-red-600 text-white border-red-600",
+  blue: "bg-sky-500/15 text-sky-700 border-sky-500/40",
   cyan: "bg-cyan/15 text-cyan border-cyan/40",
-  purple: "bg-purple-500/15 text-purple-300 border-purple-500/40",
+  purple: "bg-purple-500/15 text-purple-700 border-purple-500/40",
   grey: "bg-muted text-muted-foreground border-border",
 };
 

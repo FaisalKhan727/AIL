@@ -33,7 +33,7 @@ const VEHICLE_FIELDS: Field[] = [
 const dueTone = (iso: string | null) => {
   if (!iso) return "";
   const days = (+new Date(iso) - Date.now()) / 86_400_000;
-  return days < 0 ? "text-red-300" : days < 30 ? "text-amber-300" : "";
+  return days < 0 ? "text-red-700" : days < 30 ? "text-amber-700" : "";
 };
 
 export default function VehiclesPage() {
@@ -56,7 +56,7 @@ export default function VehiclesPage() {
   };
   const del = (onClick: () => void) => (
     <span className="flex justify-end" onClick={(e) => e.stopPropagation()}>
-      <Button size="sm" variant="ghost" className="px-2 text-red-300" aria-label="Delete" onClick={onClick}><Trash2 className="h-3.5 w-3.5" /></Button>
+      <Button size="sm" variant="ghost" className="px-2 text-red-700" aria-label="Delete" onClick={onClick}><Trash2 className="h-3.5 w-3.5" /></Button>
     </span>
   );
 

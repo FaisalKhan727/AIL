@@ -163,11 +163,11 @@ export function VerifyDialog({ licenceId, onClose, onDone }: { licenceId: string
               <section>
                 <div className="eyebrow mb-2">Automatic checks</div>
                 {check.isLoading && <p className="text-sm text-muted-foreground">Running checks…</p>}
-                {check.isError && <p className="text-sm text-red-300">Checks could not be run. You can still review the document.</p>}
+                {check.isError && <p className="text-sm text-red-700">Checks could not be run. You can still review the document.</p>}
                 <ul className="space-y-1.5">
                   {check.data?.checks.map((c) => (
                     <li key={c.label} className="flex items-start gap-2 text-sm">
-                      <span className={cn("mt-0.5 grid h-4 w-4 shrink-0 place-items-center rounded-sm", c.pass ? "bg-emerald-500/20 text-emerald-300" : "bg-amber-500/20 text-amber-300")}>
+                      <span className={cn("mt-0.5 grid h-4 w-4 shrink-0 place-items-center rounded-sm", c.pass ? "bg-emerald-500/20 text-emerald-700" : "bg-amber-500/20 text-amber-700")}>
                         {c.pass ? <Check className="h-3 w-3" /> : <X className="h-3 w-3" />}
                       </span>
                       <span><span className="font-medium">{c.label}.</span> <span className="text-muted-foreground">{c.detail}</span></span>
@@ -211,12 +211,12 @@ export function VerifyDialog({ licenceId, onClose, onDone }: { licenceId: string
               )}
 
               <div className="space-y-1">
-                <div className="eyebrow">Note {failedChecks.length > 0 && <span className="normal-case tracking-normal text-amber-300">— a check above needs explaining</span>}</div>
+                <div className="eyebrow">Note {failedChecks.length > 0 && <span className="normal-case tracking-normal text-amber-700">— a check above needs explaining</span>}</div>
                 <Textarea rows={2} value={note} onChange={(e) => setNote(e.target.value)} placeholder="Required when rejecting. Sent to the guard." />
               </div>
 
               <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-                <Button variant="outline" className="text-red-300 hover:text-red-200" disabled={Boolean(busy)} onClick={() => decide("REJECTED")}>
+                <Button variant="outline" className="text-red-700 hover:text-red-800" disabled={Boolean(busy)} onClick={() => decide("REJECTED")}>
                   {busy === "REJECTED" ? "Rejecting…" : "Reject"}
                 </Button>
                 <Button disabled={!canVerify} onClick={() => decide("VERIFIED")}>

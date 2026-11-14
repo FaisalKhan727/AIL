@@ -60,7 +60,7 @@ export default function TrainingPage() {
     { h: "", className: "text-right", c: (c) => (
       <span className="flex justify-end gap-1" onClick={(e) => e.stopPropagation()}>
         <Button size="sm" variant="outline" onClick={() => setAssignFor(c.id)}><UserPlus className="h-3.5 w-3.5" /> Assign</Button>
-        <Button size="sm" variant="ghost" className="px-2 text-red-300" aria-label="Delete course" onClick={async () => {
+        <Button size="sm" variant="ghost" className="px-2 text-red-700" aria-label="Delete course" onClick={async () => {
           if (!confirm(`Delete "${c.title}" and every guard's record for it? Archive it instead to keep the records.`)) return;
           if (await act(() => api(`/api/courses/${c.id}`, { method: "DELETE" }), "Course deleted")) refresh();
         }}><Trash2 className="h-3.5 w-3.5" /></Button>
@@ -73,11 +73,11 @@ export default function TrainingPage() {
     { h: "Status", c: (e) => <StatusPill status={e.status} /> },
     { h: "Score", c: (e) => (e.score === null ? "—" : <span className="num">{e.score}%</span>) },
     { h: "Attempts", c: (e) => <span className="num">{e.attempts}</span> },
-    { h: "Due", c: (e) => <span className={e.status !== "PASSED" && e.dueAt && +new Date(e.dueAt) < now ? "text-red-300" : ""}>{auDate(e.dueAt)}</span> },
+    { h: "Due", c: (e) => <span className={e.status !== "PASSED" && e.dueAt && +new Date(e.dueAt) < now ? "text-red-700" : ""}>{auDate(e.dueAt)}</span> },
     { h: "Completed", c: (e) => auDate(e.completedAt) },
-    { h: "Certificate expires", c: (e) => (e.status === "PASSED" ? (e.expiresAt ? <span className={+new Date(e.expiresAt) < now ? "text-red-300" : ""}>{auDate(e.expiresAt)}</span> : "No expiry") : "—") },
+    { h: "Certificate expires", c: (e) => (e.status === "PASSED" ? (e.expiresAt ? <span className={+new Date(e.expiresAt) < now ? "text-red-700" : ""}>{auDate(e.expiresAt)}</span> : "No expiry") : "—") },
     { h: "", c: (e) => e.status !== "PASSED" && (
-      <Button size="sm" variant="ghost" className="px-2 text-red-300" aria-label="Unassign" onClick={async () => {
+      <Button size="sm" variant="ghost" className="px-2 text-red-700" aria-label="Unassign" onClick={async () => {
         if (await act(() => api(`/api/enrollments/${e.id}`, { method: "DELETE" }), "Unassigned")) refresh();
       }}><Trash2 className="h-3.5 w-3.5" /></Button>
     ) },
@@ -125,14 +125,14 @@ export default function TrainingPage() {
                 <div className="flex gap-2">
                   <span className="num pt-2 text-xs text-muted-foreground">{i + 1}</span>
                   <Input placeholder="Question" value={q.q} onChange={(e) => setQ(i, { q: e.target.value })} />
-                  <Button type="button" variant="ghost" className="px-2 text-red-300" aria-label="Remove question" onClick={() => setQuestions((x) => x.filter((_, j) => j !== i))}><Trash2 className="h-3.5 w-3.5" /></Button>
+                  <Button type="button" variant="ghost" className="px-2 text-red-700" aria-label="Remove question" onClick={() => setQuestions((x) => x.filter((_, j) => j !== i))}><Trash2 className="h-3.5 w-3.5" /></Button>
                 </div>
                 <div className="mt-2 space-y-1.5 pl-5">
                   {q.options.map((o, k) => (
                     <div key={k} className="flex items-center gap-2">
                       <input type="radio" name={`q${i}`} aria-label={`Option ${k + 1} is correct`} checked={q.answer === k} onChange={() => setQ(i, { answer: k })} />
                       <Input className="h-8" placeholder={`Option ${k + 1}`} value={o} onChange={(e) => setQ(i, { options: q.options.map((x, m) => (m === k ? e.target.value : x)) })} />
-                      {q.options.length > 2 && <button type="button" className="text-xs text-muted-foreground hover:text-red-300" onClick={() => setQ(i, { options: q.options.filter((_, m) => m !== k), answer: q.answer >= k && q.answer > 0 ? q.answer - 1 : q.answer })}>remove</button>}
+                      {q.options.length > 2 && <button type="button" className="text-xs text-muted-foreground hover:text-red-700" onClick={() => setQ(i, { options: q.options.filter((_, m) => m !== k), answer: q.answer >= k && q.answer > 0 ? q.answer - 1 : q.answer })}>remove</button>}
                     </div>
                   ))}
                   {q.options.length < 6 && <button type="button" className="text-xs text-cyan hover:underline" onClick={() => setQ(i, { options: [...q.options, ""] })}>+ option</button>}

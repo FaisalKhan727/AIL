@@ -139,7 +139,7 @@ export function Sidebar({ companyName }: { companyName: string }) {
       </header>
 
       {/* Desktop top bar */}
-      <header className="hidden md:flex sticky top-0 z-40 h-14 items-center justify-between border-b bg-background/95 backdrop-blur px-6 md:ml-60">
+      <header className="hidden md:flex sticky top-0 z-40 h-14 items-center justify-between border-b bg-card/95 backdrop-blur px-6 md:ml-60">
         <SmsStatus live={smsLive} />
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2.5">
@@ -188,14 +188,14 @@ export function Sidebar({ companyName }: { companyName: string }) {
                     className={cn(
                       "flex items-center gap-3 border-l-[3px] py-1.5 pl-[17px] pr-4 text-[13px] transition-colors",
                       active
-                        ? "border-primary bg-primary/[0.18] font-medium text-foreground"
+                        ? "border-primary bg-primary/[0.08] font-semibold text-primary"
                         : "border-transparent text-muted-foreground hover:bg-muted/50 hover:text-foreground",
                     )}
                   >
-                    <Icon className={cn("h-4 w-4 shrink-0", active && "text-cyan")} />
+                    <Icon className={cn("h-4 w-4 shrink-0", active && "text-primary")} />
                     <span className="flex-1 truncate">{item.label}</span>
                     {badge > 0 && (
-                      <span className={cn("num rounded px-1.5 text-[10.5px] font-medium leading-4", item.badge === "alarms" ? "bg-critical/25 text-red-200" : item.badge === "patrols" ? "bg-cyan/15 text-cyan" : "bg-warning/20 text-warning")}>{badge}</span>
+                      <span className={cn("num rounded px-1.5 text-[10.5px] font-medium leading-4", item.badge === "alarms" ? "bg-critical/25 text-red-800" : item.badge === "patrols" ? "bg-cyan/15 text-cyan" : "bg-warning/20 text-warning")}>{badge}</span>
                     )}
                   </Link>
                 );

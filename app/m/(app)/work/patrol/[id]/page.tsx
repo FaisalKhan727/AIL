@@ -61,7 +61,7 @@ export default function GuardPatrol() {
       <Link href="/m/work" className="flex items-center gap-1 text-sm text-muted-foreground"><ArrowLeft className="h-4 w-4" /> Tasks</Link>
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h1 className="font-display text-xl font-extrabold"><span className="font-mono">{job.code}</span> {job.name}</h1>
+          <h1 className="font-display text-xl font-bold"><span className="font-mono">{job.code}</span> {job.name}</h1>
           <p className="text-sm text-muted-foreground">{job.vehicle ? `${job.vehicle.code} · ${job.vehicle.rego}` : "No vehicle"}{job.startedAt ? ` · started ${fmtTime(job.startedAt)}` : ""}</p>
         </div>
         <StatusPill status={job.status} />
@@ -77,7 +77,7 @@ export default function GuardPatrol() {
                   <li key={item}>
                     <label className="flex items-center gap-2.5 text-sm">
                       <input type="checkbox" className="h-4 w-4" checked={!failed.has(item)} onChange={(e) => setFailed((f) => { const n = new Set(f); if (e.target.checked) n.delete(item); else n.add(item); return n; })} />
-                      <span className={failed.has(item) ? "text-red-300" : ""}>{item}{failed.has(item) ? " — FAIL" : ""}</span>
+                      <span className={failed.has(item) ? "text-red-700" : ""}>{item}{failed.has(item) ? " — FAIL" : ""}</span>
                     </label>
                   </li>
                 ))}
@@ -111,7 +111,7 @@ export default function GuardPatrol() {
               return (
                 <li key={s.id} className={cn("rounded-[10px] border bg-card p-3.5", isNext && "border-primary", s.status === "MISSED" && "border-destructive/50")}>
                   <div className="flex items-start gap-3">
-                    <span className={cn("num grid h-6 w-6 shrink-0 place-items-center rounded-full text-xs", s.status === "SCANNED" ? "bg-success/20 text-success" : s.status === "MISSED" ? "bg-destructive/20 text-red-300" : "bg-muted text-muted-foreground")}>
+                    <span className={cn("num grid h-6 w-6 shrink-0 place-items-center rounded-full text-xs", s.status === "SCANNED" ? "bg-success/20 text-success" : s.status === "MISSED" ? "bg-destructive/20 text-red-700" : "bg-muted text-muted-foreground")}>
                       {s.status === "SCANNED" ? <Check className="h-3.5 w-3.5" /> : i + 1}
                     </span>
                     <div className="min-w-0 flex-1">

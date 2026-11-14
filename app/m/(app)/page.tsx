@@ -78,12 +78,12 @@ export default function GuardHome() {
     <div className="space-y-4">
       <div>
         <div className="eyebrow">{today} · {data.companyName}</div>
-        <h1 className="mt-1 font-display text-2xl font-extrabold">Hi {data.guard.firstName}</h1>
+        <h1 className="mt-1 font-display text-2xl font-bold">Hi {data.guard.firstName}</h1>
       </div>
 
       {work.data?.dispatches.map((d) => (
         <Link key={d.id} href="/m/work" className="alarm-critical flex items-center gap-3 rounded-[10px] border p-3.5 text-sm">
-          <AlertTriangle className="h-5 w-5 shrink-0 text-red-200" />
+          <AlertTriangle className="h-5 w-5 shrink-0 text-red-800" />
           <span className="flex-1"><span className="block font-semibold">Alarm dispatch: {d.type}</span><span className="block opacity-90">{d.site.name} — tap to respond</span></span>
           <ChevronRight className="h-4 w-4 shrink-0" />
         </Link>

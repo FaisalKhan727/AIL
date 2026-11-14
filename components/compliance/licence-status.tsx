@@ -3,11 +3,11 @@ import { STATUS_LABEL, type LicenceStatus } from "@/lib/licences";
 import { cn } from "@/lib/utils";
 
 const TONE: Record<LicenceStatus, string> = {
-  VALID: "bg-emerald-500/15 text-emerald-300 border-emerald-500/40",
-  EXPIRING: "bg-amber-500/15 text-amber-300 border-amber-500/40",
-  URGENT: "bg-red-500/15 text-red-300 border-red-500/40",
-  EXPIRED: "bg-red-500/30 text-red-100 border-red-500/70",
-  UNVERIFIED: "bg-sky-500/15 text-sky-300 border-sky-500/40",
+  VALID: "bg-emerald-500/15 text-emerald-700 border-emerald-500/40",
+  EXPIRING: "bg-amber-500/15 text-amber-700 border-amber-500/40",
+  URGENT: "bg-red-500/15 text-red-700 border-red-500/40",
+  EXPIRED: "bg-red-600 text-white border-red-600",
+  UNVERIFIED: "bg-sky-500/15 text-sky-700 border-sky-500/40",
   REJECTED: "bg-muted text-muted-foreground border-border line-through",
 };
 

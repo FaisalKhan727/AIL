@@ -321,7 +321,7 @@ export default function RosterBuilderPage() {
       {conflicts.size > 0 && (
         <Card className="mb-4 border-amber-500/40 bg-amber-500/10">
           <CardContent className="pt-6 flex items-center gap-2 text-sm">
-            <AlertTriangle className="h-4 w-4 text-amber-300" />
+            <AlertTriangle className="h-4 w-4 text-amber-700" />
             <span><strong>{conflicts.size / 2}</strong> overlapping shift pair(s) detected. Resolve before publishing.</span>
           </CardContent>
         </Card>
@@ -420,8 +420,8 @@ export default function RosterBuilderPage() {
                                   title={s.publishedAt ? "Resend SMS" : "Publish (send SMS)"}
                                   aria-label={s.publishedAt ? "Resend SMS" : "Publish shift"}
                                   className={cn(
-                                    "absolute top-1 right-1 rounded p-0.5 hover:bg-white/10",
-                                    s.publishedAt ? "text-emerald-300" : "text-blue-300",
+                                    "absolute top-1 right-1 rounded p-0.5 hover:bg-black/5",
+                                    s.publishedAt ? "text-emerald-700" : "text-blue-700",
                                   )}
                                 >
                                   {s.publishedAt

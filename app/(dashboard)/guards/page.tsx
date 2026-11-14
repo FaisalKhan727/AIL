@@ -77,8 +77,8 @@ export default function GuardsPage() {
     if (!exp) return null;
     const d = new Date(exp);
     const days = Math.floor((d.getTime() - Date.now()) / 86_400_000);
-    if (days < 0) return <Badge className="bg-red-500/15 text-red-300 border-red-500/40">Expired</Badge>;
-    if (days < 30) return <Badge className="bg-red-500/15 text-red-300 border-red-500/40">{days}d</Badge>;
+    if (days < 0) return <Badge className="bg-red-500/15 text-red-700 border-red-500/40">Expired</Badge>;
+    if (days < 30) return <Badge className="bg-red-500/15 text-red-700 border-red-500/40">{days}d</Badge>;
     return <span className="text-xs text-muted-foreground">{d.toISOString().slice(0, 10)}</span>;
   }
 
@@ -134,7 +134,7 @@ export default function GuardsPage() {
                 <div className="text-sm font-mono text-muted-foreground truncate">{formatPhoneAU(g.phone)}</div>
                 <div className="mt-1 flex items-center gap-2 flex-wrap text-xs">
                   {g.active
-                    ? <Badge className="bg-emerald-500/15 text-emerald-300 border-emerald-500/40">Active</Badge>
+                    ? <Badge className="bg-emerald-500/15 text-emerald-700 border-emerald-500/40">Active</Badge>
                     : <Badge className="bg-muted text-muted-foreground border-border">Inactive</Badge>}
                   {g.licenceNumber && <span className="text-muted-foreground">Lic {g.licenceNumber}</span>}
                   {g.payRate && <span className="text-muted-foreground">${Number(g.payRate).toFixed(2)}/hr</span>}
@@ -146,7 +146,7 @@ export default function GuardsPage() {
                 size="icon"
                 aria-label="Delete guard"
                 onClick={() => deleteGuard(g)}
-                className="text-red-300 hover:bg-red-500/10 -mr-1"
+                className="text-red-700 hover:bg-red-500/10 -mr-1"
               >
                 <Trash2 className="h-5 w-5" />
               </Button>
@@ -191,7 +191,7 @@ export default function GuardsPage() {
                   <TableCell>{g.payRate ? `$${Number(g.payRate).toFixed(2)}/hr` : "—"}</TableCell>
                   <TableCell>
                     {g.active ? (
-                      <Badge className="bg-emerald-500/15 text-emerald-300 border-emerald-500/40">Active</Badge>
+                      <Badge className="bg-emerald-500/15 text-emerald-700 border-emerald-500/40">Active</Badge>
                     ) : (
                       <Badge className="bg-muted text-muted-foreground border-border">Inactive</Badge>
                     )}
@@ -202,7 +202,7 @@ export default function GuardsPage() {
                       size="sm"
                       aria-label="Delete guard"
                       onClick={() => deleteGuard(g)}
-                      className="text-red-300 hover:bg-red-500/10"
+                      className="text-red-700 hover:bg-red-500/10"
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>

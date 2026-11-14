@@ -12,6 +12,6 @@ export function VigiloMark({ className }: { className?: string }) {
 
 export function VigiloWordmark({ className }: { className?: string }) {
   return (
-    <span className={cn("font-display text-[17px] font-extrabold tracking-tight", className)}>Vigilo</span>
+    <span className={cn("font-display text-[17px] font-bold tracking-tight", className)}>Vigilo</span>
   );
 }

@@ -70,7 +70,7 @@ function GuardLogin() {
       </div>
 
       <div className="mt-14">
-        <h1 className="font-display text-[26px] font-extrabold leading-tight">
+        <h1 className="font-display text-[26px] font-bold leading-tight">
           {step === "phone" ? "Sign in with your mobile" : "Enter your code"}
         </h1>
         <p className="mt-2 text-sm text-muted-foreground">
@@ -87,7 +87,7 @@ function GuardLogin() {
             <Input id="phone" type="tel" inputMode="tel" autoComplete="tel" placeholder="0412 345 678" className="h-12 text-base"
               value={phone} onChange={(e) => setPhone(e.target.value)} required autoFocus />
           </div>
-          {error && <p className="text-sm text-red-300" role="alert">{error}</p>}
+          {error && <p className="text-sm text-red-700" role="alert">{error}</p>}
           <Button type="submit" className="h-12 w-full text-base" disabled={busy}>{busy ? "Sending…" : "Text me a code"}</Button>
         </form>
       ) : (
@@ -98,7 +98,7 @@ function GuardLogin() {
               className="h-14 text-center font-mono text-2xl tracking-[0.4em]"
               value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))} required autoFocus />
           </div>
-          {error && <p className="text-sm text-red-300" role="alert">{error}</p>}
+          {error && <p className="text-sm text-red-700" role="alert">{error}</p>}
           <Button type="submit" className="h-12 w-full text-base" disabled={busy || code.length !== 6}>{busy ? "Checking…" : "Sign in"}</Button>
           <div className="flex justify-between text-sm">
             <button type="button" className="text-muted-foreground hover:text-foreground" onClick={() => { setStep("phone"); setError(null); }}>Change number</button>

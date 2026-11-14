@@ -34,12 +34,12 @@ export default function GuardWork() {
 
   return (
     <div className="space-y-5">
-      <h1 className="font-display text-2xl font-extrabold">Tasks</h1>
+      <h1 className="font-display text-2xl font-bold">Tasks</h1>
 
       {data.dispatches.map((d) => (
         <section key={d.id} className={cn("rounded-[10px] border p-4", d.status === "DISPATCHED" ? "alarm-critical" : "border-critical/60 bg-critical/[0.07]")}>
           <div className="flex items-center justify-between gap-2">
-            <span className="eyebrow !text-red-200">Alarm dispatch · {d.ref}</span>
+            <span className="eyebrow !text-red-800">Alarm dispatch · {d.ref}</span>
             <StatusPill status={d.priority} />
           </div>
           <div className="mt-2 text-lg font-semibold leading-snug">{d.type}</div>

@@ -53,14 +53,14 @@ export default function ClientsPage() {
     { h: "Sites", c: (c) => (c.sites.length ? <span title={c.sites.map((s) => s.name).join(", ")}>{c.sites.length} · <span className="text-muted-foreground">{c.sites.slice(0, 2).map((s) => s.name).join(", ")}{c.sites.length > 2 ? "…" : ""}</span></span> : <span className="text-muted-foreground">None</span>) },
     { h: "Patrol runs", c: (c) => <span className="num">{c._count.runs}</span> },
     { h: "SLA", c: (c) => <span className="text-xs text-muted-foreground">{c.slaPatrolPct}% patrols · {c.slaAlarmMins} min response</span> },
-    { h: "Contract ends", c: (c) => <span className={soon(c.contractEnd) ? "text-amber-300" : ""}>{auDate(c.contractEnd)}</span> },
+    { h: "Contract ends", c: (c) => <span className={soon(c.contractEnd) ? "text-amber-700" : ""}>{auDate(c.contractEnd)}</span> },
     { h: "Terms", c: (c) => <span className="num">{c.paymentTermsDays} days</span> },
     {
       h: "", className: "text-right",
       c: (c) => (
         <span className="flex justify-end gap-1" onClick={(e) => e.stopPropagation()}>
           <Button size="sm" variant="ghost" className="px-2" aria-label="Edit client" onClick={() => edit(c)}><Pencil className="h-3.5 w-3.5" /></Button>
-          <Button size="sm" variant="ghost" className="px-2 text-red-300" aria-label="Delete client" onClick={async () => {
+          <Button size="sm" variant="ghost" className="px-2 text-red-700" aria-label="Delete client" onClick={async () => {
             if (!confirm(`Delete ${c.name}? Its sites are kept and become unassigned.`)) return;
             if (await act(() => api(`/api/clients/${c.id}`, { method: "DELETE" }), "Client deleted")) refresh();
           }}><Trash2 className="h-3.5 w-3.5" /></Button>

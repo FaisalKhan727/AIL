@@ -72,7 +72,7 @@ export default function PatrolsPage() {
       <span className="flex items-center gap-2">
         <span className="h-1.5 w-20 overflow-hidden rounded-full bg-muted"><span className={cn("block h-full", j.missed ? "bg-warning" : "bg-success")} style={{ width: `${(j.scanned / Math.max(1, j.stopCount)) * 100}%` }} /></span>
         <span className="num text-xs">{j.scanned}/{j.stopCount}</span>
-        {j.missed > 0 && <span className="num text-xs text-red-300">{j.missed} missed</span>}
+        {j.missed > 0 && <span className="num text-xs text-red-700">{j.missed} missed</span>}
       </span>
     ) },
     { h: "Billable", c: (j) => (j.status === "SCHEDULED" || j.status === "ACTIVE" ? <span className="text-muted-foreground">—</span> : <span className="num">{money(j.billable)}</span>), className: "text-right" },
@@ -81,14 +81,14 @@ export default function PatrolsPage() {
   const rCols: Col<Run>[] = [
     { h: "Run", c: (r) => <><span className="font-mono font-medium">{r.code}</span>{!r.active && <Pill tone="grey" className="ml-2">Inactive</Pill>}</> },
     { h: "Name / area", c: (r) => r.name },
-    { h: "Client", c: (r) => r.client?.name ?? <span className="text-amber-300">No client: can&apos;t be invoiced</span> },
+    { h: "Client", c: (r) => r.client?.name ?? <span className="text-amber-700">No client: can&apos;t be invoiced</span> },
     { h: "Vehicle", c: (r) => (r.vehicle ? <span className="font-mono text-xs">{r.vehicle.code} · {r.vehicle.rego}</span> : "—") },
     { h: "Stops", c: (r) => <span className="num">{r.stops.length}</span> },
     { h: "Rate / run", c: (r) => <span className="num">{money(r.rate)}</span>, className: "text-right" },
     { h: "Jobs", c: (r) => <span className="num">{r._count.jobs}</span> },
     { h: "", c: (r) => (
       <span onClick={(e) => e.stopPropagation()}>
-        <Button size="sm" variant="ghost" className="px-2 text-red-300" aria-label="Delete run" onClick={async () => {
+        <Button size="sm" variant="ghost" className="px-2 text-red-700" aria-label="Delete run" onClick={async () => {
           if (!confirm(`Delete run ${r.code}?`)) return;
           if (await act(() => api(`/api/patrol-runs/${r.id}`, { method: "DELETE" }), "Run deleted")) refresh();
         }}><Trash2 className="h-3.5 w-3.5" /></Button>
@@ -152,7 +152,7 @@ export default function PatrolsPage() {
                 <div className="flex flex-col">
                   <Button type="button" size="sm" variant="ghost" className="h-6 px-1.5" aria-label="Move up" disabled={i === 0} onClick={() => move(i, -1)}><ArrowUp className="h-3.5 w-3.5" /></Button>
                   <Button type="button" size="sm" variant="ghost" className="h-6 px-1.5" aria-label="Move down" disabled={i === stops.length - 1} onClick={() => move(i, 1)}><ArrowDown className="h-3.5 w-3.5" /></Button>
-                  <Button type="button" size="sm" variant="ghost" className="h-6 px-1.5 text-red-300" aria-label="Remove stop" onClick={() => setStops((x) => x.filter((_, j) => j !== i))}><Trash2 className="h-3.5 w-3.5" /></Button>
+                  <Button type="button" size="sm" variant="ghost" className="h-6 px-1.5 text-red-700" aria-label="Remove stop" onClick={() => setStops((x) => x.filter((_, j) => j !== i))}><Trash2 className="h-3.5 w-3.5" /></Button>
                 </div>
               </li>
             ))}
@@ -198,7 +198,7 @@ export default function PatrolsPage() {
                 <Button asChild variant="outline"><Link href={`/patrols/runsheet/${job.id}`} target="_blank"><FileText className="h-4 w-4" /> Runsheet</Link></Button>
                 {job.status === "ACTIVE" && <Button variant="outline" onClick={() => { if (confirm("Close this job now? Stops not scanned count as not done.")) patchJob({ action: "close" }, "Job closed"); }}>Close job</Button>}
                 {["COMPLETED", "PARTIAL", "MISSED"].includes(job.status) && !job.invoiceId && <Button variant="outline" onClick={() => patchJob({ action: "reopen" }, "Job reopened")}>Reopen</Button>}
-                {job.status === "SCHEDULED" && <Button variant="outline" className="text-red-300" onClick={async () => {
+                {job.status === "SCHEDULED" && <Button variant="outline" className="text-red-700" onClick={async () => {
                   if (!confirm("Remove this scheduled job?")) return;
                   if (await act(() => api(`/api/patrol-jobs/${job.id}`, { method: "DELETE" }), "Job removed")) { setJobId(null); refresh(); }
                 }}>Remove</Button>}
@@ -212,7 +212,7 @@ export default function PatrolsPage() {
                       <span>
                         <span className="font-medium">{s.name}</span>
                         {s.address && <span className="block text-xs text-muted-foreground">{s.address}</span>}
-                        {scan?.note && <span className="block text-xs text-amber-300">{scan.note}</span>}
+                        {scan?.note && <span className="block text-xs text-amber-700">{scan.note}</span>}
                       </span>
                       <span className="text-right">
                         <StatusPill status={scan?.status === "SCANNED" ? "COMPLETED" : scan?.status ?? "SCHEDULED"} />

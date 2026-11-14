@@ -110,8 +110,8 @@ export default function DashboardPage() {
                         <TableCell className="whitespace-nowrap text-xs">{fmtDateTime(l.receivedAt)}</TableCell>
                         <TableCell>
                           {l.direction === "OUTBOUND"
-                            ? <Badge className="bg-blue-500/15 text-blue-300 border-blue-500/40">OUT</Badge>
-                            : <Badge className="bg-purple-500/15 text-purple-300 border-purple-500/40">IN</Badge>}
+                            ? <Badge className="bg-blue-500/15 text-blue-700 border-blue-500/40">OUT</Badge>
+                            : <Badge className="bg-purple-500/15 text-purple-700 border-purple-500/40">IN</Badge>}
                         </TableCell>
                         <TableCell className="text-xs">
                           {l.guard ? `${l.guard.firstName} ${l.guard.lastName}` : <span className="font-mono">{formatPhoneAU(l.fromNumber)}</span>}

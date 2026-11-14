@@ -21,12 +21,12 @@ function Meter({ label, used, limit }: { label: string; used: number; limit: num
     <div>
       <div className="flex items-baseline justify-between text-sm">
         <span>{label}</span>
-        <span className={cn("num", over && "text-red-300")}>{used} <span className="text-muted-foreground">/ {limit ?? "unlimited"}</span></span>
+        <span className={cn("num", over && "text-red-700")}>{used} <span className="text-muted-foreground">/ {limit ?? "unlimited"}</span></span>
       </div>
       <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-muted" role="img" aria-label={`${label}: ${used} of ${limit ?? "unlimited"}`}>
         <div className={cn("h-full rounded-full", over ? "bg-destructive" : ratio > 0.85 ? "bg-warning" : "bg-primary")} style={{ width: limit ? `${ratio * 100}%` : "4%" }} />
       </div>
-      {over && <p className="mt-1 text-xs text-red-300">Over the plan allowance. Talk to Vigilo about moving up a tier.</p>}
+      {over && <p className="mt-1 text-xs text-red-700">Over the plan allowance. Talk to Vigilo about moving up a tier.</p>}
     </div>
   );
 }
@@ -44,7 +44,7 @@ export default function BillingPage() {
           <div className="grid gap-4 lg:grid-cols-[1fr_1.2fr]">
             <Panel title="Current plan">
               <div className="flex items-baseline gap-3">
-                <span className="font-display text-3xl font-extrabold">{data.plan.name}</span>
+                <span className="font-display text-3xl font-bold">{data.plan.name}</span>
                 <span className="text-sm text-muted-foreground">{data.plan.price}</span>
               </div>
               <p className="mt-3 text-sm text-muted-foreground">
@@ -84,7 +84,7 @@ export default function BillingPage() {
                 <thead className="text-left text-[11px] uppercase tracking-wider text-muted-foreground"><tr><th className="py-1.5">Month</th><th className="py-1.5 text-right">Sent</th><th className="py-1.5 text-right">Segments</th><th className="py-1.5 text-right">Failed</th><th className="py-1.5 text-right">Replies received</th></tr></thead>
                 <tbody>
                   {data.sms.map((m) => (
-                    <tr key={m.month} className="border-t"><td className="py-2">{monthLabel(m.month)}</td><td className="num py-2 text-right">{m.outbound}</td><td className="num py-2 text-right">{m.segments}</td><td className={cn("num py-2 text-right", m.failed > 0 && "text-red-300")}>{m.failed}</td><td className="num py-2 text-right">{m.inbound}</td></tr>
+                    <tr key={m.month} className="border-t"><td className="py-2">{monthLabel(m.month)}</td><td className="num py-2 text-right">{m.outbound}</td><td className="num py-2 text-right">{m.segments}</td><td className={cn("num py-2 text-right", m.failed > 0 && "text-red-700")}>{m.failed}</td><td className="num py-2 text-right">{m.inbound}</td></tr>
                   ))}
                 </tbody>
               </table>

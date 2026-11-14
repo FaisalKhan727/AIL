@@ -82,8 +82,8 @@ export default function RostersPage() {
                 </div>
                 <div className="mt-1 flex items-center gap-3 text-xs">
                   <span>{r.shiftCount} shifts</span>
-                  <span className="text-emerald-300 font-medium">{r.confirmedCount} confirmed</span>
-                  {r.rejectedCount > 0 && <span className="text-red-300">{r.rejectedCount} rej</span>}
+                  <span className="text-emerald-700 font-medium">{r.confirmedCount} confirmed</span>
+                  {r.rejectedCount > 0 && <span className="text-red-700">{r.rejectedCount} rej</span>}
                   <span className="text-muted-foreground">({r.confirmationPct}%)</span>
                 </div>
               </Link>
@@ -92,7 +92,7 @@ export default function RostersPage() {
                 size="icon"
                 aria-label="Delete roster"
                 onClick={() => deleteRoster(r)}
-                className="text-red-300 hover:bg-red-500/10 -mr-1"
+                className="text-red-700 hover:bg-red-500/10 -mr-1"
               >
                 <Trash2 className="h-5 w-5" />
               </Button>
@@ -119,8 +119,8 @@ export default function RostersPage() {
                 <TableCell>{fmtDate(r.endDate)}</TableCell>
                 <TableCell>{r.shiftCount}</TableCell>
                 <TableCell>
-                  <span className="text-emerald-300 font-medium">{r.confirmedCount}</span>
-                  {r.rejectedCount > 0 && <> · <span className="text-red-300">{r.rejectedCount} rej</span></>}
+                  <span className="text-emerald-700 font-medium">{r.confirmedCount}</span>
+                  {r.rejectedCount > 0 && <> · <span className="text-red-700">{r.rejectedCount} rej</span></>}
                   <span className="text-muted-foreground ml-1">({r.confirmationPct}%)</span>
                 </TableCell>
                 <TableCell><StatusBadge status={r.status} /></TableCell>
@@ -130,7 +130,7 @@ export default function RostersPage() {
                     size="sm"
                     aria-label="Delete roster"
                     onClick={() => deleteRoster(r)}
-                    className="text-red-300 hover:bg-red-500/10"
+                    className="text-red-700 hover:bg-red-500/10"
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>

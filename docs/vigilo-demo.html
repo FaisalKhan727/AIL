@@ -1,0 +1,1407 @@
+<title>Vigilo Demo</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: framed app shell (sidebar + workspace) with the guard app in a phone beside it.
+   One committed light theme: the request was for a brighter UI. */
+:root {
+  color-scheme: light;
+  --bg: #f2f5f9;
+  --surface: #ffffff;
+  --sunken: #f7f9fc;
+  --ink: #152033;
+  --muted: #5a6880;
+  --faint: #8995a8;
+  --line: #dde3ec;
+  --line-strong: #c6cfdc;
+  --accent: #0052ea;
+  --accent-ink: #003db0;
+  --accent-soft: #e9f0ff;
+  --cyan: #0a7fb5;
+  --ok: #12764a; --ok-soft: #e4f5ec; --ok-line: #9fd8b9;
+  --warn: #a8530a; --warn-soft: #fdf1e1; --warn-line: #f2c48a;
+  --bad: #c42727; --bad-soft: #fdeceb; --bad-line: #f1aaa6;
+  --crit: #d7193a;
+  --info: #0b6aa6; --info-soft: #e5f2fb; --info-line: #9fcde9;
+  --violet: #6b3cc0; --violet-soft: #f1ebfc; --violet-line: #cdb8f1;
+  --shadow: 0 1px 2px rgb(16 32 64 / 0.06), 0 4px 16px -8px rgb(16 32 64 / 0.12);
+  --font-ui: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-head: "IBM Plex Sans Condensed", "IBM Plex Sans", "Arial Narrow", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  background: var(--bg); color: var(--ink); font: 14px/1.45 var(--font-ui);
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 12px;
+  -webkit-font-smoothing: antialiased;
+}
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+h1, h2, h3 { font-family: var(--font-head); margin: 0; text-wrap: balance; }
+.mono, .num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.muted { color: var(--muted); }
+.small { font-size: 12px; }
+.eyebrow { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.ic { width: 16px; height: 16px; flex: none; display: inline-block; vertical-align: -3px; }
+.ic svg { width: 100%; height: 100%; display: block; }
+.ic-lg { width: 20px; height: 20px; }
+
+/* ---------- app frame ---------- */
+#app { display: flex; flex-direction: column; gap: 12px; height: 100%; min-height: 0; }
+.demobar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; }
+.demobar .brand { display: flex; align-items: center; gap: 8px; font-family: var(--font-head); font-weight: 700; font-size: 18px; }
+.demobar .tag { font-size: 12px; color: var(--muted); }
+.demobar .grow { flex: 1; }
+.seg { display: inline-flex; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 3px; gap: 2px; }
+.seg button { border: 0; background: transparent; padding: 5px 10px; border-radius: 6px; display: inline-flex; gap: 6px; align-items: center; color: var(--muted); font-size: 13px; }
+.seg button[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent-ink); font-weight: 600; }
+.tip { font-size: 12px; color: var(--ink); background: var(--surface); border: 1px dashed var(--line-strong); border-radius: 8px; padding: 6px 10px; }
+.tip b { color: var(--accent-ink); }
+
+.stage { flex: 1; min-height: 0; display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr); }
+.stage[data-view="both"] { grid-template-columns: minmax(0, 1fr) 400px; }
+.stage[data-view="guard"] .console, .stage[data-view="console"] .phonecol { display: none; }
+.stage[data-view="guard"] { justify-items: center; }
+
+.console { min-height: 0; display: grid; grid-template-columns: 220px minmax(0, 1fr); background: var(--surface); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; box-shadow: var(--shadow); }
+.side { border-right: 1px solid var(--line); overflow-y: auto; padding: 14px 0 18px; background: var(--surface); }
+.side .co { padding: 0 18px 12px; border-bottom: 1px solid var(--line); margin-bottom: 10px; }
+.side .co b { display: block; font-size: 13px; margin-top: 2px; }
+.navsec { margin: 8px 0 4px; padding: 0 18px; }
+.nav { display: flex; align-items: center; gap: 10px; width: 100%; border: 0; background: none; text-align: left; padding: 6px 14px 6px 15px; border-left: 3px solid transparent; font-size: 13px; color: var(--muted); }
+.nav:hover { background: var(--sunken); color: var(--ink); }
+.nav[aria-current="page"] { border-left-color: var(--accent); background: var(--accent-soft); color: var(--accent-ink); font-weight: 600; }
+.nav .badge { margin-left: auto; font-family: var(--font-mono); font-size: 10.5px; border-radius: 4px; padding: 0 5px; line-height: 16px; background: var(--warn-soft); color: var(--warn); }
+.nav .badge.red { background: var(--bad-soft); color: var(--bad); }
+.nav .badge.cyan { background: var(--info-soft); color: var(--info); }
+.main { min-width: 0; overflow-y: auto; padding: 20px 24px 32px; background: var(--bg); }
+.mobnav { display: none; margin-bottom: 14px; }
+
+/* ---------- page parts ---------- */
+.ph { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+.ph h1 { font-size: 26px; font-weight: 700; line-height: 1.15; }
+.ph p { margin: 4px 0 0; color: var(--muted); max-width: 64ch; }
+.row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.note { font-size: 12px; color: var(--muted); background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; margin-bottom: 14px; }
+.btn { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 12px; border-radius: 6px; border: 1px solid var(--line-strong); background: var(--surface); font-size: 13px; font-weight: 500; white-space: nowrap; }
+.btn:hover { background: var(--sunken); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn.primary:hover { background: var(--accent-ink); }
+.btn.ghost { border-color: transparent; background: transparent; }
+.btn.danger { color: var(--bad); }
+.btn.good { color: var(--ok); border-color: var(--ok-line); }
+.btn.sm { height: 28px; padding: 0 9px; font-size: 12.5px; }
+.btn.big { height: 46px; font-size: 15px; justify-content: center; width: 100%; }
+.btn[disabled] { opacity: 0.45; pointer-events: none; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 16px; }
+.tile { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; text-align: left; min-width: 0; }
+button.tile:hover { border-color: var(--line-strong); }
+.tile .v { font-family: var(--font-head); font-weight: 700; font-size: 28px; line-height: 1; margin-top: 8px; font-variant-numeric: tabular-nums; }
+.tile .s { font-size: 12px; color: var(--muted); margin-top: 6px; }
+.tile.warn { border-color: var(--warn-line); } .tile.warn .v { color: var(--warn); }
+.tile.bad { border-color: var(--bad-line); } .tile.bad .v { color: var(--crit); }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; min-width: 0; }
+.panel > header { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 11px 14px; border-bottom: 1px solid var(--line); }
+.panel > header h2 { font-family: var(--font-ui); font-size: 13px; font-weight: 600; }
+.panel > .body { padding: 14px; }
+.grid2 { display: grid; gap: 14px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.grid-main { display: grid; gap: 14px; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); align-items: start; }
+.tabs { display: flex; flex-wrap: wrap; gap: 2px; border-bottom: 1px solid var(--line); margin-bottom: 14px; }
+.tabs button { border: 0; background: none; padding: 8px 12px; margin-bottom: -1px; border-bottom: 2px solid transparent; color: var(--muted); display: inline-flex; gap: 6px; align-items: center; }
+.tabs button[aria-selected="true"] { border-bottom-color: var(--accent); color: var(--ink); font-weight: 600; }
+.count { font-family: var(--font-mono); font-size: 10.5px; background: var(--sunken); border: 1px solid var(--line); border-radius: 4px; padding: 0 5px; line-height: 15px; color: var(--muted); }
+
+.tablewrap { overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th { text-align: left; font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); padding: 9px 12px; background: var(--sunken); border-bottom: 1px solid var(--line); white-space: nowrap; }
+td { padding: 9px 12px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+tr:last-child td { border-bottom: 0; }
+tbody tr.click { cursor: pointer; }
+tbody tr.click:hover td { background: var(--sunken); }
+td.r, th.r { text-align: right; }
+.empty { padding: 28px; text-align: center; color: var(--muted); }
+
+.pill { display: inline-flex; align-items: center; gap: 4px; font-family: var(--font-mono); font-size: 10.5px; font-weight: 500; letter-spacing: 0.02em; text-transform: uppercase; border: 1px solid; border-radius: 4px; padding: 1px 6px; line-height: 16px; white-space: nowrap; }
+.t-green { color: var(--ok); background: var(--ok-soft); border-color: var(--ok-line); }
+.t-amber { color: var(--warn); background: var(--warn-soft); border-color: var(--warn-line); }
+.t-red { color: var(--bad); background: var(--bad-soft); border-color: var(--bad-line); }
+.t-crit { color: #fff; background: var(--crit); border-color: var(--crit); }
+.t-blue { color: var(--info); background: var(--info-soft); border-color: var(--info-line); }
+.t-violet { color: var(--violet); background: var(--violet-soft); border-color: var(--violet-line); }
+.t-grey { color: var(--muted); background: var(--sunken); border-color: var(--line); }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; display: inline-block; flex: none; }
+.dot.live { animation: pulse 2s ease-in-out infinite; }
+@keyframes pulse { 50% { opacity: 0.35; } }
+.bar { height: 6px; border-radius: 3px; background: var(--sunken); border: 1px solid var(--line); overflow: hidden; min-width: 60px; }
+.bar > i { display: block; height: 100%; background: var(--ok); }
+.bar.warn > i { background: var(--warn); }
+.ok-t { color: var(--ok); } .warn-t { color: var(--warn); } .bad-t { color: var(--crit); }
+
+/* alarms */
+.alarm { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; margin-bottom: 10px; }
+.alarm .top { padding: 12px 14px; }
+.alarm .head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.alarm .head .t { font-weight: 600; }
+.alarm .clock { margin-left: auto; font-family: var(--font-mono); font-size: 13px; }
+.alarm .where { font-size: 15px; font-weight: 600; margin: 6px 0; }
+.alarm .acts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.alarm .fold { display: flex; border-top: 1px solid var(--line); }
+.alarm .fold button { flex: 1; border: 0; background: none; padding: 7px; font-size: 12px; color: var(--muted); display: inline-flex; justify-content: center; gap: 4px; align-items: center; }
+.alarm .fold button[aria-expanded="true"] { background: var(--sunken); color: var(--ink); }
+.alarm .more { border-top: 1px solid var(--line); padding: 10px 14px; }
+.alarm.crit { animation: flash 1s steps(1) infinite; border-color: var(--crit); }
+@keyframes flash { 0%, 49% { background: #fdecef; border-color: var(--crit); } 50%, 100% { background: var(--surface); border-color: #f0a3b0; } }
+@media (prefers-reduced-motion: reduce) { .alarm.crit { animation: none; background: #fdecef; } .dot.live { animation: none; } }
+.sop label { display: flex; gap: 8px; align-items: flex-start; padding: 3px 0; cursor: pointer; }
+.sop input { margin-top: 3px; }
+.sop .done span { color: var(--muted); text-decoration: line-through; }
+.tl { list-style: none; margin: 0; padding: 0; display: grid; gap: 5px; }
+.tl li { display: grid; grid-template-columns: 44px 1fr; gap: 8px; font-size: 12.5px; }
+.tl li .mono { color: var(--muted); }
+
+.feed { list-style: none; margin: 0; padding: 0; }
+.feed li { display: grid; grid-template-columns: 46px auto 1fr; gap: 8px; align-items: baseline; padding: 7px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
+.feed li:last-child { border-bottom: 0; }
+
+/* roster */
+.roster { min-width: 860px; }
+.roster th, .roster td { vertical-align: top; }
+.roster td { padding: 6px; width: 12.5%; }
+.roster td.who { font-weight: 500; white-space: nowrap; padding: 10px 12px; width: auto; }
+.shift { display: block; width: 100%; text-align: left; border: 1px solid var(--line); border-left: 3px solid var(--line-strong); background: var(--surface); border-radius: 6px; padding: 5px 7px; margin-bottom: 4px; font-size: 12px; }
+.shift .s1 { font-weight: 600; }
+.shift.CONFIRMED { border-left-color: var(--ok); }
+.shift.PENDING { border-left-color: var(--warn); }
+.shift.DRAFT { border-style: dashed; border-left-style: solid; border-left-color: var(--faint); background: var(--sunken); }
+.shift.REJECTED { border-left-color: var(--bad); }
+.addcell { display: block; width: 100%; border: 1px dashed transparent; background: none; color: transparent; border-radius: 6px; font-size: 12px; padding: 3px; }
+.roster td:hover .addcell { border-color: var(--line-strong); color: var(--muted); }
+.addcell:focus-visible { color: var(--muted); }
+
+/* charts */
+.bars { display: grid; gap: 8px; }
+.bars .b { display: grid; grid-template-columns: minmax(0, 9.5rem) 1fr 3.5rem; gap: 10px; align-items: center; font-size: 13px; }
+.bars .b span:first-child { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bars .track { height: 8px; background: var(--sunken); border-radius: 2px; }
+.bars .track i { display: block; height: 100%; background: var(--accent); border-radius: 2px; }
+.chart text { font-family: var(--font-mono); font-size: 10px; fill: var(--muted); }
+.legend { display: flex; gap: 14px; font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+.legend i { display: inline-block; width: 14px; height: 2px; vertical-align: middle; margin-right: 6px; }
+
+/* invoice sheet */
+.sheet { background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 28px; font-size: 13px; color: #111; }
+.sheet table th { background: none; border-bottom: 2px solid #111; color: #333; }
+.sheet .tot { margin-left: auto; width: min(260px, 100%); display: grid; gap: 4px; margin-top: 12px; }
+.sheet .tot div { display: flex; justify-content: space-between; }
+.sheet .tot .grand { border-top: 2px solid #111; padding-top: 6px; font-weight: 700; font-size: 15px; }
+
+/* forms + modal */
+.field { display: grid; gap: 4px; min-width: 0; }
+.field label, .lbl { font-size: 12.5px; font-weight: 500; }
+.inp { height: 36px; border: 1px solid var(--line-strong); border-radius: 6px; padding: 0 10px; background: var(--surface); width: 100%; min-width: 0; }
+textarea.inp { height: auto; padding: 8px 10px; resize: vertical; }
+.form { display: grid; gap: 12px; }
+.form .two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.check { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; cursor: pointer; }
+.check input { margin-top: 3px; }
+.scrim { position: fixed; inset: 0; background: rgb(20 32 51 / 0.38); display: grid; place-items: center; padding: max(16px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) max(16px, env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); z-index: 50; }
+.modal { background: var(--surface); border-radius: 12px; box-shadow: 0 24px 64px -16px rgb(16 32 64 / 0.35); width: min(560px, 100%); max-height: 100%; overflow-y: auto; }
+.modal.wide { width: min(880px, 100%); }
+.modal > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 16px 18px 0; }
+.modal > header h2 { font-size: 20px; font-weight: 700; }
+.modal > header p { margin: 3px 0 0; color: var(--muted); font-size: 13px; }
+.modal > .body { padding: 14px 18px; }
+.modal > footer { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 8px; padding: 12px 18px 16px; border-top: 1px solid var(--line); position: sticky; bottom: 0; background: var(--surface); }
+.pick { border: 1px solid var(--line); border-radius: 8px; max-height: 240px; overflow-y: auto; }
+.pick label { display: flex; gap: 10px; align-items: center; padding: 8px 12px; border-bottom: 1px solid var(--line); cursor: pointer; }
+.pick label:last-child { border-bottom: 0; }
+.pick label:has(input:checked) { background: var(--accent-soft); }
+.checks { list-style: none; padding: 0; margin: 0; display: grid; gap: 6px; }
+.checks li { display: flex; gap: 8px; font-size: 13px; }
+.sq { width: 16px; height: 16px; border-radius: 4px; display: grid; place-items: center; flex: none; margin-top: 1px; }
+.sq.y { background: var(--ok-soft); color: var(--ok); } .sq.n { background: var(--warn-soft); color: var(--warn); }
+.callout { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; background: var(--sunken); font-size: 13px; }
+.callout.warn { background: var(--warn-soft); border-color: var(--warn-line); color: #6b3606; }
+.callout.bad { background: var(--bad-soft); border-color: var(--bad-line); color: #7d1717; }
+.callout.ok { background: var(--ok-soft); border-color: var(--ok-line); color: #0b4d30; }
+.doccard { aspect-ratio: 1.586; max-width: 100%; border-radius: 10px; border: 1px solid var(--line-strong); background: linear-gradient(135deg, #eef3fb, #dfe8f6); padding: 14px; display: grid; align-content: space-between; color: #2b3a52; }
+.doccard .ph1 { width: 64px; height: 76px; border-radius: 4px; background: #c8d3e4; }
+.toasts { position: fixed; right: max(16px, env(safe-area-inset-right, 0px)); bottom: max(16px, env(safe-area-inset-bottom, 0px)); display: grid; gap: 8px; z-index: 60; width: min(360px, calc(100% - 32px)); }
+.toast { background: var(--ink); color: #fff; border-radius: 8px; padding: 10px 12px; font-size: 13px; box-shadow: var(--shadow); animation: up 0.18s ease-out; }
+.toast small { display: block; color: #c4cede; margin-top: 2px; }
+@keyframes up { from { transform: translateY(8px); opacity: 0; } }
+
+/* ---------- guard phone ---------- */
+.phonecol { display: grid; align-content: start; justify-items: center; gap: 10px; min-height: 0; }
+.phone { width: 380px; max-width: 100%; height: min(780px, 100%); min-height: 560px; border: 10px solid #1d2635; border-radius: 34px; background: var(--bg); overflow: hidden; display: flex; flex-direction: column; box-shadow: var(--shadow); }
+.stage[data-view="guard"] .phone { height: min(820px, calc(100vh - 110px)); }
+.phonecol .cap { font-size: 12px; color: var(--muted); text-align: center; max-width: 34ch; }
+.g-top { display: flex; align-items: center; gap: 8px; height: 46px; padding: 0 14px; background: var(--surface); border-bottom: 1px solid var(--line); font-family: var(--font-head); font-weight: 700; font-size: 16px; flex: none; }
+.g-top .eyebrow { font-family: var(--font-ui); border: 1px solid var(--line); border-radius: 4px; padding: 0 5px; }
+.g-body { flex: 1; overflow-y: auto; padding: 14px; display: grid; gap: 12px; align-content: start; }
+.g-tabs { display: grid; grid-template-columns: repeat(5, 1fr); height: 58px; background: var(--surface); border-top: 1px solid var(--line); flex: none; }
+.g-tabs button { border: 0; border-top: 2px solid transparent; background: none; display: grid; justify-items: center; align-content: center; gap: 2px; font-size: 10.5px; color: var(--muted); }
+.g-tabs button[aria-current="page"] { border-top-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
+.g-card { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 13px; }
+.g-card.on { border-color: var(--ok-line); background: #f4fbf7; }
+.g-card.disp { animation: flash 1s steps(1) infinite; border-color: var(--crit); }
+.g-h { font-family: var(--font-head); font-size: 24px; font-weight: 700; line-height: 1.1; }
+.g-big { font-family: var(--font-mono); font-size: 38px; line-height: 1; margin-top: 6px; }
+.g-link { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px; }
+.g-link .grow { flex: 1; min-width: 0; }
+.stop { display: grid; grid-template-columns: 24px 1fr; gap: 10px; }
+.stop .n { width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; font-family: var(--font-mono); font-size: 11px; background: var(--sunken); color: var(--muted); }
+.stop .n.y { background: var(--ok-soft); color: var(--ok); } .stop .n.x { background: var(--bad-soft); color: var(--bad); }
+.opt { display: flex; gap: 10px; align-items: flex-start; border: 1px solid var(--line); border-radius: 8px; padding: 9px 10px; cursor: pointer; font-size: 13px; }
+.opt:has(input:checked) { border-color: var(--accent); background: var(--accent-soft); }
+
+/* ---------- narrow screens ---------- */
+@media (max-width: 1279px) { .stage[data-view="both"] { grid-template-columns: minmax(0, 1fr); } .stage[data-view="both"] .phonecol { display: none; } .seg .wideonly { display: none; } }
+@media (max-width: 900px) {
+  html, body { height: auto; }
+  #app { height: auto; }
+  .console { grid-template-columns: minmax(0, 1fr); }
+  .side { display: none; }
+  .mobnav { display: block; }
+  .main { padding: 16px 14px 24px; overflow: visible; }
+  .grid2, .grid-main { grid-template-columns: minmax(0, 1fr); }
+  .stage[data-view="guard"] .phone { height: 720px; border-width: 6px; border-radius: 24px; }
+}
+@media (max-width: 520px) {
+  .form .two { grid-template-columns: minmax(0, 1fr); }
+  .ph h1 { font-size: 22px; }
+  .demobar .tag { display: none; }
+  .bars .b { grid-template-columns: minmax(0, 7rem) 1fr 3rem; }
+  .sheet { padding: 16px; }
+}
+</style>
+<div id="app"></div><div id="modal"></div><div id="toasts" class="toasts" aria-live="polite"></div>
+<script>
+const ICONS={"dashboard":"<rect width=\"7\" height=\"9\" x=\"3\" y=\"3\" rx=\"1\"></rect><rect width=\"7\" height=\"5\" x=\"14\" y=\"3\" rx=\"1\"></rect><rect width=\"7\" height=\"9\" x=\"14\" y=\"12\" rx=\"1\"></rect><rect width=\"7\" height=\"5\" x=\"3\" y=\"16\" rx=\"1\"></rect>","siren":"<path d=\"M7 18v-6a5 5 0 1 1 10 0v6\"></path><path d=\"M5 21a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-1a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2z\"></path><path d=\"M21 12h1\"></path><path d=\"M18.5 4.5 18 5\"></path><path d=\"M2 12h1\"></path><path d=\"M12 2v1\"></path><path d=\"m4.929 4.929.707.707\"></path><path d=\"M12 12v6\"></path>","incident":"<path d=\"M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z\"></path><path d=\"M12 9v4\"></path><path d=\"M12 17h.01\"></path>","users":"<path d=\"M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2\"></path><circle cx=\"9\" cy=\"7\" r=\"4\"></circle><path d=\"M22 21v-2a4 4 0 0 0-3-3.87\"></path><path d=\"M16 3.13a4 4 0 0 1 0 7.75\"></path>","calendar":"<path d=\"M8 2v4\"></path><path d=\"M16 2v4\"></path><rect width=\"18\" height=\"18\" x=\"3\" y=\"4\" rx=\"2\"></rect><path d=\"M3 10h18\"></path><path d=\"M8 14h.01\"></path><path d=\"M12 14h.01\"></path><path d=\"M16 14h.01\"></path><path d=\"M8 18h.01\"></path><path d=\"M12 18h.01\"></path><path d=\"M16 18h.01\"></path>","clipboard":"<rect width=\"8\" height=\"4\" x=\"8\" y=\"2\" rx=\"1\" ry=\"1\"></rect><path d=\"M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2\"></path><path d=\"M12 11h4\"></path><path d=\"M12 16h4\"></path><path d=\"M8 11h.01\"></path><path d=\"M8 16h.01\"></path>","badge":"<path d=\"M3.85 8.62a4 4 0 0 1 4.78-4.77 4 4 0 0 1 6.74 0 4 4 0 0 1 4.78 4.78 4 4 0 0 1 0 6.74 4 4 0 0 1-4.77 4.78 4 4 0 0 1-6.75 0 4 4 0 0 1-4.78-4.77 4 4 0 0 1 0-6.76Z\"></path><path d=\"m9 12 2 2 4-4\"></path>","training":"<path d=\"M21.42 10.922a1 1 0 0 0-.019-1.838L12.83 5.18a2 2 0 0 0-1.66 0L2.6 9.08a1 1 0 0 0 0 1.832l8.57 3.908a2 2 0 0 0 1.66 0z\"></path><path d=\"M22 10v6\"></path><path d=\"M6 12.5V16a6 3 0 0 0 12 0v-3.5\"></path>","route":"<circle cx=\"6\" cy=\"19\" r=\"3\"></circle><path d=\"M9 19h8.5a3.5 3.5 0 0 0 0-7h-11a3.5 3.5 0 0 1 0-7H15\"></path><circle cx=\"18\" cy=\"5\" r=\"3\"></circle>","truck":"<path d=\"M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2\"></path><path d=\"M15 18H9\"></path><path d=\"M19 18h2a1 1 0 0 0 1-1v-3.65a1 1 0 0 0-.22-.624l-3.48-4.35A1 1 0 0 0 17.52 8H14\"></path><circle cx=\"17\" cy=\"18\" r=\"2\"></circle><circle cx=\"7\" cy=\"18\" r=\"2\"></circle>","receipt":"<path d=\"M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z\"></path><path d=\"M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8\"></path><path d=\"M12 17.5v-11\"></path>","briefcase":"<path d=\"M16 20V4a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16\"></path><rect width=\"20\" height=\"14\" x=\"2\" y=\"6\" rx=\"2\"></rect>","building":"<path d=\"M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z\"></path><path d=\"M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2\"></path><path d=\"M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2\"></path><path d=\"M10 6h4\"></path><path d=\"M10 10h4\"></path><path d=\"M10 14h4\"></path><path d=\"M10 18h4\"></path>","handshake":"<path d=\"m11 17 2 2a1 1 0 1 0 3-3\"></path><path d=\"m14 14 2.5 2.5a1 1 0 1 0 3-3l-3.88-3.88a3 3 0 0 0-4.24 0l-.88.88a1 1 0 1 1-3-3l2.81-2.81a5.79 5.79 0 0 1 7.06-.87l.47.28a2 2 0 0 0 1.42.25L21 4\"></path><path d=\"m21 3 1 11h-2\"></path><path d=\"M3 3 2 14l6.5 6.5a1 1 0 1 0 3-3\"></path><path d=\"M3 4h8\"></path>","chart":"<path d=\"M3 3v16a2 2 0 0 0 2 2h16\"></path><path d=\"M18 17V9\"></path><path d=\"M13 17V5\"></path><path d=\"M8 17v-3\"></path>","card":"<rect width=\"20\" height=\"14\" x=\"2\" y=\"5\" rx=\"2\"></rect><line x1=\"2\" x2=\"22\" y1=\"10\" y2=\"10\"></line>","plus":"<path d=\"M5 12h14\"></path><path d=\"M12 5v14\"></path>","x":"<path d=\"M18 6 6 18\"></path><path d=\"m6 6 12 12\"></path>","check":"<path d=\"M20 6 9 17l-5-5\"></path>","send":"<path d=\"M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z\"></path><path d=\"m21.854 2.147-10.94 10.939\"></path>","message":"<path d=\"M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z\"></path>","down":"<path d=\"m6 9 6 6 6-6\"></path>","up":"<path d=\"m18 15-6-6-6 6\"></path>","right":"<path d=\"m9 18 6-6-6-6\"></path>","pin":"<path d=\"M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0\"></path><circle cx=\"12\" cy=\"10\" r=\"3\"></circle>","phone":"<path d=\"M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z\"></path>","alert":"<path d=\"m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3\"></path><path d=\"M12 9v4\"></path><path d=\"M12 17h.01\"></path>","clock":"<circle cx=\"12\" cy=\"12\" r=\"10\"></circle><polyline points=\"12 6 12 12 16 14\"></polyline>","home":"<path d=\"M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8\"></path><path d=\"M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z\"></path>","tasks":"<path d=\"m3 17 2 2 4-4\"></path><path d=\"m3 7 2 2 4-4\"></path><path d=\"M13 6h8\"></path><path d=\"M13 12h8\"></path><path d=\"M13 18h8\"></path>","user":"<circle cx=\"12\" cy=\"8\" r=\"5\"></circle><path d=\"M20 21a8 8 0 0 0-16 0\"></path>","camera":"<path d=\"M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z\"></path><circle cx=\"12\" cy=\"13\" r=\"3\"></circle>","fileplus":"<path d=\"M4 22h14a2 2 0 0 0 2-2V7l-5-5H6a2 2 0 0 0-2 2v4\"></path><path d=\"M14 2v4a2 2 0 0 0 2 2h4\"></path><path d=\"M3 15h6\"></path><path d=\"M6 12v6\"></path>","award":"<path d=\"m15.477 12.89 1.515 8.526a.5.5 0 0 1-.81.47l-3.58-2.687a1 1 0 0 0-1.197 0l-3.586 2.686a.5.5 0 0 1-.81-.469l1.514-8.526\"></path><circle cx=\"12\" cy=\"8\" r=\"6\"></circle>","star":"<path d=\"M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z\"></path>","search":"<circle cx=\"11\" cy=\"11\" r=\"8\"></circle><path d=\"m21 21-4.3-4.3\"></path>","back":"<path d=\"m12 19-7-7 7-7\"></path><path d=\"M19 12H5\"></path>","monitor":"<rect width=\"20\" height=\"14\" x=\"2\" y=\"3\" rx=\"2\"></rect><line x1=\"8\" x2=\"16\" y1=\"21\" y2=\"21\"></line><line x1=\"12\" x2=\"12\" y1=\"17\" y2=\"21\"></line>","phoneapp":"<rect width=\"14\" height=\"20\" x=\"5\" y=\"2\" rx=\"2\" ry=\"2\"></rect><path d=\"M12 18h.01\"></path>","split":"<rect width=\"18\" height=\"18\" x=\"3\" y=\"3\" rx=\"2\"></rect><path d=\"M12 3v18\"></path>","clip":"<path d=\"m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48\"></path>","logout":"<path d=\"M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4\"></path><polyline points=\"16 17 21 12 16 7\"></polyline><line x1=\"21\" x2=\"9\" y1=\"12\" y2=\"12\"></line>","reset":"<path d=\"M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8\"></path><path d=\"M3 3v5h5\"></path>","shield":"<path d=\"M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z\"></path><path d=\"m9 12 2 2 4-4\"></path>","menu":"<line x1=\"4\" x2=\"20\" y1=\"12\" y2=\"12\"></line><line x1=\"4\" x2=\"20\" y1=\"6\" y2=\"6\"></line><line x1=\"4\" x2=\"20\" y1=\"18\" y2=\"18\"></line>"};
+// Sample data for the demo. Every time is relative to page load so the demo
+// always looks live. Nothing here is a real person or record.
+const NOW = Date.now();
+const MIN = 60000, HOUR = 3600000, DAY = 86400000;
+const at = (ms) => new Date(NOW + ms);
+const dayStart = (() => { const d = new Date(NOW); d.setHours(0, 0, 0, 0); return d.getTime(); })();
+const atDay = (days, hh = 0, mm = 0) => new Date(dayStart + days * DAY + hh * HOUR + mm * MIN);
+let SEQ = 100;
+const uid = (p) => `${p}${++SEQ}`;
+
+function seed() {
+  const guards = [
+    { id: "g1", first: "Liam", last: "Nguyen", phone: "+61 400 000 001", rate: 38.5 },
+    { id: "g2", first: "Aaliyah", last: "Patel", phone: "+61 400 000 002", rate: 38.5 },
+    { id: "g3", first: "Marcus", last: "Smith", phone: "+61 400 000 003", rate: 42 },
+    { id: "g4", first: "Sofia", last: "Rossi", phone: "+61 400 000 004", rate: 38.5 },
+    { id: "g5", first: "Daniel", last: "O'Brien", phone: "+61 400 000 005", rate: 40, sub: "s1" },
+    { id: "g6", first: "Priya", last: "Sharma", phone: "+61 400 000 006", rate: 39 },
+    { id: "g7", first: "Kofi", last: "Asante", phone: "+61 400 000 007", rate: 38.5 },
+    { id: "g8", first: "Mei-Ling", last: "Chen", phone: "+61 400 000 008", rate: 41, sub: "s2" },
+  ];
+  const clients = [
+    { id: "c1", name: "Southbank Entertainment Holdings", contact: "Dana Whitfield", phone: "+61 3 9000 1100", terms: 14, slaPatrol: 95, slaAlarm: 10, end: atDay(210) },
+    { id: "c2", name: "QV Retail Trust", contact: "Hamish Byrne", phone: "+61 3 9000 2200", terms: 30, slaPatrol: 95, slaAlarm: 15, end: atDay(40) },
+    { id: "c3", name: "Docklands Stadium Operations", contact: "Renee Kaur", phone: "+61 3 9000 3300", terms: 14, slaPatrol: 98, slaAlarm: 8, end: atDay(400) },
+    { id: "c4", name: "Parkville Health Campus", contact: "Tom Ellery", phone: "+61 3 9000 4400", terms: 30, slaPatrol: 95, slaAlarm: 10, end: atDay(160) },
+  ];
+  const sites = [
+    { id: "x1", name: "Crown Casino", addr: "8 Whiteman St, Southbank VIC", client: "c1" },
+    { id: "x2", name: "QV Square", addr: "210 Lonsdale St, Melbourne VIC", client: "c2" },
+    { id: "x3", name: "Marvel Stadium", addr: "740 Bourke St, Docklands VIC", client: "c3" },
+    { id: "x4", name: "Parkville Hospital Campus", addr: "300 Grattan St, Parkville VIC", client: "c4" },
+    { id: "x5", name: "Docklands Warehouse Precinct", addr: "Lorimer St, Docklands VIC", client: "c3" },
+  ];
+  // Who is rostered right now, and where.
+  const onShift = { g1: "x1", g4: "x3", g2: "x2", g7: "x4", g6: "x5" };
+
+  const alarms = [
+    { id: "a1", ref: 4012, site: "x1", zone: "Reception", type: "Hold-Up Alarm", pri: "CRITICAL", ver: "UNVERIFIED", status: "UNASSIGNED", guard: null, eta: null, trig: at(-2 * MIN - 14000), onScene: null, sop: [], tl: [{ at: at(-2 * MIN - 14000), who: "Monitoring centre", t: "Alarm received from panel, zone 4" }] },
+    { id: "a2", ref: 4011, site: "x3", zone: "Car Park L2", type: "Motion Detection", pri: "HIGH", ver: "CCTV_CONFIRMED", status: "EN_ROUTE", guard: "g4", eta: 6, trig: at(-7 * MIN), onScene: null, sop: [0, 1], tl: [
+      { at: at(-7 * MIN), who: "Monitoring centre", t: "Alarm received" }, { at: at(-6 * MIN), who: "Jess (control room)", t: "CCTV confirms two people near level 2 stairwell" },
+      { at: at(-5 * MIN), who: "Jess (control room)", t: "Dispatched Sofia Rossi, ETA 6 min (SMS sent)" }, { at: at(-4 * MIN), who: "Sofia Rossi", t: "Acknowledged, en route" }] },
+    { id: "a3", ref: 4010, site: "x5", zone: "Building C, Level 3", type: "CCTV Offline", pri: "MEDIUM", ver: "UNVERIFIED", status: "UNASSIGNED", guard: null, eta: null, trig: at(-18 * MIN), onScene: null, sop: [], tl: [{ at: at(-18 * MIN), who: "System", t: "Camera C3-07 stopped reporting" }] },
+  ];
+  const hist = [
+    ["Door/Window Breach", "HIGH", "x2", "Loading dock", 5.2, false, "Door left ajar by contractor. Secured."],
+    ["Motion Detection", "MEDIUM", "x5", "Building A", 11.0, true, "Wildlife on camera. No intrusion."],
+    ["Duress/Panic Button", "CRITICAL", "x1", "Cage 3", 3.4, false, "Patron dispute. Police attended, one person removed."],
+    ["Perimeter Breach", "HIGH", "x3", "North fence", 7.6, false, "Fence cut at gate 9. Repair logged."],
+    ["Fire Alarm", "HIGH", "x4", "Kitchen, Level 2", 4.1, true, "Toaster smoke. Panel reset with MFB."],
+    ["Access Denied ×3", "MEDIUM", "x2", "Server room", 9.8, true, "Staff member with expired card."],
+    ["Glass Break", "HIGH", "x2", "Retail unit 14", 6.3, false, "Window smashed. Police report 2611-0912."],
+    ["Lone Worker Alert", "HIGH", "x4", "Car park P1", 8.9, true, "Guard phone battery died. Contact restored."],
+    ["Tailgating Detection", "LOW", "x1", "Staff entry", 18.0, true, "Badge read delay. No breach."],
+    ["Motion Detection", "MEDIUM", "x5", "Building D", 16.4, false, "Unsecured roller door found and closed."],
+  ];
+  const history = hist.map((h, i) => {
+    const trig = at(-(i * 2.6 + 1) * DAY - (i % 5) * HOUR);
+    return { id: uid("ah"), ref: 4009 - i, site: h[2], zone: h[3], type: h[0], pri: h[1], ver: h[5] ? "FALSE_ALARM" : "GUARD_CONFIRMED", status: "RESOLVED", trig, onScene: h[5] && i % 2 ? null : new Date(trig.getTime() + h[4] * MIN), resolved: new Date(trig.getTime() + (h[4] + 20) * MIN), by: "Jess (control room)", outcome: h[6], sms: i % 3 === 0 };
+  });
+
+  const incidents = [
+    { id: "i1", ref: 2208, site: "x3", type: "Trespassing", sev: "HIGH", status: "OPEN", zone: "Loading dock", guard: "g4", at: at(-50 * MIN), who: null, alarm: null, story: "Two males found inside the loading dock after hours. Escorted off site. Descriptions passed to police (event 2611-4421).", persons: "M1: approx 20, black hoodie. M2: approx 25, grey trackpants.", upd: [{ at: at(-48 * MIN), who: "Sofia Rossi", t: "Reported from the guard app" }] },
+    { id: "i2", ref: 2207, site: "x1", type: "Physical Altercation", sev: "HIGH", status: "UNDER_REVIEW", zone: "Gaming floor, cage 3", guard: "g1", at: at(-1 * DAY - 3 * HOUR), who: "Rachel Ng", alarm: 4009, story: "Two patrons fighting near cage 3 after a dispute over a table. Separated, one patron removed. No injuries.", persons: "Two male patrons, names held by venue.", upd: [{ at: at(-1 * DAY - 3 * HOUR), who: "Liam Nguyen", t: "Reported from the guard app" }, { at: at(-1 * DAY - HOUR), who: "Rachel Ng", t: "Requested CCTV export from venue" }] },
+    { id: "i3", ref: 2206, site: "x2", type: "Theft", sev: "MEDIUM", status: "ESCALATED", zone: "Retail unit 9", guard: "g2", at: at(-2 * DAY), who: "Rachel Ng", alarm: null, story: "Shop staff reported a stolen handbag display item ($420). Suspect left via Swanston St exit before guard arrived.", persons: "Female, 30s, red jacket.", loss: 420, upd: [{ at: at(-2 * DAY), who: "Aaliyah Patel", t: "Reported from the guard app" }, { at: at(-2 * DAY + 2 * HOUR), who: "Rachel Ng", t: "Escalated to client and police" }] },
+    { id: "i4", ref: 2205, site: "x4", type: "Medical Emergency", sev: "CRITICAL", status: "RESOLVED", zone: "Emergency entrance", guard: "g7", at: at(-3 * DAY), who: "Rachel Ng", alarm: null, story: "Visitor collapsed at the emergency entrance. First aid given until hospital staff took over within two minutes.", upd: [{ at: at(-3 * DAY), who: "Kofi Asante", t: "Reported from the guard app" }, { at: at(-3 * DAY + HOUR), who: "Rachel Ng", t: "Closed: handed to clinical staff" }] },
+    { id: "i5", ref: 2204, site: "x5", type: "Property Damage", sev: "LOW", status: "OPEN", zone: "Gate 3", guard: "g6", at: at(-4 * DAY), who: null, alarm: null, story: "Boom gate arm found snapped at start of shift. Photographed and reported to facilities.", upd: [{ at: at(-4 * DAY), who: "Priya Sharma", t: "Reported from the guard app" }] },
+    { id: "i6", ref: 2203, site: "x1", type: "Intoxicated Person", sev: "MEDIUM", status: "RESOLVED", zone: "Main entry", guard: "g1", at: at(-6 * DAY), who: "Rachel Ng", alarm: null, story: "Refused entry to an intoxicated patron who became verbally abusive. Left when asked.", upd: [{ at: at(-6 * DAY), who: "Liam Nguyen", t: "Reported" }] },
+    { id: "i7", ref: 2202, site: "x3", type: "Graffiti", sev: "LOW", status: "ARCHIVED", zone: "Gate 7", guard: "g4", at: at(-11 * DAY), who: null, alarm: null, story: "Tag on gate 7 roller door. Cleaning crew notified.", upd: [{ at: at(-11 * DAY), who: "Sofia Rossi", t: "Reported" }] },
+  ];
+
+  const lic = (guard, type, number, expDays, ver, extra = {}) => ({ id: uid("l"), guard, type, number, state: "VIC", exp: expDays === null ? null : atDay(expDays), ver, source: "ADMIN", by: ver === "VERIFIED" ? "Rachel Ng" : null, ...extra });
+  const licences = [
+    lic("g1", "SECURITY_1A", "841-229-50S", 240, "UNVERIFIED", { source: "GUARD", doc: true }),
+    lic("g2", "SECURITY_1A", "702-118-31S", 11, "VERIFIED"),
+    lic("g3", "SECURITY_1A", "655-903-12S", -6, "VERIFIED"),
+    lic("g4", "SECURITY_1A", "913-440-07S", 410, "VERIFIED"),
+    lic("g4", "CPR", "CPR-20931", -20, "VERIFIED"),
+    lic("g5", "SECURITY_2A", "520-771-44S", 45, "VERIFIED"),
+    lic("g6", "SECURITY_1A", "388-120-95S", 520, "VERIFIED"),
+    lic("g6", "FIRST_AID", "HLT-44120", 30, "VERIFIED"),
+    lic("g7", "SECURITY_1A", "477-002-18S", 300, "VERIFIED"),
+    lic("g7", "FIRST_AID", "HLT-90118", 300, "UNVERIFIED", { source: "GUARD", doc: true }),
+    lic("g8", "SECURITY_2A", "610-554-39S", 190, "VERIFIED"),
+    lic("g2", "RSA", "RSA-4471902", 300, "VERIFIED"),
+  ];
+
+  // Roster: day 0 = Monday of this week.
+  const today = (new Date(NOW).getDay() + 6) % 7;
+  const sh = (guard, site, day, start, end, role, status) => ({ id: uid("s"), guard, site, day, start, end, role, status });
+  const shifts = [];
+  const plan = [["g1", "x1", "Static"], ["g2", "x2", "Static"], ["g4", "x3", "Patrol"], ["g6", "x5", "Patrol"], ["g7", "x4", "Static"], ["g5", "x3", "Crowd control"], ["g8", "x1", "Crowd control"], ["g3", "x2", "Static"]];
+  plan.forEach(([g, x, role], gi) => {
+    for (let d = 0; d < 7; d++) {
+      if ((d + gi) % 3 === 2) continue;
+      const night = gi % 2 === 1;
+      const status = d < today ? "CONFIRMED" : d === today ? "CONFIRMED" : d === today + 1 ? (gi % 3 === 0 ? "PENDING" : "CONFIRMED") : (gi % 4 === 0 ? "DRAFT" : gi % 4 === 1 ? "PENDING" : "CONFIRMED");
+      shifts.push(sh(g, x, d, night ? "22:00" : "14:00", night ? "06:00" : "22:00", role, gi === 7 && d > today ? "DRAFT" : status));
+    }
+  });
+
+  const runs = [
+    { id: "r1", code: "R01", name: "Southbank Night Run A", client: "c1", vehicle: "v1", rate: 280, stops: [
+      { id: "p1", name: "Crown — Loading Dock", addr: "8 Whiteman St, Southbank", note: "Check roller doors are down" },
+      { id: "p2", name: "Crown — Car Park L2", addr: "8 Whiteman St, Southbank", note: "" },
+      { id: "p3", name: "Riverside Promenade Gate", addr: "Queensbridge St, Southbank", note: "Padlock and chain intact" },
+      { id: "p4", name: "Southbank Boulevard Plant Room", addr: "Southbank Blvd", note: "Photo of panel lights" }] },
+    { id: "r2", code: "R03", name: "Docklands Precinct Run", client: "c3", vehicle: "v2", rate: 340, stops: [
+      { id: "q1", name: "Warehouse A — East doors", addr: "Lorimer St", note: "" }, { id: "q2", name: "Warehouse B — Gate 2", addr: "Lorimer St", note: "" },
+      { id: "q3", name: "Warehouse C — Roller door", addr: "Lorimer St", note: "Check C3 camera pole" }, { id: "q4", name: "Warehouse D — Fence line", addr: "Lorimer St", note: "" },
+      { id: "q5", name: "Stadium Gate 9", addr: "Bourke St, Docklands", note: "" }] },
+    { id: "r3", code: "R07", name: "CBD Retail Run", client: "c2", vehicle: "v3", rate: 260, stops: [
+      { id: "w1", name: "QV Square — Swanston entry", addr: "210 Lonsdale St", note: "" }, { id: "w2", name: "QV — Car park B2", addr: "Russell St", note: "" },
+      { id: "w3", name: "Lt Lonsdale service lane", addr: "Lt Lonsdale St", note: "" }, { id: "w4", name: "QV — Rooftop plant", addr: "210 Lonsdale St", note: "" }] },
+  ];
+  const scanAll = (run, offset, upto, missIdx) => {
+    const o = {};
+    run.stops.forEach((s, i) => { if (i < upto) o[s.id] = { st: i === missIdx ? "MISSED" : "SCANNED", at: atDay(offset, 22, 10 + i * 18), note: i === missIdx ? "Gate locked, no key in lockbox" : "" }; });
+    return o;
+  };
+  const jobs = [
+    { id: "j1", run: "r1", day: 0, guard: "g1", status: "SCHEDULED", scans: {}, invoice: null, started: null, check: null },
+    { id: "j2", run: "r2", day: 0, guard: "g6", status: "ACTIVE", scans: scanAll(runs[1], 0, 3, -1), invoice: null, started: at(-55 * MIN) },
+    { id: "j3", run: "r3", day: -1, guard: "g2", status: "COMPLETED", scans: scanAll(runs[2], -1, 4, -1), invoice: null },
+  ];
+  for (let d = 2; d <= 13; d++) {
+    jobs.push({ id: uid("j"), run: "r1", day: -d, guard: d % 2 ? "g1" : "g3", status: d === 4 ? "PARTIAL" : "COMPLETED", scans: scanAll(runs[0], -d, 4, d === 4 ? 2 : -1), invoice: d > 7 ? "n1" : null });
+    if (d % 2 === 0) jobs.push({ id: uid("j"), run: "r2", day: -d, guard: "g6", status: d === 6 ? "PARTIAL" : "COMPLETED", scans: scanAll(runs[1], -d, d === 6 ? 4 : 5, -1), invoice: null });
+  }
+
+  const vehicles = [
+    { id: "v1", code: "V-01", rego: "1VG-2LO", make: "Toyota HiLux", year: 2023, status: "ACTIVE", odo: 48210, service: atDay(18), ins: atDay(120) },
+    { id: "v2", code: "V-02", rego: "1VG-3KP", make: "Ford Ranger", year: 2022, status: "ACTIVE", odo: 71544, service: atDay(-3), ins: atDay(210) },
+    { id: "v3", code: "V-03", rego: "1VG-4MX", make: "Toyota HiLux", year: 2024, status: "ACTIVE", odo: 12930, service: atDay(95), ins: atDay(300) },
+    { id: "v4", code: "V-04", rego: "1VG-5QA", make: "Ford Ranger", year: 2021, status: "IN_SERVICE", odo: 102778, service: atDay(2), ins: atDay(25) },
+  ];
+  const equipment = [
+    { id: "e1", name: "Radio 03", kind: "Radio", serial: "MTR-88104", status: "IN_USE", guard: "g4" },
+    { id: "e2", name: "Radio 07", kind: "Radio", serial: "MTR-88120", status: "IN_USE", guard: "g1" },
+    { id: "e3", name: "Body camera 2", kind: "Body-worn camera", serial: "BWC-2291", status: "IN_USE", guard: "g6" },
+    { id: "e4", name: "Body camera 5", kind: "Body-worn camera", serial: "BWC-2294", status: "MAINTENANCE", guard: null },
+    { id: "e5", name: "NFC scanner 1", kind: "NFC scanner", serial: "NFC-00418", status: "AVAILABLE", guard: null },
+    { id: "e6", name: "Torch 11", kind: "Torch", serial: "", status: "LOST", guard: null },
+  ];
+  const checks = [
+    { id: "vc1", vehicle: "v2", guard: "g6", at: at(-58 * MIN), odo: 71544, fuel: "3/4", failed: [], notes: "" },
+    { id: "vc2", vehicle: "v3", guard: "g2", at: at(-1 * DAY - 2 * HOUR), odo: 12880, fuel: "Full", failed: ["Lights and indicators"], notes: "Rear left indicator out" },
+  ];
+
+  const invoices = [
+    { id: "n1", num: 1041, client: "c1", from: atDay(-13), to: atDay(-8), status: "PAID", issued: atDay(-7), due: atDay(7), paid: atDay(-2), lines: null },
+    { id: "n2", num: 1042, client: "c2", from: atDay(-45), to: atDay(-31), status: "SENT", issued: atDay(-30), due: atDay(0 - 1), lines: [{ d: "R07 CBD Retail Run × 14 completed runs", q: 14, u: 260 }, { d: "Alarm call-out fee", q: 2, u: 95 }] },
+    { id: "n3", num: 1043, client: "c4", from: atDay(-30), to: atDay(-1), status: "SENT", issued: atDay(-1), due: atDay(29), lines: [{ d: "Static guarding, emergency entrance (hourly contract)", q: 248, u: 52 }] },
+  ];
+
+  const courses = [
+    { id: "k1", title: "Emergency Response Procedures", cat: "Emergency Response Procedures", mandatory: true, renew: 12, pass: 80, desc: "What to do in the first five minutes of an emergency.",
+      body: "Raise the alarm first. Call 000 for any threat to life, then the control room on channel 1.\n\nNever enter an unsafe scene alone. Hold a safe position, keep people back and wait for support.\n\nPreserve the scene. Don't move items unless someone is in danger, and record times, descriptions and who you spoke to.",
+      qs: [{ q: "Someone is unconscious and not breathing. Who do you call first?", o: ["The control room", "000", "The client contact"], a: 1 }, { q: "Should you enter an unsafe scene alone to help?", o: ["Yes, if you are quick", "No. Hold a safe position and wait for support"], a: 1 }, { q: "What should you record?", o: ["Only the outcome", "Times, descriptions and who you spoke to"], a: 1 }] },
+    { id: "k2", title: "Site Induction — Crown Casino", cat: "Site-Specific Induction", mandatory: true, renew: null, pass: 100, desc: "Access points, radio channels and venue contacts.", body: "Report to the control room on arrival. Radio channel 4.\n\nStaff entry is via Whiteman St. Never prop open fire doors.\n\nThe duty manager has authority over patron removals.", qs: [] },
+    { id: "k3", title: "Conflict De-escalation", cat: "Customer Service & Conflict Management", mandatory: false, renew: 24, pass: 80, desc: "Calm, clear language that stops things escalating.", body: "Keep a relaxed stance and a safe distance.\n\nUse the person's name, speak slowly, and give them a way out that saves face.", qs: [{ q: "Best first step with an agitated patron?", o: ["Raise your voice to take control", "Calm tone, safe distance, use their name"], a: 1 }] },
+  ];
+  const enr = (course, guard, status, extra = {}) => ({ id: uid("en"), course, guard, status, ...extra });
+  const enrollments = [
+    enr("k1", "g1", "ASSIGNED", { due: atDay(9) }),
+    enr("k1", "g2", "PASSED", { score: 100, done: atDay(-20), exp: atDay(345) }),
+    enr("k1", "g3", "FAILED", { score: 67, due: atDay(-2), attempts: 1 }),
+    enr("k1", "g4", "PASSED", { score: 100, done: atDay(-60), exp: atDay(305) }),
+    enr("k1", "g6", "ASSIGNED", { due: atDay(9) }),
+    enr("k2", "g1", "PASSED", { score: 100, done: atDay(-90) }),
+    enr("k2", "g8", "ASSIGNED", { due: atDay(3) }),
+    enr("k3", "g7", "PASSED", { score: 100, done: atDay(-14), exp: atDay(716) }),
+  ];
+
+  const subs = [
+    { id: "s1", name: "NightWatch Security Group", contact: "Paul Edmonds", phone: "+61 3 9000 5511", status: "ACTIVE", spec: "Mobile patrol, events", rating: 4.6, ins: atDay(220) },
+    { id: "s2", name: "Apex Response Services", contact: "Grace Liu", phone: "+61 3 9000 6622", status: "ACTIVE", spec: "Alarm response, retail", rating: 4.2, ins: atDay(31) },
+    { id: "s3", name: "Fortis Security Solutions", contact: "Ben Hartley", phone: "+61 3 9000 7733", status: "PENDING", spec: "Construction sites", rating: null, ins: atDay(300) },
+  ];
+  const jobReqs = [
+    { id: "jr1", sub: "s1", site: "x3", desc: "4 crowd controllers for the weekend expo", from: atDay(5), to: atDay(7), heads: 4, status: "ACCEPTED" },
+    { id: "jr2", sub: "s2", site: "x2", desc: "Overnight alarm response cover, Christmas trading", from: atDay(20), to: atDay(34), heads: 2, status: "PENDING" },
+  ];
+  const subInv = [
+    { id: "si1", sub: "s1", num: "NW-2291", period: "1–14 Nov", amount: 3360, status: "PENDING" },
+    { id: "si2", sub: "s2", num: "APX-0418", period: "Oct", amount: 5120, status: "APPROVED" },
+    { id: "si3", sub: "s1", num: "NW-2240", period: "15–31 Oct", amount: 2870, status: "PAID" },
+  ];
+
+  const feed = [
+    { at: at(-2 * MIN), k: "ALARM", t: "Hold-Up Alarm at Crown Casino, Reception" },
+    { at: at(-4 * MIN), k: "DISPATCH", t: "Sofia Rossi en route to ALM-4011, Marvel Stadium" },
+    { at: at(-18 * MIN), k: "ALARM", t: "CCTV Offline at Docklands Warehouse, Building C" },
+    { at: at(-31 * MIN), k: "PATROL", t: "Priya Sharma scanned stop 3/5 on R03" },
+    { at: at(-50 * MIN), k: "INCIDENT", t: "Trespassing reported at Marvel Stadium by Sofia Rossi" },
+    { at: at(-55 * MIN), k: "PATROL", t: "R03 Docklands Precinct Run started" },
+    { at: at(-80 * MIN), k: "LICENCE", t: "Kofi Asante uploaded a First Aid certificate" },
+    { at: at(-2 * HOUR), k: "SMS", t: "Roster for next week sent to 6 guards" },
+  ];
+
+  return {
+    company: "Auswide Security", guards, clients, sites, onShift, alarms, history, incidents, licences, shifts, today, runs, jobs, vehicles, equipment, checks,
+    invoices, courses, enrollments, subs, jobReqs, subInv, feed,
+    contacts: [{ name: "Client emergency contact — Southbank", phone: "+61 400 111 222" }, { name: "Regional manager", phone: "+61 400 333 444" }, { name: "Police liaison (non-urgent)", phone: "+61 400 555 666" }],
+    me: {
+      signedIn: false, step: "phone", page: "today",
+      shift: { site: "x1", start: at(10 * MIN), end: at(8 * HOUR + 10 * MIN), role: "Static", in: null, out: null, notes: "Report to the control room on arrival. Radio channel 4." },
+      pending: { id: "pend", site: "x1", start: atDay(1, 14), end: atDay(1, 22), role: "Static", status: "PENDING" },
+    },
+  };
+}
+
+// Vigilo interactive demo. Plain JS: state object -> HTML strings -> one
+// delegated set of event handlers. The console and the guard app share state.
+let S = seed();
+const UI = {
+  view: window.innerWidth >= 1280 ? "both" : "console",
+  route: "dashboard",
+  modal: null,
+  tab: {},
+  fold: {},
+  q: "",
+};
+
+/* ------------------------------------------------------------ helpers */
+const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const ic = (n, cls = "") => `<span class="ic ${cls}" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICONS[n] || ""}</svg></span>`;
+const pad = (n) => String(n).padStart(2, "0");
+const hm = (d) => { d = new Date(d); return `${pad(d.getHours())}:${pad(d.getMinutes())}`; };
+const dmy = (d) => { if (!d) return "—"; d = new Date(d); return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`; };
+const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const dd = (d) => { d = new Date(d); return `${DOW[d.getDay()]} ${d.getDate()} ${MON[d.getMonth()]}`; };
+const money = (n) => "$" + Number(n || 0).toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const ref = (p, n) => `${p}-${n}`;
+const elapsed = (ms) => { const s = Math.max(0, Math.floor(ms / 1000)); const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60); return h ? `${h}h ${pad(m)}m` : `${m}m ${pad(s % 60)}s`; };
+const clockHMS = (ms) => { const s = Math.max(0, Math.floor(ms / 1000)); return `${Math.floor(s / 3600)}:${pad(Math.floor((s % 3600) / 60))}:${pad(s % 60)}`; };
+const daysTo = (d) => (d ? Math.round((new Date(d).setHours(0, 0, 0, 0) - new Date().setHours(0, 0, 0, 0)) / DAY) : null);
+const G = (id) => S.guards.find((g) => g.id === id);
+const gname = (id) => { const g = G(id); return g ? `${g.first} ${g.last}` : "—"; };
+const SITE = (id) => S.sites.find((s) => s.id === id);
+const sname = (id) => SITE(id)?.name ?? "—";
+const CLIENT = (id) => S.clients.find((c) => c.id === id);
+const RUN = (id) => S.runs.find((r) => r.id === id);
+const jobDate = (j) => atDay(j.day);
+const me = () => S.me;
+
+const TONE = {
+  CRITICAL: "crit", HIGH: "red", MEDIUM: "amber", LOW: "grey",
+  UNASSIGNED: "red", DISPATCHED: "amber", EN_ROUTE: "amber", ON_SCENE: "blue", RESOLVED: "green",
+  UNVERIFIED: "grey", CCTV_CONFIRMED: "blue", GUARD_CONFIRMED: "blue", FALSE_ALARM: "grey",
+  OPEN: "red", UNDER_REVIEW: "amber", ESCALATED: "crit", ARCHIVED: "grey",
+  SCHEDULED: "grey", ACTIVE: "blue", COMPLETED: "green", PARTIAL: "amber", MISSED: "red",
+  DRAFT: "grey", SENT: "blue", PAID: "green", OVERDUE: "red", VOID: "grey",
+  ASSIGNED: "blue", PASSED: "green", FAILED: "red", CONFIRMED: "green", PENDING: "amber", REJECTED: "red",
+  ACCEPTED: "green", DECLINED: "red", APPROVED: "blue", DISPUTED: "red", SUSPENDED: "red",
+  IN_SERVICE: "amber", AVAILABLE: "green", IN_USE: "blue", MAINTENANCE: "amber", LOST: "red",
+  VALID: "green", EXPIRING: "amber", URGENT: "red", EXPIRED: "crit", AWAITING: "violet",
+};
+const LABEL = { EN_ROUTE: "En route", ON_SCENE: "On scene", CCTV_CONFIRMED: "CCTV confirmed", GUARD_CONFIRMED: "Guard confirmed", FALSE_ALARM: "False alarm", UNDER_REVIEW: "Under review", IN_SERVICE: "In service", IN_USE: "In use", AWAITING: "Awaiting check" };
+const pill = (s, txt) => `<span class="pill t-${TONE[s] || "grey"}">${esc(txt || LABEL[s] || s.replace(/_/g, " ").toLowerCase())}</span>`;
+
+const LT = {
+  SECURITY_1A: ["Security Licence — Unarmed Guard", "Unarmed Guard", true], SECURITY_2A: ["Security Licence — Crowd Controller", "Crowd Controller", true],
+  FIRST_AID: ["First Aid Certificate (HLTAID011)", "First Aid", false], CPR: ["CPR Certificate (HLTAID009)", "CPR", false], RSA: ["Responsible Service of Alcohol", "RSA", false],
+};
+function licStatus(l, when = new Date()) {
+  if (l.ver === "REJECTED") return "REJECTED";
+  const d = l.exp ? Math.round((new Date(l.exp).setHours(0, 0, 0, 0) - new Date(when).setHours(0, 0, 0, 0)) / DAY) : null;
+  if (d !== null && d < 0) return "EXPIRED";
+  if (l.ver !== "VERIFIED") return "AWAITING";
+  if (d === null || d > 60) return "VALID";
+  return d <= 14 ? "URGENT" : "EXPIRING";
+}
+const licLabel = { VALID: "Valid", EXPIRING: "Expiring soon", URGENT: "Urgent", EXPIRED: "Expired", AWAITING: "Awaiting check", REJECTED: "Rejected" };
+function clearance(gid, when = new Date()) {
+  const ls = S.licences.filter((l) => l.guard === gid);
+  const sec = ls.filter((l) => LT[l.type]?.[2]);
+  const issues = [];
+  let level = "ok";
+  const current = sec.filter((l) => ["VALID", "EXPIRING", "URGENT"].includes(licStatus(l, when)));
+  if (!sec.length) { level = "block"; issues.push("No security licence on file"); }
+  else if (!current.length) {
+    level = "block";
+    issues.push(sec.some((l) => licStatus(l, when) === "AWAITING") ? "Security licence has not been verified" : "Security licence is expired on the shift date");
+  } else {
+    const best = Math.max(...current.map((l) => daysTo(l.exp) ?? 9999));
+    if (best <= 14) { level = "warn"; issues.push(`Security licence expires in ${best} day${best === 1 ? "" : "s"}`); }
+  }
+  ls.filter((l) => !LT[l.type]?.[2]).forEach((l) => {
+    const st = licStatus(l, when);
+    if (st === "EXPIRED") { if (level === "ok") level = "warn"; issues.push(`${LT[l.type][1]} is expired`); }
+    if (st === "AWAITING") { if (level === "ok") level = "warn"; issues.push(`${LT[l.type][1]} is awaiting verification`); }
+  });
+  return { level, issues };
+}
+const TARGET = { CRITICAL: 5, HIGH: 8, MEDIUM: 15, LOW: 30 };
+function sla(a, now = Date.now()) {
+  const target = TARGET[a.pri] * MIN;
+  const end = a.onScene ? new Date(a.onScene).getTime() : a.resolved ? new Date(a.resolved).getTime() : now;
+  const el = Math.max(0, end - new Date(a.trig).getTime());
+  return { el, target, state: el > target ? "bad" : el > target * 0.7 ? "warn" : "ok" };
+}
+function scanned(j) { return Object.values(j.scans).filter((s) => s.st === "SCANNED").length; }
+function missed(j) { return Object.values(j.scans).filter((s) => s.st === "MISSED").length; }
+function billable(j) {
+  const run = RUN(j.run), n = run.stops.length, sc = scanned(j);
+  if (j.status === "COMPLETED") return run.rate;
+  if (j.status === "PARTIAL") return Math.round(run.rate * (sc / n) * 100) / 100;
+  return 0;
+}
+function invLines(inv) {
+  if (inv.lines) return inv.lines;
+  return S.jobs.filter((j) => j.invoice === inv.id).map((j) => { const r = RUN(j.run); return { d: `${dmy(jobDate(j))} — ${r.code} ${r.name}${j.status === "PARTIAL" ? ` (partial: ${scanned(j)}/${r.stops.length} stops)` : ""}`, q: 1, u: billable(j) }; });
+}
+function invTotals(inv) {
+  const sub = Math.round(invLines(inv).reduce((n, l) => n + l.q * l.u, 0) * 100) / 100;
+  const gst = Math.round(sub * 10) / 100;
+  return { sub, gst, total: Math.round((sub + gst) * 100) / 100 };
+}
+const invStatus = (inv) => (inv.status === "SENT" && inv.due && new Date(inv.due).getTime() < NOW ? "OVERDUE" : inv.status);
+const log = (k, t) => S.feed.unshift({ at: new Date(), k, t });
+const alarmLog = (a, who, t) => a.tl.push({ at: new Date(), who, t });
+
+/* ------------------------------------------------------------ toast */
+function toast(title, sub) {
+  const box = document.getElementById("toasts");
+  const el = document.createElement("div");
+  el.className = "toast";
+  el.setAttribute("role", "status");
+  el.innerHTML = `${esc(title)}${sub ? `<small>${esc(sub)}</small>` : ""}`;
+  box.appendChild(el);
+  setTimeout(() => el.remove(), 3500);
+}
+
+/* ------------------------------------------------------------ shell */
+const NAV = [
+  ["Operations", [["dashboard", "Dashboard", "dashboard"], ["alarms", "Alarm Response", "siren", "alarms"], ["incidents", "Incident Reports", "incident", "incidents"]]],
+  ["Workforce", [["rosters", "Rosters", "calendar", "pending"], ["compliance", "Licences & Compliance", "badge", "compliance"], ["training", "Training", "training"]]],
+  ["Patrol", [["patrols", "Patrol Runs", "route", "patrols"], ["vehicles", "Vehicles & Equipment", "truck"], ["invoicing", "Patrol Invoicing", "receipt"]]],
+  ["Business", [["clients", "Clients", "briefcase"], ["subcontractors", "Subcontractors", "handshake"], ["analytics", "Analytics", "chart"]]],
+  ["Platform", [["billing", "Billing", "card"]]],
+];
+function badges() {
+  return {
+    alarms: S.alarms.length,
+    incidents: S.incidents.filter((i) => ["OPEN", "UNDER_REVIEW", "ESCALATED"].includes(i.status)).length,
+    compliance: S.licences.filter((l) => ["EXPIRED", "URGENT", "AWAITING"].includes(licStatus(l))).length,
+    patrols: S.jobs.filter((j) => j.status === "ACTIVE").length,
+    pending: S.shifts.filter((s) => s.status === "PENDING").length,
+  };
+}
+function tip() {
+  const liamLic = S.licences.find((l) => l.guard === "g1" && l.type === "SECURITY_1A");
+  const a1 = S.alarms.find((a) => a.id === "a1");
+  const j1 = S.jobs.find((j) => j.id === "j1");
+  if (a1 && a1.status === "UNASSIGNED") return `Try this: open <b>Alarm Response</b> and dispatch <b>Liam Nguyen</b> to the hold-up alarm. Then answer it from his guard app.`;
+  if (a1 && a1.guard === "g1" && a1.status !== "ON_SCENE") return `Now open the <b>guard app</b> (Tasks tab) and respond to the dispatch as Liam.`;
+  if (liamLic && liamLic.ver !== "VERIFIED") return `Try this: in <b>Licences &amp; Compliance</b>, verify Liam's uploaded licence. The warning in his app clears.`;
+  if (j1 && j1.status === "SCHEDULED") return `Try this: run tonight's patrol <b>R01</b> from the guard app's Tasks tab and watch it in <b>Patrol Runs</b>.`;
+  return `Try this: build an invoice from completed runs in <b>Patrol Invoicing</b>.`;
+}
+function demobar() {
+  const b = (v, label, icon, cls = "") => `<button class="${cls}" data-a="view" data-v="${v}" aria-pressed="${UI.view === v}">${ic(icon)}${label}</button>`;
+  return `<div class="demobar">
+    <span class="brand">${LOGO}Vigilo</span>
+    <span class="tag">Interactive demo with sample data. Nothing is sent and changes reset on reload.</span>
+    <span class="grow"></span>
+    <div class="seg" role="group" aria-label="View">${b("console", "Console", "monitor")}${b("guard", "Guard app", "phoneapp")}${b("both", "Side by side", "split", "wideonly")}</div>
+    <button class="btn sm" data-a="reset">${ic("reset")}Reset demo</button>
+  </div>
+  <div class="tip" id="tip">${tip()}</div>`;
+}
+const LOGO = `<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M2.5 4.5h4.6L12 12.9l4.9-8.4h4.6L12 20.5z" fill="#0052ea"/><path d="M8.6 4.5h2.5l.9 1.6.9-1.6h2.5L12 10.2z" fill="#0a7fb5"/></svg>`;
+function sidebar() {
+  const bd = badges();
+  const tone = { alarms: "red", patrols: "cyan" };
+  return `<nav class="side" aria-label="Modules">
+    <div class="co"><span class="eyebrow">Company</span><b>${esc(S.company)}</b></div>
+    ${NAV.map(([sec, items]) => `<div class="eyebrow navsec">${sec}</div>${items.map(([k, label, icon, bk]) => `
+      <button class="nav" data-a="go" data-r="${k}" ${UI.route === k ? 'aria-current="page"' : ""}>${ic(icon)}<span>${label}</span>${bk && bd[bk] ? `<span class="badge ${tone[bk] || ""}">${bd[bk]}</span>` : ""}</button>`).join("")}`).join("")}
+  </nav>`;
+}
+function mobnav() {
+  return `<div class="mobnav"><label class="lbl" for="mobnav">Module</label>
+    <select id="mobnav" class="inp" data-c="go">${NAV.flatMap(([, items]) => items).map(([k, label]) => `<option value="${k}" ${UI.route === k ? "selected" : ""}>${label}</option>`).join("")}</select></div>`;
+}
+const ph = (title, desc, actions = "") => `<div class="ph"><div><h1>${title}</h1><p>${desc}</p></div><div class="row">${actions}</div></div>`;
+const tile = (label, v, sub = "", cls = "", go = "") => `<${go ? `button data-a="go" data-r="${go}"` : "div"} class="tile ${cls}"><div class="eyebrow">${label}</div><div class="v">${v}</div>${sub ? `<div class="s">${sub}</div>` : ""}</${go ? "button" : "div"}>`;
+const tabs = (key, list) => {
+  const cur = UI.tab[key] || list[0][0];
+  return `<div class="tabs" role="tablist">${list.map(([k, label, n]) => `<button role="tab" aria-selected="${cur === k}" data-a="tab" data-k="${key}" data-v="${k}">${label}${n !== undefined ? `<span class="count">${n}</span>` : ""}</button>`).join("")}</div>`;
+};
+const curTab = (key, def) => UI.tab[key] || def;
+const table = (cols, rows, empty, onRow) => `<div class="tablewrap"><table><thead><tr>${cols.map((c) => `<th class="${c[2] || ""}">${c[0]}</th>`).join("")}</tr></thead><tbody>${
+  rows.length ? rows.map((r) => `<tr ${onRow ? `class="click" ${onRow(r)}` : ""}>${cols.map((c) => `<td class="${c[2] || ""}">${c[1](r)}</td>`).join("")}</tr>`).join("") : `<tr><td colspan="${cols.length}" class="empty">${empty}</td></tr>`
+}</tbody></table></div>`;
+const clock = (a) => { const s = sla(a); return `<span class="clock ${s.state}-t" data-clock="${a.id}">${a.onScene ? "on scene in " : ""}${elapsed(s.el)}</span>`; };
+
+/* ------------------------------------------------------------ dashboard */
+function pageDashboard() {
+  const bd = badges();
+  const onDuty = Object.keys(S.onShift).length;
+  const active = [...S.alarms].sort((a, b) => TARGET[a.pri] - TARGET[b.pri]);
+  const live = S.jobs.filter((j) => j.status === "ACTIVE" || (j.day === 0 && j.status === "SCHEDULED"));
+  const todays = S.shifts.filter((s) => s.day === S.today).sort((a, b) => a.start.localeCompare(b.start));
+  const kc = { ALARM: "red", DISPATCH: "amber", INCIDENT: "red", PATROL: "blue", LICENCE: "violet", SMS: "grey", SHIFT: "green", TRAINING: "violet", INVOICE: "green" };
+  return ph("Dashboard", "What needs attention right now.") + `
+  <div class="tiles">
+    ${tile("Active alarms", S.alarms.length, `${S.alarms.filter((a) => a.status === "UNASSIGNED").length} unassigned`, S.alarms.length ? "bad" : "", "alarms")}
+    ${tile("Open incidents", bd.incidents, "Open, review or escalated", bd.incidents ? "warn" : "", "incidents")}
+    ${tile("Patrols in progress", bd.patrols, `${S.jobs.filter((j) => j.day === 0).length} scheduled today`, "", "patrols")}
+    ${tile("Guards on duty", onDuty, "Rostered right now")}
+    ${tile("Compliance alerts", bd.compliance, "Expired, urgent or unchecked", bd.compliance ? "warn" : "", "compliance")}
+    ${tile("Awaiting reply", bd.pending, "Shifts not yet confirmed", "", "rosters")}
+  </div>
+  <div class="grid-main">
+    <div style="display:grid;gap:14px">
+      <section class="panel"><header><h2>Active alarms</h2><button class="btn sm" data-a="go" data-r="alarms">Open console ${ic("right")}</button></header>
+        <div class="body" style="padding:0">${active.length ? active.map((a) => `
+          <button class="g-link" style="border:0;border-bottom:1px solid var(--line);border-radius:0" data-a="go" data-r="alarms">
+            ${pill(a.pri)}<span class="grow"><b>${esc(a.type)}</b><span class="muted small" style="display:block">${esc(sname(a.site))} · ${esc(a.zone)}</span></span>
+            ${pill(a.status)} ${clock(a)}</button>`).join("") : `<div class="empty">No active alarms.</div>`}</div></section>
+      <section class="panel"><header><h2>Activity</h2><span class="muted small"><span class="dot live ok-t"></span> Live</span></header>
+        <div class="body"><ul class="feed">${S.feed.slice(0, 9).map((f) => `<li><span class="mono muted small">${hm(f.at)}</span>${pill(kc[f.k] ? f.k : "SMS", f.k)}<span>${esc(f.t)}</span></li>`).join("")}</ul></div></section>
+    </div>
+    <div style="display:grid;gap:14px">
+      <section class="panel"><header><h2>Patrols tonight</h2><button class="btn sm" data-a="go" data-r="patrols">All runs</button></header>
+        <div class="body" style="display:grid;gap:12px">${live.map((j) => { const r = RUN(j.run), n = r.stops.length, sc = Object.keys(j.scans).length; return `
+          <div><div class="row" style="justify-content:space-between"><span><b class="mono">${r.code}</b> ${esc(r.name)}</span>${pill(j.status)}</div>
+          <div class="row small muted" style="margin-top:4px"><span>${esc(gname(j.guard))}</span><span class="grow"></span><span class="mono">${sc}/${n} stops</span></div>
+          <div class="bar" style="margin-top:6px"><i style="width:${(sc / n) * 100}%"></i></div></div>`; }).join("") || `<p class="muted">Nothing running.</p>`}</div></section>
+      <section class="panel"><header><h2>Today's shifts</h2><button class="btn sm" data-a="go" data-r="rosters">Roster</button></header>
+        <div class="body" style="padding:0">${table([["Time", (s) => `<span class="mono">${s.start}–${s.end}</span>`], ["Guard", (s) => esc(gname(s.guard))], ["Site", (s) => esc(sname(s.site))], ["", (s) => pill(s.status)]], todays, "No shifts today.").replace('class="tablewrap"', 'class="tablewrap" style="border:0"')}</div></section>
+    </div>
+  </div>`;
+}
+
+/* ------------------------------------------------------------ alarms */
+function pageAlarms() {
+  const t = curTab("alarms", "active");
+  const head = ph("Alarm Response &amp; Dispatch", "Log an alarm, send the nearest guard, tell the people who need to know, and keep the record.",
+    `<button class="btn" data-a="modal" data-m="contacts">${ic("users")}SMS contacts</button><button class="btn primary" data-a="modal" data-m="logAlarm">${ic("plus")}Log alarm</button>`);
+  const tb = tabs("alarms", [["active", "Active queue", S.alarms.length], ["history", "History", S.history.length]]);
+  if (t === "history") return head + tb + alarmHistory();
+  const q = [...S.alarms].sort((a, b) => TARGET[a.pri] - TARGET[b.pri] || new Date(a.trig) - new Date(b.trig));
+  const board = q.filter((a) => a.guard);
+  return head + tb + `<div class="grid-main"><div>${q.length ? q.map(alarmCard).join("") : `<div class="panel empty">No active alarms. Use “Log alarm” when a monitoring centre or site calls one in.</div>`}</div>
+    <section class="panel"><header><h2>Dispatch board</h2></header><div class="body" style="display:grid;gap:12px">${board.length ? board.map((a) => {
+      const s = sla(a); return `<div style="display:grid;gap:6px;padding-bottom:12px;border-bottom:1px solid var(--line)">
+        <div class="row" style="justify-content:space-between;align-items:flex-start"><div><b>${esc(gname(a.guard))}</b><div class="small muted">${esc(a.type)} · ${esc(sname(a.site))}</div><div class="mono small" style="color:var(--cyan)">${esc(G(a.guard).phone)}</div></div>
+        <div style="text-align:right">${pill(a.status)}<div class="mono small ${s.state}-t" data-left="${a.id}" style="margin-top:4px">${s.state === "bad" ? "SLA breached" : `${elapsed(s.target - s.el)} left`}</div></div></div>
+        <div class="row">${a.status !== "ON_SCENE" ? `<button class="btn sm" data-a="alarm" data-op="onscene" data-id="${a.id}">Mark on scene</button>` : ""}<button class="btn sm ghost danger" data-a="alarm" data-op="recall" data-id="${a.id}">Recall</button></div></div>`;
+    }).join("") : `<p class="muted" style="margin:0">No guards dispatched.</p>`}</div></section></div>`;
+}
+function alarmCard(a) {
+  const sop = SOP[a.type] || SOP.default;
+  const f = UI.fold[a.id];
+  return `<article class="alarm ${a.pri === "CRITICAL" && a.status === "UNASSIGNED" ? "crit" : ""}">
+    <div class="top">
+      <div class="head">${pill(a.pri)}<span class="mono small muted">${ref("ALM", a.ref)}</span><span class="t">${esc(a.type)}</span>${clock(a)}</div>
+      <div class="where">${esc(sname(a.site))} <span class="muted" style="font-weight:400">· ${esc(a.zone)}</span></div>
+      <div class="row small muted">Triggered ${hm(a.trig)} ${pill(a.ver)} ${pill(a.status)} ${a.guard ? `<span style="color:var(--ink)">→ ${esc(gname(a.guard))}${a.eta && a.status !== "ON_SCENE" ? ` · ETA ${a.eta} min` : ""}</span>` : ""}</div>
+      <div class="acts">
+        <button class="btn sm primary" data-a="modal" data-m="dispatch" data-id="${a.id}">${a.guard ? "Re-dispatch" : "Dispatch guard"}</button>
+        <button class="btn sm" data-a="modal" data-m="sms" data-id="${a.id}">${ic("send")}SMS alert</button>
+        <select class="inp" style="height:28px;width:auto;font-size:12.5px" aria-label="Verification" data-c="ver" data-id="${a.id}">
+          ${["UNVERIFIED", "CCTV_CONFIRMED", "GUARD_CONFIRMED"].map((v) => `<option value="${v}" ${a.ver === v ? "selected" : ""}>${LABEL[v] || "Unverified"}</option>`).join("")}</select>
+        <button class="btn sm" data-a="modal" data-m="note" data-id="${a.id}">${ic("message")}Note</button>
+        ${a.pri !== "CRITICAL" ? `<button class="btn sm" data-a="alarm" data-op="escalate" data-id="${a.id}">Escalate</button>` : ""}
+        <button class="btn sm" data-a="modal" data-m="falseAlarm" data-id="${a.id}">False alarm</button>
+        <button class="btn sm good" data-a="modal" data-m="resolve" data-id="${a.id}">Resolve</button>
+      </div>
+    </div>
+    <div class="fold">
+      <button data-a="fold" data-id="${a.id}" data-v="sop" aria-expanded="${f === "sop"}">Procedure (${a.sop.length}/${sop.length}) ${ic(f === "sop" ? "up" : "down")}</button>
+      <button data-a="fold" data-id="${a.id}" data-v="tl" aria-expanded="${f === "tl"}">Timeline (${a.tl.length}) ${ic(f === "tl" ? "up" : "down")}</button>
+    </div>
+    ${f === "sop" ? `<div class="more sop">${sop.map((s, i) => `<label class="${a.sop.includes(i) ? "done" : ""}"><input type="checkbox" data-c="sop" data-id="${a.id}" data-i="${i}" ${a.sop.includes(i) ? "checked" : ""}><span>${esc(s)}</span></label>`).join("")}</div>` : ""}
+    ${f === "tl" ? `<div class="more"><ol class="tl">${a.tl.map((e) => `<li><span class="mono">${hm(e.at)}</span><span><b>${esc(e.who)}</b> <span class="muted">· ${esc(e.t)}</span></span></li>`).join("")}</ol></div>` : ""}
+  </article>`;
+}
+const SOP = {
+  "Hold-Up Alarm": ["Do NOT call the site. Treat as a live hold-up", "Call police (000) with site, zone and access details", "Hold guards at a safe distance until police direct otherwise", "Notify the client's emergency contact and management", "Preserve CCTV footage", "Record every action taken on this alarm"],
+  "Duress/Panic Button": ["Confirm via CCTV. Do NOT call the site directly", "Dispatch the nearest guard immediately", "Notify the shift supervisor", "Call police if there is no response within 5 minutes", "Record every action taken on this alarm"],
+  "CCTV Offline": ["Check whether other cameras at the site are online", "Ask the on-site guard to inspect the camera and cabling", "Log a fault with the client's CCTV maintainer", "Increase patrol frequency in the affected zone"],
+  default: ["Verify the alarm (CCTV or call the site contact)", "Dispatch the nearest available guard", "Notify the shift supervisor", "Escalate to emergency services if the threat is confirmed", "Record every action taken on this alarm"],
+};
+function alarmHistory() {
+  const rows = [...S.history].sort((a, b) => new Date(b.trig) - new Date(a.trig));
+  const att = rows.filter((a) => a.onScene).map((a) => (new Date(a.onScene) - new Date(a.trig)) / MIN);
+  const gen = rows.filter((a) => a.ver !== "FALSE_ALARM");
+  const within = gen.filter((a) => sla(a).state !== "bad").length;
+  return `<div class="tiles">${tile("Alarms closed", rows.length)}${tile("Avg response", att.length ? (att.reduce((x, y) => x + y, 0) / att.length).toFixed(1) + " min" : "—", "Trigger to guard on scene")}
+    ${tile("False alarms", Math.round(((rows.length - gen.length) / Math.max(1, rows.length)) * 100) + "%")}${tile("Within response target", gen.length ? Math.round((within / gen.length) * 100) + "%" : "—", "Genuine alarms only")}</div>` +
+    table([["Ref", (a) => `<span class="mono">${ref("ALM", a.ref)}</span>`], ["Triggered", (a) => `<span class="small">${dd(a.trig)} ${hm(a.trig)}</span>`], ["Site", (a) => `${esc(sname(a.site))} <span class="muted">· ${esc(a.zone)}</span>`], ["Type", (a) => esc(a.type)], ["Priority", (a) => pill(a.pri)],
+      ["Response", (a) => (a.onScene ? `<span class="mono">${((new Date(a.onScene) - new Date(a.trig)) / MIN).toFixed(1)} min</span>` : `<span class="muted">—</span>`)], ["SMS", (a) => (a.sms ? "Yes" : "—")],
+      ["Outcome", (a) => `<span class="small muted">${a.ver === "FALSE_ALARM" ? "False alarm. " : ""}${esc(a.outcome)}</span>`]], rows, "No resolved alarms yet.");
+}
+
+/* ------------------------------------------------------------ incidents */
+function pageIncidents() {
+  const st = ["OPEN", "UNDER_REVIEW", "ESCALATED", "RESOLVED", "ARCHIVED"];
+  const t = curTab("inc", "ALL");
+  const rows = S.incidents.filter((i) => t === "ALL" || i.status === t);
+  return ph("Incident Reports", "Reports filed by guards in the field and by the office, each with a full timeline.", `<button class="btn primary" data-a="modal" data-m="newIncident">${ic("plus")}New incident</button>`) +
+    tabs("inc", [["ALL", "All", S.incidents.length], ...st.map((s) => [s, LABEL[s] || s[0] + s.slice(1).toLowerCase(), S.incidents.filter((i) => i.status === s).length])]) +
+    table([["ID", (i) => `<span class="mono">${ref("INC", i.ref)}</span>`], ["When", (i) => `<span class="small">${dd(i.at)} ${hm(i.at)}</span>`], ["Site", (i) => `${esc(sname(i.site))}${i.zone ? ` <span class="muted">· ${esc(i.zone)}</span>` : ""}`],
+      ["Type", (i) => esc(i.type)], ["Severity", (i) => pill(i.sev)], ["Reported by", (i) => (i.guard ? esc(gname(i.guard)) : '<span class="muted">Office</span>')], ["Investigator", (i) => esc(i.who) || '<span class="muted">—</span>'], ["Status", (i) => pill(i.status)]],
+      rows, "No incidents in this view.", (i) => `data-a="modal" data-m="incident" data-id="${i.id}"`);
+}
+
+/* ------------------------------------------------------------ rosters */
+function pageRosters() {
+  const monday = atDay(-S.today);
+  const drafts = S.shifts.filter((s) => s.status === "DRAFT").length;
+  const days = [...Array(7)].map((_, d) => atDay(d - S.today));
+  return ph("Rosters", `Week of ${dd(monday)}. Click a shift to change it, or an empty cell to add one. Guards confirm by SMS reply or in the app.`,
+    `<button class="btn primary" data-a="publish" ${drafts ? "" : "disabled"}>${ic("send")}Publish ${drafts} draft${drafts === 1 ? "" : "s"}</button>`) +
+    `<div class="row small muted" style="margin-bottom:10px;gap:14px">${["CONFIRMED", "PENDING", "DRAFT"].map((s) => `<span class="row" style="gap:6px">${pill(s, s === "PENDING" ? "Awaiting reply" : s === "DRAFT" ? "Draft, not sent" : "Confirmed")}</span>`).join("")}</div>
+    <div class="tablewrap"><table class="roster"><thead><tr><th>Guard</th>${days.map((d, i) => `<th ${i === S.today ? 'style="color:var(--accent-ink)"' : ""}>${DOW[d.getDay()]} ${d.getDate()}/${d.getMonth() + 1}</th>`).join("")}</tr></thead><tbody>
+    ${S.guards.map((g) => `<tr><td class="who">${esc(g.first)} ${esc(g.last)}${g.sub ? `<div class="small muted">Subcontractor</div>` : ""}</td>${days.map((_, d) => `<td>${S.shifts.filter((s) => s.guard === g.id && s.day === d).map((s) => `
+      <button class="shift ${s.status}" data-a="modal" data-m="shift" data-id="${s.id}"><span class="s1">${esc(sname(s.site))}</span><br><span class="mono">${s.start}–${s.end}</span><br><span class="muted">${esc(s.role)}</span></button>`).join("")}
+      <button class="addcell" data-a="modal" data-m="addShift" data-g="${g.id}" data-d="${d}" aria-label="Add shift for ${esc(g.first)} on ${DOW[days[d].getDay()]}">+ add</button></td>`).join("")}</tr>`).join("")}
+    </tbody></table></div>`;
+}
+
+/* ------------------------------------------------------------ compliance */
+function pageCompliance() {
+  const ls = S.licences;
+  const st = (s) => ls.filter((l) => licStatus(l) === s).length;
+  const cl = S.guards.map((g) => ({ g, ...clearance(g.id) }));
+  const ok = cl.filter((c) => c.level !== "block").length;
+  const score = Math.round((ok / cl.length) * 100);
+  const queue = ls.filter((l) => licStatus(l) === "AWAITING");
+  const t = curTab("comp", queue.length ? "queue" : "registry");
+  const licRow = (l) => `data-a="modal" data-m="verify" data-id="${l.id}"`;
+  const cols = [["Guard", (l) => `<b>${esc(gname(l.guard))}</b>`], ["Credential", (l) => esc(LT[l.type][1])], ["Number", (l) => `<span class="mono small">${esc(l.number)} <span class="muted">${l.state}</span></span>${l.doc ? ` ${ic("clip")}` : ""}`],
+    ["Expires", (l) => { const d = daysTo(l.exp); return `<span class="mono small">${dmy(l.exp)}</span>${d !== null && d <= 60 ? ` <span class="small ${d < 0 || d <= 14 ? "bad-t" : "warn-t"}">${d < 0 ? `${-d} days ago` : `in ${d} days`}</span>` : ""}`; }],
+    ["Status", (l) => pill(licStatus(l), licLabel[licStatus(l)])], [t === "queue" ? "Source" : "Checked by", (l) => `<span class="small muted">${t === "queue" ? (l.source === "GUARD" ? "Guard app upload" : "Office entry") : esc(l.by) || "—"}</span>`],
+    ["", (l) => `<button class="btn sm ${licStatus(l) === "AWAITING" ? "primary" : ""}" ${licRow(l)}>${licStatus(l) === "AWAITING" ? "Review" : "Open"}</button>`, "r"]];
+  return ph("Licences &amp; Compliance", "Every credential your guards hold, who checked it, and when it runs out.", `<button class="btn primary" data-a="modal" data-m="addLicence">${ic("plus")}Add licence</button>`) + `
+  <div class="tiles">
+    <div class="tile" style="grid-column:span 2"><div class="row" style="justify-content:space-between"><span class="eyebrow">Guards cleared to work</span><span class="mono small muted">${ok} of ${cl.length}</span></div>
+      <div class="row" style="margin-top:8px;flex-wrap:nowrap"><span class="v ${score < 100 ? "warn-t" : "ok-t"}" style="margin:0">${score}%</span><div class="bar ${score < 100 ? "warn" : ""}" style="flex:1"><i style="width:${score}%"></i></div></div></div>
+    ${tile("Valid", st("VALID"))}${tile("Expiring ≤ 60 days", st("EXPIRING"), "", st("EXPIRING") ? "warn" : "")}${tile("Urgent ≤ 14 days", st("URGENT"), "", st("URGENT") ? "bad" : "")}${tile("Expired", st("EXPIRED"), "", st("EXPIRED") ? "bad" : "")}${tile("To verify", queue.length, "", queue.length ? "warn" : "")}
+  </div>` + tabs("comp", [["queue", "Verification queue", queue.length], ["registry", "Registry", ls.length], ["guards", "Guard clearance", cl.filter((c) => c.level !== "ok").length]]) +
+    (t === "guards"
+      ? table([["Guard", (c) => `<b>${esc(c.g.first)} ${esc(c.g.last)}</b>`], ["Rostering", (c) => (c.level === "block" ? pill("REJECTED", "Not cleared") : c.level === "warn" ? pill("PENDING", "Cleared · attention") : pill("CONFIRMED", "Cleared"))], ["What needs doing", (c) => `<span class="small muted">${esc(c.issues.join(" · ")) || "—"}</span>`]],
+        cl.sort((a, b) => "block warn ok".indexOf(a.level) - "block warn ok".indexOf(b.level)), "")
+      : table(cols, t === "queue" ? queue : [...ls].sort((a, b) => (a.exp ? new Date(a.exp) : Infinity) - (b.exp ? new Date(b.exp) : Infinity)), t === "queue" ? "Nothing waiting. New uploads from the guard app appear here." : "No licences.", licRow));
+}
+
+/* ------------------------------------------------------------ training */
+function pageTraining() {
+  const t = curTab("train", "courses");
+  const en = S.enrollments;
+  const overdue = en.filter((e) => e.status !== "PASSED" && e.due && new Date(e.due) < new Date()).length;
+  const scores = en.filter((e) => e.status === "PASSED").map((e) => e.score);
+  return ph("Training &amp; Certification", "Write courses, assign them, see who has passed. Guards complete them in the app.") + `
+  <div class="tiles">${tile("Active courses", S.courses.length)}${tile("Open assignments", en.filter((e) => e.status !== "PASSED").length)}${tile("Overdue", overdue, "", overdue ? "warn" : "")}${tile("Average pass score", scores.length ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) + "%" : "—")}</div>` +
+    tabs("train", [["courses", "Courses", S.courses.length], ["records", "Training records", en.length]]) +
+    (t === "courses"
+      ? table([["Course", (c) => `<b>${esc(c.title)}</b><div class="small muted">${esc(c.desc)}</div>`], ["Category", (c) => `<span class="small muted">${esc(c.cat)}</span>`], ["Required", (c) => (c.mandatory ? pill("PENDING", "Mandatory") : pill("SCHEDULED", "Optional"))],
+          ["Quiz", (c) => (c.qs.length ? `<span class="mono small">${c.qs.length} q · pass ${c.pass}%</span>` : `<span class="small muted">Read only</span>`)], ["Renewal", (c) => (c.renew ? `${c.renew} months` : '<span class="muted">Never</span>')],
+          ["Completion", (c) => { const e = en.filter((x) => x.course === c.id), p = e.filter((x) => x.status === "PASSED").length; return e.length ? `<span class="mono">${p}/${e.length}</span>` : '<span class="muted">—</span>'; }],
+          ["", (c) => `<button class="btn sm" data-a="modal" data-m="assign" data-id="${c.id}">${ic("users")}Assign</button>`, "r"]], S.courses, "")
+      : table([["Guard", (e) => `<b>${esc(gname(e.guard))}</b>`], ["Course", (e) => esc(S.courses.find((c) => c.id === e.course).title)], ["Status", (e) => pill(e.status)], ["Score", (e) => (e.score != null ? `<span class="mono">${e.score}%</span>` : "—")],
+          ["Due", (e) => `<span class="${e.status !== "PASSED" && e.due && new Date(e.due) < new Date() ? "bad-t" : ""}">${dmy(e.due)}</span>`], ["Completed", (e) => dmy(e.done)], ["Certificate expires", (e) => (e.status === "PASSED" ? (e.exp ? dmy(e.exp) : "No expiry") : "—")]], en, ""));
+}
+
+/* ------------------------------------------------------------ patrols */
+function pagePatrols() {
+  const t = curTab("pat", "jobs");
+  const jobs = [...S.jobs].filter((j) => j.day >= -7).sort((a, b) => b.day - a.day || RUN(a.run).code.localeCompare(RUN(b.run).code));
+  const unbilled = S.jobs.filter((j) => !j.invoice).reduce((n, j) => n + billable(j), 0);
+  return ph("Patrol Runs", "Vehicle patrol routes, who is driving them tonight, and how far through they are.") +
+    `<div class="note">Patrol runs are billed to clients per completed run. They are separate from shifts and never touch timesheets or payroll.</div>
+    <div class="tiles">${tile("In progress", S.jobs.filter((j) => j.status === "ACTIVE").length)}${tile("Scheduled today", S.jobs.filter((j) => j.day === 0).length)}${tile("Missed stops (14 days)", S.jobs.reduce((n, j) => n + missed(j), 0))}${tile("Uninvoiced work", money(unbilled), "Ready to bill")}</div>` +
+    tabs("pat", [["jobs", "Jobs (last 7 days)", jobs.length], ["runs", "Runs", S.runs.length]]) +
+    (t === "jobs"
+      ? table([["Date", (j) => `<span class="mono small">${dmy(jobDate(j))}</span>`], ["Run", (j) => `<b class="mono">${RUN(j.run).code}</b> ${esc(RUN(j.run).name)}`], ["Client", (j) => esc(CLIENT(RUN(j.run).client).name)], ["Guard", (j) => esc(gname(j.guard))],
+          ["Status", (j) => pill(j.status)], ["Stops", (j) => { const n = RUN(j.run).stops.length, sc = Object.keys(j.scans).length; return `<span class="row" style="flex-wrap:nowrap"><span class="bar ${missed(j) ? "warn" : ""}" style="width:80px"><i style="width:${(sc / n) * 100}%"></i></span><span class="mono small">${scanned(j)}/${n}</span>${missed(j) ? `<span class="small bad-t">${missed(j)} missed</span>` : ""}</span>`; }],
+          ["Billable", (j) => (["COMPLETED", "PARTIAL", "MISSED"].includes(j.status) ? `<span class="mono">${money(billable(j))}</span>` : '<span class="muted">—</span>'), "r"], ["Invoiced", (j) => (j.invoice ? pill("PAID", "Yes") : '<span class="muted">—</span>')]],
+          jobs, "No jobs.", (j) => `data-a="modal" data-m="job" data-id="${j.id}"`)
+      : table([["Run", (r) => `<b class="mono">${r.code}</b>`], ["Name", (r) => esc(r.name)], ["Billed to", (r) => esc(CLIENT(r.client).name)], ["Vehicle", (r) => { const v = S.vehicles.find((x) => x.id === r.vehicle); return `<span class="mono small">${v.code} · ${v.rego}</span>`; }],
+          ["Stops", (r) => `<span class="mono">${r.stops.length}</span>`], ["Rate per run", (r) => `<span class="mono">${money(r.rate)}</span>`, "r"]], S.runs, "", (r) => `data-a="modal" data-m="run" data-id="${r.id}"`));
+}
+
+/* ------------------------------------------------------------ vehicles */
+function pageVehicles() {
+  const t = curTab("veh", "fleet");
+  const due = (d) => { const n = daysTo(d); return `<span class="mono small ${n < 0 ? "bad-t" : n < 30 ? "warn-t" : ""}">${dmy(d)}</span>`; };
+  return ph("Vehicles &amp; Equipment", "The patrol fleet, the checks guards do before taking a vehicle out, and issued equipment.") +
+    tabs("veh", [["fleet", "Fleet", S.vehicles.length], ["checks", "Vehicle checks", S.checks.length], ["equip", "Equipment", S.equipment.length]]) +
+    (t === "fleet"
+      ? table([["ID", (v) => `<b class="mono">${v.code}</b>`], ["Rego", (v) => `<span class="mono">${v.rego}</span>`], ["Vehicle", (v) => `${v.year} ${esc(v.make)}`], ["Runs", (v) => `<span class="mono small">${S.runs.filter((r) => r.vehicle === v.id).map((r) => r.code).join(", ") || "—"}</span>`],
+          ["Status", (v) => pill(v.status)], ["Odometer", (v) => `<span class="mono">${v.odo.toLocaleString()} km</span>`, "r"], ["Service due", (v) => due(v.service)], ["Insurance", (v) => due(v.ins)]], S.vehicles, "")
+      : t === "checks"
+        ? table([["When", (c) => `<span class="small">${dd(c.at)} ${hm(c.at)}</span>`], ["Vehicle", (c) => { const v = S.vehicles.find((x) => x.id === c.vehicle); return `<span class="mono">${v.code} · ${v.rego}</span>`; }], ["Guard", (c) => esc(gname(c.guard))],
+            ["Odometer", (c) => `<span class="mono">${c.odo ? c.odo.toLocaleString() + " km" : "—"}</span>`], ["Fuel", (c) => esc(c.fuel)], ["Result", (c) => (c.failed.length ? pill("FAILED", "Failed") : pill("PASSED", "Pass"))], ["Notes", (c) => `<span class="small muted">${esc([c.failed.join(", "), c.notes].filter(Boolean).join(" — ")) || "—"}</span>`]],
+            [...S.checks].sort((a, b) => new Date(b.at) - new Date(a.at)), "No checks yet.")
+        : table([["Item", (e) => `<b>${esc(e.name)}</b>`], ["Type", (e) => esc(e.kind)], ["Serial", (e) => `<span class="mono small">${esc(e.serial) || "—"}</span>`], ["Status", (e) => pill(e.status)], ["Held by", (e) => (e.guard ? esc(gname(e.guard)) : '<span class="muted">—</span>')]], S.equipment, ""));
+}
+
+/* ------------------------------------------------------------ invoicing */
+function pageInvoicing() {
+  const sum = (f) => S.invoices.filter(f).reduce((n, i) => n + invTotals(i).total, 0);
+  const rows = [...S.invoices].sort((a, b) => b.num - a.num);
+  return ph("Patrol Invoicing", "Bill clients for completed patrol runs.", `<button class="btn primary" data-a="modal" data-m="builder">${ic("plus")}New invoice</button>`) +
+    `<div class="note">Invoices are built from patrol jobs: completed runs × contracted rate, pro-rata for partial runs. Guard timesheets are not part of this.</div>
+    <div class="tiles">${tile("Outstanding", money(sum((i) => i.status === "SENT")))}${tile("Overdue", money(sum((i) => invStatus(i) === "OVERDUE")), "", sum((i) => invStatus(i) === "OVERDUE") ? "bad" : "")}${tile("Collected", money(sum((i) => i.status === "PAID")))}${tile("Drafts", S.invoices.filter((i) => i.status === "DRAFT").length)}</div>` +
+    table([["Invoice", (i) => `<b class="mono">${ref("INV", i.num)}</b>`], ["Client", (i) => esc(CLIENT(i.client).name)], ["Period", (i) => `<span class="mono small">${dmy(i.from)} → ${dmy(i.to)}</span>`], ["Issued", (i) => `<span class="mono small">${dmy(i.issued)}</span>`],
+      ["Due", (i) => `<span class="mono small ${invStatus(i) === "OVERDUE" ? "bad-t" : ""}">${dmy(i.due)}</span>`], ["Total inc. GST", (i) => `<span class="mono">${money(invTotals(i).total)}</span>`, "r"], ["Status", (i) => pill(invStatus(i))]], rows, "", (i) => `data-a="modal" data-m="invoice" data-id="${i.id}"`);
+}
+
+/* ------------------------------------------------------------ clients */
+function pageClients() {
+  return ph("Clients", "Who you work for, which sites are theirs, and the service levels you've promised.", `<button class="btn primary" data-a="modal" data-m="addClient">${ic("plus")}Add client</button>`) +
+    table([["Client", (c) => `<b>${esc(c.name)}</b>`], ["Contact", (c) => `${esc(c.contact)}<div class="mono small muted">${esc(c.phone)}</div>`], ["Sites", (c) => esc(S.sites.filter((s) => s.client === c.id).map((s) => s.name).join(", ")) || '<span class="muted">None</span>'],
+      ["Patrol runs", (c) => `<span class="mono">${S.runs.filter((r) => r.client === c.id).map((r) => r.code).join(", ") || "—"}</span>`], ["SLA", (c) => `<span class="small muted">${c.slaPatrol}% patrols · ${c.slaAlarm} min response</span>`],
+      ["Contract ends", (c) => `<span class="mono small ${daysTo(c.end) < 60 ? "warn-t" : ""}">${dmy(c.end)}</span>`], ["Terms", (c) => `${c.terms} days`]], S.clients, "");
+}
+
+/* ------------------------------------------------------------ subcontractors */
+function pageSubs() {
+  const t = curTab("subs", "companies");
+  const owing = S.subInv.filter((i) => i.status === "PENDING" || i.status === "APPROVED").reduce((n, i) => n + i.amount, 0);
+  return ph("Subcontractors", "Partner companies, the guards they supply, the work you've asked them for and what they've billed.", `<button class="btn primary" data-a="modal" data-m="jobReq">${ic("plus")}New job request</button>`) +
+    `<div class="tiles">${tile("Active", S.subs.filter((s) => s.status === "ACTIVE").length)}${tile("Guards supplied", S.guards.filter((g) => g.sub).length)}${tile("Open job requests", S.jobReqs.filter((j) => j.status === "PENDING").length)}${tile("Invoices to pay", money(owing), "", owing ? "warn" : "")}</div>` +
+    tabs("subs", [["companies", "Companies", S.subs.length], ["requests", "Job requests", S.jobReqs.length], ["invoices", "Invoices received", S.subInv.length]]) +
+    (t === "companies"
+      ? table([["Company", (s) => `<b>${esc(s.name)}</b>`], ["Contact", (s) => `${esc(s.contact)}<div class="mono small muted">${esc(s.phone)}</div>`], ["Specialties", (s) => `<span class="small muted">${esc(s.spec)}</span>`], ["Guards", (s) => esc(S.guards.filter((g) => g.sub === s.id).map((g) => g.first + " " + g.last).join(", ")) || "—"],
+          ["Insurance", (s) => `<span class="mono small ${daysTo(s.ins) < 45 ? "warn-t" : ""}">${dmy(s.ins)}</span>`], ["Rating", (s) => (s.rating ? `<span class="warn-t">${ic("star")} <span class="mono">${s.rating}</span></span>` : '<span class="muted">—</span>')], ["Status", (s) => pill(s.status)]], S.subs, "")
+      : t === "requests"
+        ? table([["Subcontractor", (j) => `<b>${esc(S.subs.find((s) => s.id === j.sub).name)}</b>`], ["Request", (j) => esc(j.desc)], ["Site", (j) => esc(sname(j.site))], ["Dates", (j) => `<span class="mono small">${dmy(j.from)} → ${dmy(j.to)}</span>`], ["Guards", (j) => `<span class="mono">${j.heads}</span>`], ["Status", (j) => pill(j.status)]], S.jobReqs, "")
+        : table([["Invoice", (i) => `<span class="mono">${esc(i.num)}</span>`], ["From", (i) => esc(S.subs.find((s) => s.id === i.sub).name)], ["Period", (i) => esc(i.period)], ["Amount", (i) => `<span class="mono">${money(i.amount)}</span>`, "r"], ["Status", (i) => pill(i.status)],
+            ["", (i) => `<span class="row" style="justify-content:flex-end">${i.status === "PENDING" ? `<button class="btn sm" data-a="subinv" data-id="${i.id}" data-v="APPROVED">Approve</button>` : ""}${i.status === "APPROVED" ? `<button class="btn sm" data-a="subinv" data-id="${i.id}" data-v="PAID">Mark paid</button>` : ""}${["PENDING", "APPROVED"].includes(i.status) ? `<button class="btn sm ghost danger" data-a="subinv" data-id="${i.id}" data-v="DISPUTED">Dispute</button>` : ""}</span>`, "r"]], S.subInv, ""));
+}
+
+/* ------------------------------------------------------------ analytics */
+function pageAnalytics() {
+  const all = [...S.history, ...S.alarms];
+  const days = 30;
+  const series = [...Array(days)].map((_, i) => { const d = atDay(i - days + 1); return { d, inc: 0, al: 0 }; });
+  const idx = (t) => Math.floor((new Date(t).getTime() - atDay(-days + 1).getTime()) / DAY);
+  S.incidents.forEach((i) => { const k = idx(i.at); if (series[k]) series[k].inc++; });
+  all.forEach((a) => { const k = idx(a.trig); if (series[k]) series[k].al++; });
+  const tally = (arr, key) => Object.entries(arr.reduce((m, x) => ((m[key(x)] = (m[key(x)] || 0) + 1), m), {})).map(([label, value]) => ({ label, value })).sort((a, b) => b.value - a.value).slice(0, 6);
+  const done = S.jobs.filter((j) => ["COMPLETED", "PARTIAL", "MISSED"].includes(j.status));
+  const stops = done.reduce((n, j) => n + RUN(j.run).stops.length, 0), sc = done.reduce((n, j) => n + scanned(j), 0);
+  const byRun = S.runs.map((r) => { const js = done.filter((j) => j.run === r.id), st = js.reduce((n, j) => n + r.stops.length, 0); return { label: `${r.code} ${r.name}`, value: st ? Math.round((js.reduce((n, j) => n + scanned(j), 0) / st) * 100) : 0 }; });
+  const hrs = (s) => { const [a, b] = [s.start, s.end].map((x) => +x.slice(0, 2)); return (b - a + 24) % 24 || 24; };
+  const bySite = Object.entries(S.shifts.filter((s) => s.status === "CONFIRMED").reduce((m, s) => ((m[sname(s.site)] = (m[sname(s.site)] || 0) + hrs(s)), m), {})).map(([label, value]) => ({ label, value })).sort((a, b) => b.value - a.value);
+  const att = S.history.filter((a) => a.onScene).map((a) => (new Date(a.onScene) - new Date(a.trig)) / MIN);
+  const bars = (data, unit = "") => { const max = Math.max(1, ...data.map((d) => d.value)); return `<div class="bars">${data.map((d) => `<div class="b"><span title="${esc(d.label)}">${esc(d.label)}</span><span class="track"><i style="width:${(d.value / max) * 100}%"></i></span><span class="mono r" style="text-align:right">${d.value}${unit}</span></div>`).join("") || '<p class="muted">No data.</p>'}</div>`; };
+  const W = 720, H = 190, PL = 26, PB = 22, PT = 10, max = Math.max(2, ...series.map((s) => Math.max(s.inc, s.al)));
+  const X = (i) => PL + (i / (days - 1)) * (W - PL - 10), Y = (v) => PT + (1 - v / max) * (H - PT - PB);
+  const path = (k) => series.map((s, i) => `${i ? "L" : "M"}${X(i).toFixed(1)},${Y(s[k]).toFixed(1)}`).join("");
+  const guardRows = S.guards.map((g) => ({ id: g.id, name: `${g.first} ${g.last}`, shifts: S.shifts.filter((s) => s.guard === g.id && s.status === "CONFIRMED").length, hours: S.shifts.filter((s) => s.guard === g.id && s.status === "CONFIRMED").reduce((n, s) => n + hrs(s), 0), patrols: S.jobs.filter((j) => j.guard === g.id && j.status === "COMPLETED").length, inc: S.incidents.filter((i) => i.guard === g.id).length })).sort((a, b) => b.hours - a.hours);
+  return ph("Analytics &amp; Reports", "How the operation performed over the last 30 days, worked out from the records in this demo.") + `
+  <div class="tiles">${tile("Incidents", S.incidents.length, `${badges().incidents} still open`)}${tile("Alarms", all.length, `${Math.round((S.history.filter((a) => a.ver === "FALSE_ALARM").length / S.history.length) * 100)}% false`)}
+    ${tile("Avg alarm response", (att.reduce((a, b) => a + b, 0) / att.length).toFixed(1) + " min", "Trigger to on scene")}${tile("Patrol completion", Math.round((sc / stops) * 100) + "%", `${done.length} jobs closed`)}
+    ${tile("Patrol revenue", money(done.reduce((n, j) => n + billable(j), 0)), "Billable, ex GST")}${tile("Guards cleared", Math.round((S.guards.filter((g) => clearance(g.id).level !== "block").length / S.guards.length) * 100) + "%")}</div>
+  <section class="panel" style="margin-bottom:14px"><header><h2>Incidents and alarms per day</h2></header><div class="body">
+    <div class="legend"><span><i style="background:var(--accent)"></i>Incidents</span><span><i style="background:var(--warn)"></i>Alarms</span></div>
+    <div style="overflow-x:auto"><svg class="chart" viewBox="0 0 ${W} ${H}" style="width:100%;min-width:520px" role="img" aria-label="Incidents and alarms per day over 30 days">
+      ${[0, Math.ceil(max / 2), max].map((v) => `<line x1="${PL}" x2="${W}" y1="${Y(v)}" y2="${Y(v)}" stroke="var(--line)"/><text x="${PL - 6}" y="${Y(v) + 3}" text-anchor="end">${v}</text>`).join("")}
+      ${series.map((s, i) => (i % 5 === 0 ? `<text x="${X(i)}" y="${H - 6}" text-anchor="middle">${s.d.getDate()}/${s.d.getMonth() + 1}</text>` : "")).join("")}
+      <path d="${path("al")}" fill="none" stroke="var(--warn)" stroke-width="2" stroke-linejoin="round"/><path d="${path("inc")}" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linejoin="round"/>
+      ${series.map((s, i) => `<rect x="${X(i) - 6}" y="${PT}" width="12" height="${H - PT - PB}" fill="transparent"><title>${dmy(s.d)}: ${s.inc} incidents, ${s.al} alarms</title></rect>`).join("")}
+    </svg></div></div></section>
+  <div class="grid2" style="margin-bottom:14px">
+    <section class="panel"><header><h2>Incidents by type</h2></header><div class="body">${bars(tally(S.incidents, (i) => i.type))}</div></section>
+    <section class="panel"><header><h2>Alarms by type</h2></header><div class="body">${bars(tally(all, (a) => a.type))}</div></section>
+    <section class="panel"><header><h2>Guard hours by site (this week)</h2></header><div class="body">${bars(bySite, " h")}</div></section>
+    <section class="panel"><header><h2>Patrol completion by run</h2></header><div class="body">${bars(byRun, "%")}</div></section>
+  </div>` + table([["Guard", (g) => `<b>${esc(g.name)}</b>`], ["Shifts", (g) => `<span class="mono">${g.shifts}</span>`, "r"], ["Hours", (g) => `<span class="mono">${g.hours}</span>`, "r"], ["Patrol runs completed", (g) => `<span class="mono">${g.patrols}</span>`, "r"], ["Incidents reported", (g) => `<span class="mono">${g.inc}</span>`, "r"]], guardRows, "");
+}
+
+/* ------------------------------------------------------------ billing */
+function pageBilling() {
+  const meter = (label, used, limit) => { const r = Math.min(1, used / limit); return `<div><div class="row" style="justify-content:space-between"><span>${label}</span><span class="mono">${used} <span class="muted">/ ${limit}</span></span></div><div class="bar ${r > 0.85 ? "warn" : ""}" style="margin-top:6px;height:8px"><i style="width:${r * 100}%;background:${r > 0.85 ? "var(--warn)" : "var(--accent)"}"></i></div></div>`; };
+  const plans = [["Starter", "$49–99 / month", "15 guards · 1 site · no subcontractors", ["Rostering & SMS confirmations", "Timesheets", "Licence compliance", "Guard app"]],
+    ["Professional", "$199–399 / month", "100 guards · 10 sites · 3 subcontractors", ["Everything in Starter", "Alarm dispatch & incidents", "Patrol runs & invoicing", "Training", "Subcontractors"]],
+    ["Enterprise", "$799–1,499 / month", "Unlimited guards, sites and subcontractors", ["Everything in Professional", "Priority support"]]];
+  return ph("Billing &amp; Subscription", "Your Vigilo plan and what you're using against it.") + `
+  <div class="grid2" style="margin-bottom:14px">
+    <section class="panel"><header><h2>Current plan</h2></header><div class="body"><div class="row"><span style="font-family:var(--font-head);font-size:30px;font-weight:700">Professional</span><span class="muted">$199–399 / month</span></div>
+      <p class="muted" style="margin:10px 0 0">Plan changes and payment are arranged with Vigilo directly; no card is stored in the console.</p></div></section>
+    <section class="panel"><header><h2>Usage</h2></header><div class="body" style="display:grid;gap:14px">${meter("Active guards", S.guards.length, 100)}${meter("Active sites", S.sites.length, 10)}${meter("Subcontractor links", S.subs.filter((s) => s.status === "ACTIVE").length + 1, 3)}</div></section>
+  </div>
+  <div class="tiles" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr))">${plans.map(([n, p, lim, f]) => `<div class="tile" style="${n === "Professional" ? "border-color:var(--accent)" : ""}">
+    <div class="row" style="justify-content:space-between"><b style="font-family:var(--font-head);font-size:18px">${n}</b>${n === "Professional" ? pill("SENT", "Your plan") : ""}</div>
+    <div class="muted small">${p}</div><div class="mono small muted" style="margin-top:8px">${lim}</div>
+    <ul style="list-style:none;padding:0;margin:10px 0 0;display:grid;gap:5px">${f.map((x) => `<li class="row" style="flex-wrap:nowrap;align-items:flex-start"><span class="ok-t">${ic("check")}</span>${esc(x)}</li>`).join("")}</ul></div>`).join("")}</div>
+  <section class="panel"><header><h2>SMS usage</h2></header><div class="body">${table([["Month", (m) => m[0]], ["Sent", (m) => `<span class="mono">${m[1]}</span>`, "r"], ["Segments", (m) => `<span class="mono">${m[2]}</span>`, "r"], ["Failed", (m) => `<span class="mono ${m[3] ? "bad-t" : ""}">${m[3]}</span>`, "r"], ["Replies", (m) => `<span class="mono">${m[4]}</span>`, "r"]],
+    [["November 2026", 412, 498, 3, 287], ["October 2026", 1104, 1290, 9, 803], ["September 2026", 986, 1131, 4, 712]].map((m, i) => Object.assign(m, { id: i })), "")}</div></section>`;
+}
+
+/* ------------------------------------------------------------ modals */
+function modalFrame(title, sub, body, foot = "", wide = false) {
+  return `<div class="scrim" data-a="scrim"><div class="modal ${wide ? "wide" : ""}" role="dialog" aria-modal="true" aria-label="${esc(title)}">
+    <header><div><h2>${title}</h2>${sub ? `<p>${sub}</p>` : ""}</div><button class="btn ghost sm" data-a="close" aria-label="Close">${ic("x")}</button></header>
+    <div class="body">${body}</div>${foot ? `<footer>${foot}</footer>` : ""}</div></div>`;
+}
+const cancel = `<button type="button" class="btn" data-a="close">Cancel</button>`;
+const opt = (v, label, sel) => `<option value="${esc(v)}" ${sel === v ? "selected" : ""}>${esc(label)}</option>`;
+const field = (id, label, input) => `<div class="field"><label for="${id}">${label}</label>${input}</div>`;
+
+function renderModal() {
+  const m = UI.modal;
+  if (!m) return "";
+  const A = m.id && S.alarms.find((a) => a.id === m.id);
+  switch (m.m) {
+    case "logAlarm": return `<form data-f="logAlarm">${modalFrame("Log alarm", "From a monitoring centre call, a panel or a site report.", `<div class="form">
+      ${field("la-site", "Site", `<select id="la-site" name="site" class="inp" required>${S.sites.map((s) => opt(s.id, s.name)).join("")}</select>`)}
+      <div class="two">${field("la-type", "Alarm type", `<select id="la-type" name="type" class="inp">${["Motion Detection", "Door/Window Breach", "Duress/Panic Button", "Glass Break", "Perimeter Breach", "Fire Alarm", "Hold-Up Alarm", "Lone Worker Alert", "Tamper Alert", "CCTV Offline", "Power Failure"].map((t) => opt(t, t)).join("")}</select>`)}
+      ${field("la-pri", "Priority", `<select id="la-pri" name="pri" class="inp">${["CRITICAL", "HIGH", "MEDIUM", "LOW"].map((p) => opt(p, p, "HIGH")).join("")}</select>`)}</div>
+      ${field("la-zone", "Zone", `<input id="la-zone" name="zone" class="inp" required placeholder="Loading dock, Lobby, Car park L2…">`)}</div>`, cancel + `<button class="btn primary">Log alarm</button>`)}</form>`;
+    case "dispatch": {
+      const rank = (g) => (S.alarms.some((x) => x.guard === g.id && x.id !== A.id) ? 4 : S.onShift[g.id] === A.site ? 0 : S.onShift[g.id] ? 1 : 3);
+      const gs = [...S.guards].sort((a, b) => rank(a) - rank(b));
+      return `<form data-f="dispatch" data-id="${A.id}">${modalFrame("Dispatch guard", `${ref("ALM", A.ref)} · ${A.pri} ${esc(A.type)} · ${esc(sname(A.site))}, ${esc(A.zone)}`, `<div class="form">
+        <div class="pick">${gs.map((g, i) => `<label><input type="radio" name="guard" value="${g.id}" ${i === 0 ? "checked" : ""}><span style="flex:1"><b>${esc(g.first)} ${esc(g.last)}</b><span class="small muted" style="display:block">${rank(g) === 4 ? "On another alarm" : S.onShift[g.id] === A.site ? "Rostered at this site now" : S.onShift[g.id] ? `On shift · ${esc(sname(S.onShift[g.id]))}` : "Not on shift"}</span></span>${rank(g) === 0 ? pill("CONFIRMED", "Nearest") : rank(g) === 4 ? pill("PENDING", "Busy") : ""}</label>`).join("")}</div>
+        <div class="two">${field("d-eta", "ETA (minutes)", `<input id="d-eta" name="eta" class="inp" type="number" min="1" max="240" value="4" required>`)}${field("d-note", "Instructions", `<input id="d-note" name="note" class="inp" placeholder="Enter via Whiteman St">`)}</div>
+        <label class="check"><input type="checkbox" name="sms" checked> Text the guard as well as alerting their app</label></div>`, cancel + `<button class="btn primary">Confirm dispatch</button>`)}</form>`;
+    }
+    case "sms": {
+      const body = `VIGILO ALERT: ${A.pri} ${A.type} at ${sname(A.site)}, ${A.zone}. Triggered ${hm(A.trig)}. Ref ${ref("ALM", A.ref)}.`;
+      return `<form data-f="sms" data-id="${A.id}">${modalFrame("Send SMS alert", `Tell a third party about ${ref("ALM", A.ref)}. Every message is recorded on the alarm.`, `<div class="form">
+        ${field("s-to", "Recipient", `<select id="s-to" name="to" class="inp">${S.contacts.map((c, i) => opt(i, `${c.name} · ${c.phone}`)).join("")}</select>`)}
+        ${field("s-body", "Message", `<textarea id="s-body" name="body" class="inp" rows="4" maxlength="480" required>${esc(body)}</textarea>`)}
+        <p class="small muted" style="margin:0">In this demo the message is recorded on the alarm but not sent.</p></div>`, cancel + `<button class="btn primary">${ic("send")}Send SMS</button>`)}</form>`;
+    }
+    case "contacts": return modalFrame("SMS contacts", "People outside the company who can be texted from an alarm.", `<ul class="feed">${S.contacts.map((c) => `<li style="grid-template-columns:1fr auto"><span>${esc(c.name)}</span><span class="mono small">${esc(c.phone)}</span></li>`).join("")}</ul>`, `<button class="btn" data-a="close">Done</button>`);
+    case "note": case "resolve": case "falseAlarm": {
+      const cfg = { note: ["Add note", "What happened or what was done", "Add note", true], resolve: [`Resolve ${ref("ALM", A.ref)}`, "Outcome: what was found and what was done", "Resolve", true], falseAlarm: ["Mark as false alarm", "Cause, if known", "Mark false alarm", false] }[m.m];
+      return `<form data-f="${m.m}" data-id="${A.id}">${modalFrame(cfg[0], m.m === "falseAlarm" ? "Closes the alarm and counts it in the false-alarm rate." : "", `<textarea name="text" class="inp" rows="3" placeholder="${cfg[1]}" ${cfg[3] ? "required" : ""} aria-label="${cfg[1]}"></textarea>`, cancel + `<button class="btn primary">${cfg[2]}</button>`)}</form>`;
+    }
+    case "incident": {
+      const i = S.incidents.find((x) => x.id === m.id);
+      return modalFrame(`<span class="mono muted" style="font-size:14px">${ref("INC", i.ref)}</span> ${esc(i.type)}`, `${esc(sname(i.site))}${i.zone ? ` · ${esc(i.zone)}` : ""} · ${dd(i.at)} ${hm(i.at)} · reported by ${i.guard ? esc(gname(i.guard)) : "the office"}`, `
+        <div class="grid2"><div style="display:grid;gap:12px;align-content:start">
+          <div class="row">${pill(i.sev)}${pill(i.status)}</div>
+          <div><div class="eyebrow">Narrative</div><p style="margin:4px 0 0;white-space:pre-wrap">${esc(i.story)}</p></div>
+          ${i.persons ? `<div><div class="eyebrow">Persons involved</div><p class="muted" style="margin:4px 0 0">${esc(i.persons)}</p></div>` : ""}
+          ${i.loss ? `<div><div class="eyebrow">Estimated loss</div><span class="mono">${money(i.loss)}</span></div>` : ""}
+          <div class="two" style="display:grid;grid-template-columns:1fr 1fr;gap:10px">${field("i-st", "Status", `<select id="i-st" class="inp" data-c="incStatus" data-id="${i.id}">${["OPEN", "UNDER_REVIEW", "ESCALATED", "RESOLVED", "ARCHIVED"].map((s) => opt(s, LABEL[s] || s[0] + s.slice(1).toLowerCase(), i.status)).join("")}</select>`)}
+            ${field("i-who", "Investigator", `<select id="i-who" class="inp" data-c="incWho" data-id="${i.id}">${["", "Rachel Ng", "Jess Morton", "Sam Clarke"].map((w) => opt(w, w || "Unassigned", i.who || "")).join("")}</select>`)}</div></div>
+        <div><div class="eyebrow" style="margin-bottom:6px">Timeline</div><ol class="tl" style="max-height:230px;overflow-y:auto">${i.upd.map((u) => `<li style="grid-template-columns:1fr"><span><span class="mono small muted">${dd(u.at)} ${hm(u.at)} · ${esc(u.who)}</span><br>${esc(u.t)}</span></li>`).join("")}</ol>
+          <form data-f="incUpdate" data-id="${i.id}" style="display:grid;gap:8px;margin-top:10px;border-top:1px solid var(--line);padding-top:10px"><textarea name="text" class="inp" rows="2" required placeholder="Add an update: action taken, follow-up, outcome" aria-label="Update"></textarea><button class="btn sm primary" style="justify-self:start">Add update</button></form></div></div>`, "", true);
+    }
+    case "newIncident": return `<form data-f="newIncident">${modalFrame("New incident", "", `<div class="form"><div class="two">
+      ${field("n-site", "Site", `<select id="n-site" name="site" class="inp">${S.sites.map((s) => opt(s.id, s.name)).join("")}</select>`)}${field("n-zone", "Zone", `<input id="n-zone" name="zone" class="inp">`)}
+      ${field("n-type", "Type", `<select id="n-type" name="type" class="inp">${["Theft", "Trespassing", "Vandalism", "Physical Altercation", "Medical Emergency", "Suspicious Activity", "Property Damage", "Graffiti", "Other"].map((t) => opt(t, t)).join("")}</select>`)}
+      ${field("n-sev", "Severity", `<select id="n-sev" name="sev" class="inp">${["CRITICAL", "HIGH", "MEDIUM", "LOW"].map((p) => opt(p, p, "MEDIUM")).join("")}</select>`)}</div>
+      ${field("n-story", "What happened", `<textarea id="n-story" name="story" class="inp" rows="4" required minlength="10"></textarea>`)}</div>`, cancel + `<button class="btn primary">Create incident</button>`)}</form>`;
+    case "shift": {
+      const s = S.shifts.find((x) => x.id === m.id);
+      return `<form data-f="shift" data-id="${s.id}">${modalFrame("Shift", `${esc(gname(s.guard))} · ${DOW[atDay(s.day - S.today).getDay()]} ${s.start}–${s.end} · ${esc(sname(s.site))}`, `<div class="form">
+        ${field("sh-st", "Status", `<select id="sh-st" name="status" class="inp">${["DRAFT", "PENDING", "CONFIRMED", "REJECTED"].map((v) => opt(v, { DRAFT: "Draft (not sent)", PENDING: "Sent, awaiting reply", CONFIRMED: "Confirmed", REJECTED: "Declined" }[v], s.status)).join("")}</select>`)}</div>`,
+        `<button type="button" class="btn ghost danger" data-a="delShift" data-id="${s.id}">Delete shift</button><span style="flex:1"></span>` + cancel + `<button class="btn primary">Save</button>`)}</form>`;
+    }
+    case "addShift": {
+      const day = +m.d;
+      return `<form data-f="addShift" data-d="${day}">${modalFrame("Add shift", `${DOW[atDay(day - S.today).getDay()]} ${dmy(atDay(day - S.today))}`, `<div class="form">
+        ${field("as-g", "Guard", `<select id="as-g" name="guard" class="inp" data-c="shiftGuard">${S.guards.map((g) => opt(g.id, `${g.first} ${g.last}`, m.g)).join("")}</select>`)}
+        <div id="compl">${complCallout(m.g)}</div>
+        ${field("as-s", "Site", `<select id="as-s" name="site" class="inp">${S.sites.map((s) => opt(s.id, s.name)).join("")}</select>`)}
+        <div class="two">${field("as-a", "Start", `<input id="as-a" name="start" class="inp" type="time" value="18:00" required>`)}${field("as-b", "End", `<input id="as-b" name="end" class="inp" type="time" value="02:00" required>`)}</div>
+        ${field("as-r", "Role", `<select id="as-r" name="role" class="inp">${["Static", "Patrol", "Crowd control", "Response", "Supervisor"].map((r) => opt(r, r)).join("")}</select>`)}</div>`, cancel + `<button class="btn primary">Add as draft</button>`)}</form>`;
+    }
+    case "verify": {
+      const l = S.licences.find((x) => x.id === m.id);
+      const d = daysTo(l.exp), fmt = /^\d{3}-?\d{3}-?\d{2}[A-Z]$/i.test(l.number);
+      const dup = S.licences.some((x) => x.id !== l.id && x.number === l.number && x.guard !== l.guard);
+      const checks = [["Number format", fmt, fmt ? "Matches the usual VIC format (###-###-##S)" : "VIC licence numbers are normally ###-###-##S"], ["Expiry date", d === null || d >= 0, d === null ? "Does not expire" : d < 0 ? `Expired ${-d} days ago` : `${d} days remaining`], ["Unique holder", !dup, dup ? "Same number held by another guard" : "Not recorded against another guard"]];
+      const st = licStatus(l);
+      return modalFrame("Verify licence", `${esc(gname(l.guard))} · ${l.source === "GUARD" ? "Uploaded from the guard app" : "Entered by the office"}`, `<div class="grid2">
+        <div style="display:grid;gap:12px;align-content:start">${l.doc ? `<div class="doccard" role="img" aria-label="Sample licence photo"><div class="row" style="justify-content:space-between"><span class="eyebrow">Photo from guard app</span><span class="small">Sample</span></div><div class="row" style="flex-wrap:nowrap;gap:12px"><div class="ph1"></div><div class="small"><b>${esc(gname(l.guard).toUpperCase())}</b><br><span class="mono">${esc(l.number)}</span><br>Expires ${dmy(l.exp)}</div></div></div>` : `<div class="callout">No document on file. Ask the guard to upload one from the app.</div>`}
+          <dl style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:0"><div><dt class="eyebrow">Credential</dt><dd style="margin:2px 0 0">${esc(LT[l.type][0])}</dd></div><div><dt class="eyebrow">Number</dt><dd class="mono" style="margin:2px 0 0">${esc(l.number)} · ${l.state}</dd></div>
+          <div><dt class="eyebrow">Expires</dt><dd style="margin:2px 0 0">${dmy(l.exp)}</dd></div><div><dt class="eyebrow">Status</dt><dd style="margin:2px 0 0">${pill(st, licLabel[st])}</dd></div></dl></div>
+        <div style="display:grid;gap:12px;align-content:start"><div><div class="eyebrow" style="margin-bottom:6px">Automatic checks</div><ul class="checks">${checks.map(([a, ok, t]) => `<li><span class="sq ${ok ? "y" : "n"}">${ic(ok ? "check" : "x")}</span><span><b>${a}.</b> <span class="muted">${t}</span></span></li>`).join("")}</ul></div>
+          <div class="callout"><div class="eyebrow">Manual register check</div>Confirm this licence with Victoria Police Licensing &amp; Regulation Division, then record the outcome.</div>
+          ${st === "AWAITING" ? `<label class="check"><input type="checkbox" id="attest" data-c="attest"> I checked this licence with the regulator. The holder's name, number, class and expiry match.</label>
+          ${field("v-note", "Note", `<textarea id="v-note" class="inp" rows="2" placeholder="Required when rejecting. Sent to the guard."></textarea>`)}` : `<div class="callout ok">Checked by ${esc(l.by || "the office")}.</div>`}</div></div>`,
+        st === "AWAITING" ? `<button class="btn danger" data-a="lic" data-op="reject" data-id="${l.id}">Reject</button><button class="btn primary" id="verifyBtn" data-a="lic" data-op="verify" data-id="${l.id}" disabled>${ic("check")}Mark verified</button>` : `<button class="btn" data-a="close">Close</button>`, true);
+    }
+    case "addLicence": return `<form data-f="addLicence">${modalFrame("Add licence", "New licences start unverified until someone checks them.", `<div class="form">
+      ${field("al-g", "Guard", `<select id="al-g" name="guard" class="inp">${S.guards.map((g) => opt(g.id, `${g.first} ${g.last}`)).join("")}</select>`)}
+      ${field("al-t", "Credential", `<select id="al-t" name="type" class="inp">${Object.entries(LT).map(([k, v]) => opt(k, v[0])).join("")}</select>`)}
+      <div class="two">${field("al-n", "Number", `<input id="al-n" name="number" class="inp mono" required placeholder="###-###-##S">`)}${field("al-e", "Expires", `<input id="al-e" name="exp" class="inp" type="date" required>`)}</div></div>`, cancel + `<button class="btn primary">Add licence</button>`)}</form>`;
+    case "assign": {
+      const c = S.courses.find((x) => x.id === m.id);
+      const have = new Set(S.enrollments.filter((e) => e.course === c.id).map((e) => e.guard));
+      return `<form data-f="assign" data-id="${c.id}">${modalFrame("Assign course", esc(c.title), `<div class="form"><div class="pick">${S.guards.map((g) => `<label><input type="checkbox" name="g" value="${g.id}" ${have.has(g.id) ? "disabled checked" : ""}><span style="flex:1">${esc(g.first)} ${esc(g.last)}</span>${have.has(g.id) ? '<span class="small muted">Already assigned</span>' : ""}</label>`).join("")}</div>
+        ${field("as-due", "Complete by", `<input id="as-due" name="due" class="inp" type="date">`)}<label class="check"><input type="checkbox" name="sms" checked> Text each guard that it has been assigned</label></div>`, cancel + `<button class="btn primary">Assign</button>`)}</form>`;
+    }
+    case "job": {
+      const j = S.jobs.find((x) => x.id === m.id), r = RUN(j.run), v = S.vehicles.find((x) => x.id === r.vehicle);
+      return modalFrame(`<span class="mono">${r.code}</span> ${esc(r.name)}`, `${dmy(jobDate(j))} · ${esc(CLIENT(r.client).name)} · ${v.code} (${v.rego}) · ${esc(gname(j.guard))}`, `
+        <div class="row" style="margin-bottom:10px">${pill(j.status)}<span class="grow"></span><span class="small">Billable <b class="mono">${money(billable(j))}</b> <span class="muted">of ${money(r.rate)}</span></span></div>
+        <div class="tablewrap"><table><tbody>${r.stops.map((s, i) => { const sc = j.scans[s.id]; return `<tr><td class="mono muted" style="width:28px">${i + 1}</td><td><b>${esc(s.name)}</b><div class="small muted">${esc(s.addr)}</div>${sc?.note ? `<div class="small warn-t">${esc(sc.note)}</div>` : ""}</td><td class="r">${sc ? pill(sc.st === "SCANNED" ? "COMPLETED" : "MISSED", sc.st === "SCANNED" ? "Attended" : "Missed") + `<div class="mono small muted">${hm(sc.at)}</div>` : pill("SCHEDULED", "Pending")}</td></tr>`; }).join("")}</tbody></table></div>`, `<button class="btn" data-a="close">Close</button>`);
+    }
+    case "run": {
+      const r = RUN(m.id);
+      return modalFrame(`<span class="mono">${r.code}</span> ${esc(r.name)}`, `Billed to ${esc(CLIENT(r.client).name)} at ${money(r.rate)} per completed run`, `<ol class="tl">${r.stops.map((s, i) => `<li style="grid-template-columns:24px 1fr"><span class="mono">${i + 1}</span><span><b>${esc(s.name)}</b> <span class="muted">· ${esc(s.addr)}</span>${s.note ? `<br><span class="small">${esc(s.note)}</span>` : ""}</span></li>`).join("")}</ol>`, `<button class="btn" data-a="close">Close</button>`);
+    }
+    case "builder": {
+      const cid = m.client || "c1";
+      const avail = S.jobs.filter((j) => !j.invoice && ["COMPLETED", "PARTIAL"].includes(j.status) && RUN(j.run).client === cid).sort((a, b) => a.day - b.day);
+      const sub = avail.reduce((n, j) => n + billable(j), 0);
+      return `<form data-f="builder" data-client="${cid}">${modalFrame("New invoice", "Finished patrol runs that haven't been billed are pulled in automatically.", `<div class="form">
+        ${field("b-c", "Client", `<select id="b-c" class="inp" data-c="builderClient">${S.clients.map((c) => opt(c.id, c.name, cid)).join("")}</select>`)}
+        <div class="tablewrap"><table><thead><tr><th></th><th>Date</th><th>Run</th><th>Stops</th><th class="r">Amount</th></tr></thead><tbody>${avail.length ? avail.map((j) => `<tr><td><input type="checkbox" name="j" value="${j.id}" checked data-c="builderSum" aria-label="Include ${RUN(j.run).code} ${dmy(jobDate(j))}"></td><td class="mono small">${dmy(jobDate(j))}</td><td><b class="mono">${RUN(j.run).code}</b> <span class="muted">${esc(RUN(j.run).name)}</span></td><td class="mono small">${scanned(j)}/${RUN(j.run).stops.length}${j.status === "PARTIAL" ? ' <span class="warn-t">partial</span>' : ""}</td><td class="r mono" data-amt="${billable(j)}">${money(billable(j))}</td></tr>`).join("") : `<tr><td colspan="5" class="empty">No unbilled patrol runs for this client.</td></tr>`}</tbody></table></div>
+        <div class="two">${field("b-x", "Extra charge (optional)", `<input id="b-x" name="extra" class="inp" placeholder="Alarm call-out fee">`)}${field("b-xa", "Amount ($)", `<input id="b-xa" name="extraAmt" class="inp" type="number" step="0.01" data-c="builderSum">`)}</div>
+        <div id="btot" style="display:grid;gap:4px;justify-self:end;min-width:220px">${totalsHtml(sub)}</div></div>`, cancel + `<button class="btn primary">Save as draft</button>`, true)}</form>`;
+    }
+    case "invoice": {
+      const inv = S.invoices.find((x) => x.id === m.id), c = CLIENT(inv.client), t = invTotals(inv), st = invStatus(inv);
+      return modalFrame(`${ref("INV", inv.num)}`, `${esc(c.name)} · ${pill(st)}`, `<div class="sheet">
+        <div class="row" style="justify-content:space-between;align-items:flex-start"><div><div style="font-family:var(--font-head);font-size:22px;font-weight:700">${esc(S.company)}</div><div class="eyebrow" style="color:#555">Tax invoice</div></div><div style="text-align:right"><div class="mono" style="font-size:18px;font-weight:600">${ref("INV", inv.num)}</div>${st === "DRAFT" ? '<div class="eyebrow">Draft, not issued</div>' : ""}${st === "PAID" ? '<div class="eyebrow ok-t">Paid</div>' : ""}</div></div>
+        <div class="row" style="justify-content:space-between;align-items:flex-start;margin-top:18px"><div><div class="eyebrow" style="color:#555">Bill to</div><b>${esc(c.name)}</b><div>Attn: ${esc(c.contact)}</div></div><div class="small" style="text-align:right">Period ${dmy(inv.from)} – ${dmy(inv.to)}<br>Issued ${dmy(inv.issued)}<br>Due ${inv.due ? dmy(inv.due) : `${c.terms} days from issue`}</div></div>
+        <div style="overflow-x:auto;margin-top:16px"><table><thead><tr><th>Description</th><th class="r">Qty</th><th class="r">Unit</th><th class="r">Amount</th></tr></thead><tbody>${invLines(inv).map((l) => `<tr><td>${esc(l.d)}</td><td class="r mono">${l.q}</td><td class="r mono">${money(l.u)}</td><td class="r mono">${money(l.q * l.u)}</td></tr>`).join("")}</tbody></table></div>
+        <div class="tot"><div><span>Subtotal</span><span class="mono">${money(t.sub)}</span></div><div><span>GST 10%</span><span class="mono">${money(t.gst)}</span></div><div class="grand"><span>Total AUD</span><span class="mono">${money(t.total)}</span></div></div></div>`,
+        (inv.status === "DRAFT" ? `<button class="btn danger" data-a="inv" data-op="void" data-id="${inv.id}">Void</button><button class="btn primary" data-a="inv" data-op="send" data-id="${inv.id}">Mark as sent</button>` : "") +
+        (inv.status === "SENT" ? `<button class="btn" data-a="inv" data-op="remind" data-id="${inv.id}">Send SMS reminder</button><button class="btn primary" data-a="inv" data-op="paid" data-id="${inv.id}">Mark paid</button>` : "") + (["PAID", "VOID"].includes(inv.status) ? `<button class="btn" data-a="close">Close</button>` : ""), true);
+    }
+    case "addClient": return `<form data-f="addClient">${modalFrame("Add client", "", `<div class="form">${field("c-n", "Client name", `<input id="c-n" name="name" class="inp" required>`)}
+      <div class="two">${field("c-c", "Contact", `<input id="c-c" name="contact" class="inp">`)}${field("c-p", "Phone", `<input id="c-p" name="phone" class="inp" type="tel">`)}
+      ${field("c-t", "Payment terms (days)", `<input id="c-t" name="terms" class="inp" type="number" value="14">`)}${field("c-s", "SLA: alarm response (mins)", `<input id="c-s" name="sla" class="inp" type="number" value="10">`)}</div></div>`, cancel + `<button class="btn primary">Add client</button>`)}</form>`;
+    case "jobReq": return `<form data-f="jobReq">${modalFrame("New job request", "Ask a subcontractor to supply guards.", `<div class="form">
+      ${field("j-s", "Subcontractor", `<select id="j-s" name="sub" class="inp">${S.subs.filter((s) => s.status === "ACTIVE").map((s) => opt(s.id, s.name)).join("")}</select>`)}
+      ${field("j-d", "What you need", `<input id="j-d" name="desc" class="inp" required placeholder="2 crowd controllers for Friday night">`)}
+      <div class="two">${field("j-x", "Site", `<select id="j-x" name="site" class="inp">${S.sites.map((s) => opt(s.id, s.name)).join("")}</select>`)}${field("j-h", "Guards", `<input id="j-h" name="heads" class="inp" type="number" min="1" value="2">`)}</div></div>`, cancel + `<button class="btn primary">Send request</button>`)}</form>`;
+  }
+  return "";
+}
+function complCallout(gid) {
+  const c = clearance(gid);
+  if (c.level === "ok") return "";
+  return `<div class="callout ${c.level === "block" ? "bad" : "warn"}"><b>${c.level === "block" ? "Not cleared to work this shift" : "Licence needs attention"}</b><ul style="margin:4px 0 0;padding-left:18px">${c.issues.map((i) => `<li>${esc(i)}</li>`).join("")}</ul></div>`;
+}
+function totalsHtml(sub) {
+  const gst = Math.round(sub * 10) / 100;
+  return `<div class="row" style="justify-content:space-between"><span class="muted">Subtotal</span><span class="mono">${money(sub)}</span></div><div class="row" style="justify-content:space-between"><span class="muted">GST 10%</span><span class="mono">${money(gst)}</span></div><div class="row" style="justify-content:space-between;font-weight:700"><span>Total</span><span class="mono">${money(sub + gst)}</span></div>`;
+}
+
+/* ------------------------------------------------------------ guard app */
+function guardApp() {
+  const M = me();
+  if (!M.signedIn) return `<div class="g-body" style="align-content:start;padding:28px 22px">
+    <div class="row" style="gap:8px;font-family:var(--font-head);font-weight:700;font-size:22px">${LOGO}Vigilo</div>
+    ${M.step === "phone" ? `<form data-f="gPhone" style="display:grid;gap:12px;margin-top:30px"><h2 class="g-h">Sign in with your mobile</h2><p class="muted" style="margin:0">Use the number your company has on file. We'll text you a 6-digit code.</p>
+      ${field("gp", "Mobile number", `<input id="gp" name="phone" class="inp" style="height:46px;font-size:16px" type="tel" value="0400 000 001" required>`)}<button class="btn primary big">Text me a code</button></form>`
+      : `<form data-f="gCode" style="display:grid;gap:12px;margin-top:30px"><h2 class="g-h">Enter your code</h2><p class="muted" style="margin:0">Demo: the code is <b class="mono">482913</b>.</p>
+      ${field("gc", "6-digit code", `<input id="gc" name="code" class="inp mono" style="height:52px;font-size:24px;letter-spacing:0.4em;text-align:center" inputmode="numeric" maxlength="6" required autocomplete="one-time-code">`)}<button class="btn primary big">Sign in</button><p class="small muted" id="codeErr" style="margin:0"></p></form>`}
+    <p class="small muted" style="margin-top:20px">Signing in as <b>Liam Nguyen</b>, a guard at Auswide Security.</p></div>`;
+  const tab = (p, label, icon) => `<button data-a="gpage" data-p="${p}" ${["today", "shifts", "tasks", "licences", "profile"].includes(M.page) && M.page === p ? 'aria-current="page"' : ""} ${M.page !== p && p === "tasks" && ["patrol", "incident", "course"].includes(M.page) ? 'aria-current="page"' : ""}>${ic(icon, "ic-lg")}${label}</button>`;
+  const body = { today: gToday, shifts: gShifts, tasks: gTasks, licences: gLicences, profile: gProfile, patrol: gPatrol, incident: gIncident, course: gCourse }[M.page]();
+  return `<div class="g-top">${LOGO}Vigilo <span class="eyebrow">Guard</span></div><div class="g-body" id="gbody">${body}</div>
+    <nav class="g-tabs" aria-label="Guard app">${tab("today", "Today", "home")}${tab("shifts", "Shifts", "calendar")}${tab("tasks", "Tasks", "tasks")}${tab("licences", "Licences", "badge")}${tab("profile", "Profile", "user")}</nav>`;
+}
+const myDispatches = () => S.alarms.filter((a) => a.guard === "g1");
+function gToday() {
+  const M = me(), sh = M.shift, c = clearance("g1");
+  const canIn = !sh.in && Date.now() >= new Date(sh.start).getTime() - 30 * MIN;
+  return `<div><div class="eyebrow">${dd(new Date())} · ${esc(S.company)}</div><div class="g-h" style="margin-top:2px">Hi Liam</div></div>
+    ${myDispatches().map((a) => `<button class="g-link g-card disp" data-a="gpage" data-p="tasks">${ic("alert", "ic-lg")}<span class="grow"><b>Alarm dispatch: ${esc(a.type)}</b><span class="small" style="display:block">${esc(sname(a.site))} · tap to respond</span></span>${ic("right")}</button>`).join("")}
+    ${c.level !== "ok" ? `<button class="g-link callout ${c.level === "block" ? "bad" : "warn"}" data-a="gpage" data-p="licences">${ic("alert")}<span class="grow"><b>${c.level === "block" ? "You can't be rostered right now" : "A licence needs attention"}</b><span class="small" style="display:block">${esc(c.issues[0])}</span></span>${ic("right")}</button>` : ""}
+    ${sh.in && !sh.out ? `<section class="g-card on"><div class="row ok-t small" style="font-weight:600"><span class="dot live"></span>ON SHIFT</div><div class="g-big" data-onshift>${clockHMS(Date.now() - new Date(sh.in))}</div>
+      <div style="margin-top:8px;font-weight:600;font-size:15px">${esc(sname(sh.site))}</div><div class="small muted">Rostered ${hm(sh.start)}–${hm(sh.end)} · in at ${hm(sh.in)} · location recorded</div>
+      <button class="btn big" style="margin-top:12px" data-a="clock" data-op="out">Clock out</button></section>`
+      : sh.out ? `<section class="g-card"><div class="eyebrow">Shift finished</div><p style="margin:6px 0 0">${esc(sname(sh.site))}: in ${hm(sh.in)}, out ${hm(sh.out)}. It's on your timesheet.</p></section>`
+      : `<section class="g-card"><div class="eyebrow">Next shift</div><div class="row" style="justify-content:space-between;margin-top:6px"><b style="font-size:16px">Today</b><span class="mono" style="font-size:16px">${hm(sh.start)} – ${hm(sh.end)}</span></div>
+      <div style="margin-top:2px">${esc(sname(sh.site))} <span class="muted">· ${esc(sh.role)}</span></div><div class="small muted" style="margin-top:6px">${ic("pin")} ${esc(SITE(sh.site).addr)}</div>
+      <p class="small" style="background:var(--sunken);border-radius:6px;padding:8px;margin:10px 0 0">${esc(sh.notes)}</p>
+      <button class="btn primary big" style="margin-top:12px" data-a="clock" data-op="in" ${canIn ? "" : "disabled"}>Clock in</button>${canIn ? "" : '<p class="small muted" style="text-align:center;margin:6px 0 0">Clock-in opens 30 minutes before the start.</p>'}</section>`}
+    ${M.pending.status === "PENDING" ? `<button class="g-link" style="border-color:var(--warn-line);background:var(--warn-soft)" data-a="gpage" data-p="shifts"><span class="grow"><b class="warn-t">1</b> shift waiting for your answer</span>${ic("right")}</button>` : ""}`;
+}
+function gShifts() {
+  const M = me(), sh = M.shift, p = M.pending;
+  const card = (title, start, end, site, role, status, extra) => `<section class="g-card" ${status === "PENDING" ? 'style="border-color:var(--warn-line)"' : ""}><div class="row" style="justify-content:space-between"><b>${title}</b>${pill(status)}</div><div class="mono small muted">${hm(start)} – ${hm(end)}</div><div style="margin-top:6px">${esc(sname(site))} <span class="muted">· ${esc(role)}</span></div>${extra}</section>`;
+  return `<div class="g-h">Shifts</div>` + card("Today", sh.start, sh.end, sh.site, sh.role, sh.out ? "COMPLETED" : "CONFIRMED", "") +
+    card(dd(p.start), p.start, p.end, p.site, p.role, p.status, p.status === "PENDING" ? `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px"><button class="btn" data-a="gshift" data-op="decline" style="justify-content:center">Can't do it</button><button class="btn primary" data-a="gshift" data-op="confirm" style="justify-content:center">Confirm</button></div>` : "");
+}
+function gTasks() {
+  const disp = myDispatches();
+  const myJobs = S.jobs.filter((j) => j.guard === "g1" && j.day === 0);
+  const tr = S.enrollments.filter((e) => e.guard === "g1");
+  return `<div class="g-h">Tasks</div>
+    ${disp.map((a) => `<section class="g-card ${a.status === "DISPATCHED" ? "disp" : ""}" style="border-color:var(--crit)"><div class="row" style="justify-content:space-between"><span class="eyebrow bad-t">Alarm dispatch · ${ref("ALM", a.ref)}</span>${pill(a.pri)}</div>
+      <div style="font-size:17px;font-weight:600;margin-top:6px">${esc(a.type)}</div><div>${esc(sname(a.site))} · ${esc(a.zone)}</div><div class="small muted" style="margin-top:4px">${ic("pin")} ${esc(SITE(a.site).addr)} · target ${a.eta} min</div>
+      ${a.status === "DISPATCHED" ? `<button class="btn primary big" style="margin-top:10px" data-a="gal" data-op="enroute" data-id="${a.id}">Acknowledge, I'm on my way</button>` : a.status === "EN_ROUTE" ? `<button class="btn primary big" style="margin-top:10px" data-a="gal" data-op="onscene" data-id="${a.id}">I'm on scene</button>` : `<p class="small" style="margin:10px 0 0">You're marked on scene. Report to the control room, then file an incident below.</p>`}</section>`).join("")}
+    <div class="eyebrow">Patrol runs</div>${myJobs.map((j) => { const r = RUN(j.run); return `<button class="g-link" data-a="gpage" data-p="patrol" data-id="${j.id}"><span class="grow"><b><span class="mono">${r.code}</span> ${esc(r.name)}</b><span class="mono small muted" style="display:block">Tonight · ${Object.keys(j.scans).length}/${r.stops.length} stops</span></span>${pill(j.status)}${ic("right")}</button>`; }).join("") || '<p class="muted small">No patrol run tonight.</p>'}
+    <button class="btn big" data-a="gpage" data-p="incident">${ic("fileplus")}Report an incident</button>
+    <div class="eyebrow">Training</div>${tr.map((e) => { const c = S.courses.find((x) => x.id === e.course); return `<button class="g-link" data-a="gpage" data-p="course" data-id="${e.id}"><span class="grow"><b>${esc(c.title)}</b><span class="small muted" style="display:block">${e.status === "PASSED" ? `Passed ${e.score}%${e.exp ? ` · renew by ${dmy(e.exp)}` : ""}` : `${c.mandatory ? "Mandatory" : "Optional"}${e.due ? ` · due ${dmy(e.due)}` : ""}${e.status === "FAILED" ? ` · last attempt ${e.score}%` : ""}`}</span></span>${pill(e.status === "ASSIGNED" ? "PENDING" : e.status, e.status === "ASSIGNED" ? "To do" : "")}${ic("right")}</button>`; }).join("")}`;
+}
+function gPatrol() {
+  const j = S.jobs.find((x) => x.id === me().jobId), r = RUN(j.run), v = S.vehicles.find((x) => x.id === r.vehicle);
+  const next = r.stops.find((s) => !j.scans[s.id]);
+  const done = Object.keys(j.scans).length;
+  const back = `<button class="btn ghost sm" style="justify-self:start" data-a="gpage" data-p="tasks">${ic("back")}Tasks</button>`;
+  if (j.status === "SCHEDULED") return back + `<div class="row" style="justify-content:space-between;align-items:flex-start"><div class="g-h" style="font-size:20px"><span class="mono">${r.code}</span> ${esc(r.name)}</div>${pill(j.status)}</div><div class="small muted">${v.code} · ${v.rego} · ${r.stops.length} stops</div>
+    <form class="g-card" data-f="gStart" style="display:grid;gap:10px"><div class="eyebrow">Vehicle check · untick anything that fails</div>
+    ${["Exterior condition", "Tyres", "Lights and indicators", "First aid kit present", "Fire extinguisher present", "Radio / device charged"].map((x) => `<label class="check"><input type="checkbox" name="ok" value="${x}" checked> ${x}</label>`).join("")}
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">${field("odo", "Odometer (km)", `<input id="odo" name="odo" class="inp" inputmode="numeric" value="${v.odo + 64}">`)}${field("fuel", "Fuel", `<select id="fuel" name="fuel" class="inp">${["Full", "3/4", "1/2", "1/4"].map((f) => opt(f, f)).join("")}</select>`)}</div>
+    <button class="btn primary big">Start patrol</button></form>`;
+  return back + `<div class="row" style="justify-content:space-between;align-items:flex-start"><div class="g-h" style="font-size:20px"><span class="mono">${r.code}</span> ${esc(r.name)}</div>${pill(j.status)}</div>
+    <div><div class="row small muted" style="justify-content:space-between"><span>Progress</span><span class="mono">${done}/${r.stops.length}</span></div><div class="bar" style="margin-top:4px;height:8px"><i style="width:${(done / r.stops.length) * 100}%"></i></div></div>
+    ${r.stops.map((s, i) => { const sc = j.scans[s.id]; const isNext = j.status === "ACTIVE" && next && next.id === s.id; return `<section class="g-card" style="${isNext ? "border-color:var(--accent)" : sc?.st === "MISSED" ? "border-color:var(--bad-line)" : ""}"><div class="stop"><span class="n ${sc ? (sc.st === "SCANNED" ? "y" : "x") : ""}">${sc?.st === "SCANNED" ? ic("check") : i + 1}</span><div>
+      <b>${esc(s.name)}</b><div class="small muted">${esc(s.addr)}</div>${s.note && !sc ? `<p class="small" style="background:var(--sunken);padding:6px 8px;border-radius:6px;margin:6px 0 0">${esc(s.note)}</p>` : ""}${sc ? `<div class="mono small muted" style="margin-top:4px">${sc.st === "SCANNED" ? "Attended" : "Missed"} ${hm(sc.at)}${sc.note ? ` · ${esc(sc.note)}` : ""}</div>` : ""}</div></div>
+      ${j.status === "ACTIVE" && !sc ? (me().missing === s.id ? `<form data-f="gMiss" data-id="${s.id}" style="display:grid;gap:8px;margin-top:10px"><input name="why" class="inp" required minlength="3" placeholder="Why? Locked gate, road closed…" aria-label="Reason"><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><button type="button" class="btn" data-a="gmissCancel" style="justify-content:center">Back</button><button class="btn danger" style="justify-content:center">Mark missed</button></div></form>`
+        : `<div style="display:grid;grid-template-columns:1fr auto;gap:8px;margin-top:10px"><button class="btn primary" style="justify-content:center" data-a="gscan" data-id="${s.id}">Attended, check in</button><button class="btn" data-a="gmiss" data-id="${s.id}">Can't attend</button></div>`) : ""}</section>`; }).join("")}
+    ${j.status === "ACTIVE" ? `<button class="btn ${next ? "" : "primary"} big" data-a="gfinish">${next ? `Finish run (${r.stops.length - done} stops still open)` : "Finish run"}</button>` : `<p class="callout ok" style="margin:0">Run closed as <b>${j.status.toLowerCase()}</b>. Thanks.</p>`}`;
+}
+function gIncident() {
+  return `<button class="btn ghost sm" style="justify-self:start" data-a="gpage" data-p="tasks">${ic("back")}Tasks</button><div class="g-h">Report an incident</div><p class="small muted" style="margin:0">In an emergency call 000 first, then the control room.</p>
+    <form data-f="gIncident" style="display:grid;gap:10px">${field("gi-s", "Site", `<select id="gi-s" name="site" class="inp">${S.sites.map((s) => opt(s.id, s.name, "x1")).join("")}</select>`)}${field("gi-z", "Where exactly", `<input id="gi-z" name="zone" class="inp" placeholder="Loading dock, level 2 car park…">`)}
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">${field("gi-t", "Type", `<select id="gi-t" name="type" class="inp">${["Suspicious Activity", "Trespassing", "Theft", "Physical Altercation", "Medical Emergency", "Property Damage", "Other"].map((t) => opt(t, t)).join("")}</select>`)}${field("gi-v", "Severity", `<select id="gi-v" name="sev" class="inp">${["CRITICAL", "HIGH", "MEDIUM", "LOW"].map((p) => opt(p, p, "MEDIUM")).join("")}</select>`)}</div>
+    ${field("gi-w", "What happened", `<textarea id="gi-w" name="story" class="inp" rows="5" required minlength="10" placeholder="What you saw, what you did, who you told."></textarea>`)}
+    <label class="g-link" style="justify-content:center;border-style:dashed;cursor:pointer">${ic("camera")}<span id="gphoto">Add a photo (optional)</span><input type="file" accept="image/*" class="sr" style="position:absolute;width:1px;height:1px;opacity:0" data-c="gphoto" aria-label="Add a photo"></label>
+    <button class="btn primary big">Send report</button></form>`;
+}
+function gCourse() {
+  const e = S.enrollments.find((x) => x.id === me().courseId), c = S.courses.find((x) => x.id === e.course), M = me();
+  const back = `<button class="btn ghost sm" style="justify-self:start" data-a="gpage" data-p="tasks">${ic("back")}Tasks</button>`;
+  if (e.status === "PASSED") return back + `<section class="g-card on" style="text-align:center"><span class="ok-t">${ic("award", "ic-lg")}</span><div class="eyebrow ok-t" style="margin-top:6px">Certificate of completion</div><div class="g-h" style="font-size:20px;margin-top:4px">${esc(c.title)}</div><p class="small muted">Passed with <b class="mono">${e.score}%</b> on ${dmy(e.done)}${e.exp ? `. Renew by ${dmy(e.exp)}.` : "."}</p></section>`;
+  if (M.quiz) return back + `<div class="g-h" style="font-size:20px">${esc(c.title)}</div><form data-f="gQuiz" style="display:grid;gap:10px">${c.qs.map((q, i) => `<fieldset class="g-card" style="display:grid;gap:6px;margin:0"><legend class="small" style="font-weight:600;padding:0 4px">${i + 1}. ${esc(q.q)}</legend>${q.o.map((o, k) => `<label class="opt"><input type="radio" name="q${i}" value="${k}" required>${esc(o)}</label>`).join("")}</fieldset>`).join("")}<button class="btn primary big">Submit answers</button></form>`;
+  return back + `<div><div class="eyebrow">${esc(c.cat)}</div><div class="g-h" style="font-size:20px">${esc(c.title)}</div></div>
+    ${M.lastScore != null ? `<div class="callout bad">You scored <b class="mono">${M.lastScore}%</b>. The pass mark is ${c.pass}%. Read the material again and retry.</div>` : ""}
+    <article class="g-card" style="white-space:pre-wrap;line-height:1.6">${esc(c.body)}</article><button class="btn primary big" data-a="gquiz">${c.qs.length ? `Start the quiz (${c.qs.length} questions)` : "I have read and understood this"}</button>`;
+}
+function gLicences() {
+  const mine = S.licences.filter((l) => l.guard === "g1");
+  return `<div class="row" style="justify-content:space-between"><div class="g-h">Licences</div><button class="btn sm" data-a="gaddlic">${ic("plus")}Add</button></div><p class="small muted" style="margin:0">Upload renewals as soon as you have them. The office checks each one before you're cleared to work on it.</p>
+    ${me().addingLic ? `<form class="g-card" data-f="gLic" style="display:grid;gap:10px">${field("gl-t", "What is it?", `<select id="gl-t" name="type" class="inp">${Object.entries(LT).map(([k, v]) => opt(k, v[0], "FIRST_AID")).join("")}</select>`)}${field("gl-n", "Number", `<input id="gl-n" name="number" class="inp mono" required value="HLT-55102">`)}${field("gl-e", "Expiry date", `<input id="gl-e" name="exp" class="inp" type="date" required>`)}
+      <p class="small muted" style="margin:0">In the real app you photograph the card here.</p><button class="btn primary big">Send for verification</button></form>` : ""}
+    ${mine.map((l) => { const st = licStatus(l); return `<section class="g-card"><div class="row" style="justify-content:space-between;align-items:flex-start"><div><b>${esc(LT[l.type][0])}</b><div class="mono small muted">${esc(l.number)} · ${l.state}</div></div>${pill(st, licLabel[st])}</div><div class="small muted" style="margin-top:6px">Expires <span class="mono" style="color:var(--ink)">${dmy(l.exp)}</span></div>${st === "AWAITING" ? '<div class="small muted" style="border-top:1px solid var(--line);margin-top:8px;padding-top:8px">With the office for checking</div>' : ""}${l.ver === "REJECTED" ? `<div class="callout bad small" style="margin-top:8px">Rejected: ${esc(l.note)}</div>` : ""}</section>`; }).join("")}`;
+}
+function gProfile() {
+  return `<div class="g-h">Profile</div><section class="g-card"><div class="row"><span style="width:44px;height:44px;border-radius:50%;background:var(--accent-soft);color:var(--accent-ink);display:grid;place-items:center;font-weight:600">LN</span><div><b>Liam Nguyen</b><div class="small muted">${esc(S.company)}</div></div></div>
+    <dl style="display:grid;grid-template-columns:auto 1fr;gap:6px 12px;margin:12px 0 0;font-size:13px"><dt class="muted">Mobile</dt><dd class="mono" style="margin:0">+61 400 000 001</dd><dt class="muted">Radio</dt><dd style="margin:0">Radio 07</dd></dl></section>
+    <section class="g-card small"><div class="eyebrow">Add to your home screen</div><p class="muted" style="margin:4px 0 0">iPhone: Share, then Add to Home Screen. Android: browser menu, then Install app.</p></section>
+    <button class="btn big danger" data-a="gsignout">${ic("logout")}Sign out</button>`;
+}
+
+/* ------------------------------------------------------------ render */
+const PAGES = { dashboard: pageDashboard, alarms: pageAlarms, incidents: pageIncidents, rosters: pageRosters, compliance: pageCompliance, training: pageTraining, patrols: pagePatrols, vehicles: pageVehicles, invoicing: pageInvoicing, clients: pageClients, subcontractors: pageSubs, analytics: pageAnalytics, billing: pageBilling };
+function render() {
+  const root = document.getElementById("app");
+  const mainEl = root.querySelector(".main"), gEl = root.querySelector("#gbody"), mEl = document.querySelector(".modal");
+  const keep = { main: mainEl?.scrollTop || 0, g: gEl?.scrollTop || 0, m: mEl?.scrollTop || 0 };
+  root.innerHTML = demobar() + `<div class="stage" data-view="${UI.view}">
+    <section class="console" aria-label="Operations console">${sidebar()}<main class="main">${mobnav()}${PAGES[UI.route]()}</main></section>
+    <section class="phonecol" aria-label="Guard app"><div class="phone">${guardApp()}</div><p class="cap">The guard app, as Liam Nguyen sees it on his phone. It shares data with the console.</p></section>
+  </div>`;
+  document.getElementById("modal").innerHTML = renderModal();
+  const nm = root.querySelector(".main"), ng = root.querySelector("#gbody"), nmo = document.querySelector(".modal");
+  if (nm && !keep.reset) nm.scrollTop = keep.main;
+  if (ng) ng.scrollTop = keep.g;
+  if (nmo) nmo.scrollTop = keep.m;
+}
+function go(route) { UI.route = route; UI.modal = null; history.replaceState(null, "", "#" + route); render(); const m = document.querySelector(".main"); if (m) m.scrollTop = 0; if (UI.view === "guard") { UI.view = "console"; render(); } }
+
+/* ------------------------------------------------------------ actions */
+const ACT = {
+  view: (d) => { UI.view = d.v; if (d.v === "guard") history.replaceState(null, "", "#guard-app"); else history.replaceState(null, "", "#" + UI.route); render(); },
+  reset: () => { S = seed(); UI.modal = null; UI.tab = {}; UI.fold = {}; render(); toast("Demo reset", "Sample data restored."); },
+  go: (d) => go(d.r),
+  tab: (d) => { UI.tab[d.k] = d.v; render(); },
+  fold: (d) => { UI.fold[d.id] = UI.fold[d.id] === d.v ? null : d.v; render(); },
+  modal: (d) => { UI.modal = { ...d }; render(); setTimeout(() => document.querySelector(".modal input:not([type=hidden]):not([type=radio]):not([type=checkbox]), .modal textarea, .modal select")?.focus(), 0); },
+  close: () => { UI.modal = null; render(); },
+  scrim: (d, el, e) => { if (e.target === el) ACT.close(); },
+  alarm: (d) => {
+    const a = S.alarms.find((x) => x.id === d.id);
+    if (d.op === "escalate") { const order = ["CRITICAL", "HIGH", "MEDIUM", "LOW"], i = order.indexOf(a.pri); alarmLog(a, "You", `Escalated ${a.pri} → ${order[i - 1]}`); a.pri = order[i - 1]; toast("Escalated", `${ref("ALM", a.ref)} is now ${a.pri}`); }
+    if (d.op === "onscene") { a.status = "ON_SCENE"; a.onScene = new Date(); alarmLog(a, "You", "Guard on scene (set by operator)"); toast("Marked on scene"); }
+    if (d.op === "recall") { alarmLog(a, "You", `Recalled ${gname(a.guard)}`); toast("Guard recalled", gname(a.guard)); a.guard = null; a.status = "UNASSIGNED"; a.eta = null; a.onScene = null; }
+    render();
+  },
+  publish: () => { const n = S.shifts.filter((s) => s.status === "DRAFT"); n.forEach((s) => (s.status = "PENDING")); log("SMS", `Published ${n.length} shifts for confirmation`); toast(`${n.length} shifts published`, "Guards confirm by SMS reply or in the app. (Demo: nothing sent.)"); render(); },
+  delShift: (d) => { S.shifts = S.shifts.filter((s) => s.id !== d.id); UI.modal = null; toast("Shift deleted"); render(); },
+  lic: (d) => {
+    const l = S.licences.find((x) => x.id === d.id), note = document.getElementById("v-note")?.value.trim();
+    if (d.op === "reject") { if (!note || note.length < 3) { toast("Add a reason", "The guard is told why the licence was rejected."); document.getElementById("v-note")?.focus(); return; } l.ver = "REJECTED"; l.note = note; l.by = "You"; toast("Licence rejected", `${gname(l.guard)} is told why.`); }
+    else { l.ver = "VERIFIED"; l.by = "You"; log("LICENCE", `${gname(l.guard)}'s ${LT[l.type][1]} verified`); toast("Licence verified", `${gname(l.guard)} · ${LT[l.type][1]}`); }
+    UI.modal = null; render();
+  },
+  inv: (d) => {
+    const inv = S.invoices.find((x) => x.id === d.id), c = CLIENT(inv.client);
+    if (d.op === "send") { inv.status = "SENT"; inv.issued = new Date(); inv.due = new Date(Date.now() + c.terms * DAY); toast(`${ref("INV", inv.num)} marked as sent`, `Due ${dmy(inv.due)}`); }
+    if (d.op === "paid") { inv.status = "PAID"; inv.paid = new Date(); log("INVOICE", `${ref("INV", inv.num)} paid by ${c.name}`); toast(`${ref("INV", inv.num)} marked paid`); }
+    if (d.op === "remind") toast("Reminder recorded", `${c.contact}, ${c.phone}. (Demo: nothing sent.)`);
+    if (d.op === "void") { inv.status = "VOID"; S.jobs.forEach((j) => { if (j.invoice === inv.id) j.invoice = null; }); toast(`${ref("INV", inv.num)} voided`, "Its patrol runs can be billed again."); }
+    render();
+  },
+  subinv: (d) => { const i = S.subInv.find((x) => x.id === d.id); i.status = d.v; toast(`Invoice ${i.num}: ${d.v.toLowerCase()}`); render(); },
+  // guard app
+  gpage: (d) => { const M = me(); M.page = d.p; if (d.p === "patrol") M.jobId = d.id; if (d.p === "course") { M.courseId = d.id; M.quiz = false; M.lastScore = null; } M.missing = null; render(); const g = document.getElementById("gbody"); if (g) g.scrollTop = 0; },
+  clock: (d) => { const sh = me().shift; if (d.op === "in") { sh.in = new Date(); log("SHIFT", `Liam Nguyen clocked in at ${sname(sh.site)}`); toast("Clocked in", `${sname(sh.site)} · location recorded`); } else { sh.out = new Date(); log("SHIFT", `Liam Nguyen clocked out at ${sname(sh.site)}`); toast("Clocked out", "Added to your timesheet"); } render(); },
+  gshift: (d) => { const p = me().pending; p.status = d.op === "confirm" ? "CONFIRMED" : "REJECTED"; const s = S.shifts.find((x) => x.guard === "g1" && x.day === S.today + 1); if (s) s.status = p.status; log("SHIFT", `Liam Nguyen ${d.op === "confirm" ? "confirmed" : "declined"} ${dd(p.start)}`); toast(d.op === "confirm" ? "Shift confirmed" : "Shift declined", dd(p.start)); render(); },
+  gal: (d) => {
+    const a = S.alarms.find((x) => x.id === d.id);
+    if (d.op === "enroute") { a.status = "EN_ROUTE"; alarmLog(a, "Liam Nguyen", "Acknowledged, en route"); log("DISPATCH", `Liam Nguyen en route to ${ref("ALM", a.ref)}`); toast("Control room told: en route"); }
+    else { a.status = "ON_SCENE"; a.onScene = new Date(); if (a.ver === "UNVERIFIED") a.ver = "GUARD_CONFIRMED"; alarmLog(a, "Liam Nguyen", "On scene"); log("DISPATCH", `Liam Nguyen on scene at ${sname(a.site)}`); toast("Control room told: on scene"); }
+    render();
+  },
+  gscan: (d) => { const j = S.jobs.find((x) => x.id === me().jobId); j.scans[d.id] = { st: "SCANNED", at: new Date(), note: "" }; log("PATROL", `Liam Nguyen checked in at ${RUN(j.run).stops.find((s) => s.id === d.id).name}`); render(); },
+  gmiss: (d) => { me().missing = d.id; render(); document.querySelector('[data-f="gMiss"] input')?.focus(); },
+  gmissCancel: () => { me().missing = null; render(); },
+  gfinish: () => {
+    const j = S.jobs.find((x) => x.id === me().jobId), r = RUN(j.run);
+    const open = r.stops.filter((s) => !j.scans[s.id]).length;
+    if (open) { toast(`${open} stop${open === 1 ? " is" : "s are"} still open`, "Check in or mark each one missed with a reason."); return; }
+    const sc = scanned(j); j.status = sc === r.stops.length ? "COMPLETED" : sc ? "PARTIAL" : "MISSED"; log("PATROL", `${r.code} closed ${j.status.toLowerCase()}: ${sc}/${r.stops.length} stops, ${money(billable(j))} billable`); toast("Patrol finished", `${sc}/${r.stops.length} stops · ${money(billable(j))} billable`); render();
+  },
+  gquiz: () => {
+    const M = me(), e = S.enrollments.find((x) => x.id === M.courseId), c = S.courses.find((x) => x.id === e.course);
+    if (!c.qs.length) { Object.assign(e, { status: "PASSED", score: 100, done: new Date() }); toast("Course completed"); } else { M.quiz = true; }
+    render(); document.getElementById("gbody").scrollTop = 0;
+  },
+  gaddlic: () => { me().addingLic = !me().addingLic; render(); },
+  gsignout: () => { Object.assign(me(), { signedIn: false, step: "phone", page: "today" }); render(); },
+};
+const FORM = {
+  logAlarm: (f) => { const a = { id: uid("a"), ref: Math.max(...S.alarms.map((x) => x.ref), 4012) + 1, site: f.site, zone: f.zone, type: f.type, pri: f.pri, ver: "UNVERIFIED", status: "UNASSIGNED", guard: null, eta: null, trig: new Date(), onScene: null, sop: [], tl: [{ at: new Date(), who: "You", t: "Alarm logged" }] }; S.alarms.push(a); log("ALARM", `${a.type} at ${sname(a.site)}, ${a.zone}`); toast("Alarm logged", `${ref("ALM", a.ref)} · ${a.pri}`); UI.modal = null; UI.tab.alarms = "active"; },
+  dispatch: (f, form) => { const a = S.alarms.find((x) => x.id === form.dataset.id); a.guard = f.guard; a.eta = +f.eta; a.status = "DISPATCHED"; a.onScene = null; alarmLog(a, "You", `Dispatched ${gname(f.guard)}, ETA ${f.eta} min${f.sms ? " (SMS + app)" : " (app)"}${f.note ? ` — ${f.note}` : ""}`); log("DISPATCH", `${gname(f.guard)} dispatched to ${ref("ALM", a.ref)}, ETA ${f.eta} min`); toast("Guard dispatched", `${gname(f.guard)} · ETA ${f.eta} min${f.guard === "g1" ? " · now open the guard app" : ""}`); UI.modal = null; },
+  sms: (f, form) => { const a = S.alarms.find((x) => x.id === form.dataset.id), c = S.contacts[+f.to]; alarmLog(a, "You", `SMS to ${c.name} (${c.phone}): ${f.body}`); log("SMS", `Alarm alert recorded for ${c.name}`); toast("SMS recorded on the alarm", `${c.name}. (Demo: nothing sent.)`); UI.modal = null; },
+  note: (f, form) => { const a = S.alarms.find((x) => x.id === form.dataset.id); alarmLog(a, "You", f.text); toast("Note added"); UI.modal = null; UI.fold[a.id] = "tl"; },
+  resolve: (f, form) => closeAlarm(form.dataset.id, f.text, false),
+  falseAlarm: (f, form) => closeAlarm(form.dataset.id, f.text || "False alarm", true),
+  incUpdate: (f, form) => { const i = S.incidents.find((x) => x.id === form.dataset.id); i.upd.push({ at: new Date(), who: "You", t: f.text }); toast("Update added"); },
+  newIncident: (f) => { const i = { id: uid("i"), ref: Math.max(...S.incidents.map((x) => x.ref)) + 1, site: f.site, type: f.type, sev: f.sev, status: "OPEN", zone: f.zone, guard: null, at: new Date(), who: null, story: f.story, upd: [{ at: new Date(), who: "You", t: "Incident logged by the office" }] }; S.incidents.unshift(i); log("INCIDENT", `${i.type} logged at ${sname(i.site)}`); toast("Incident created", ref("INC", i.ref)); UI.modal = null; },
+  shift: (f, form) => { const s = S.shifts.find((x) => x.id === form.dataset.id); s.status = f.status; toast("Shift updated"); UI.modal = null; },
+  addShift: (f, form) => { S.shifts.push({ id: uid("s"), guard: f.guard, site: f.site, day: +form.dataset.d, start: f.start, end: f.end, role: f.role, status: "DRAFT" }); const c = clearance(f.guard); toast("Draft shift added", c.level === "block" ? `Warning: ${gname(f.guard)} is not cleared to work` : "Publish when the week is ready"); UI.modal = null; },
+  addLicence: (f) => { S.licences.push({ id: uid("l"), guard: f.guard, type: f.type, number: f.number, state: "VIC", exp: new Date(f.exp), ver: "UNVERIFIED", source: "ADMIN" }); toast("Licence added", "It's in the verification queue"); UI.modal = null; UI.tab.comp = "queue"; },
+  assign: (f, form) => { const gs = [...form.querySelectorAll('input[name="g"]:checked:not(:disabled)')].map((x) => x.value); if (!gs.length) { toast("Pick at least one guard"); return false; } gs.forEach((g) => S.enrollments.push({ id: uid("en"), course: form.dataset.id, guard: g, status: "ASSIGNED", due: f.due ? new Date(f.due) : null })); toast(`Assigned to ${gs.length} guard${gs.length === 1 ? "" : "s"}`, f.sms ? "Each was texted. (Demo: nothing sent.)" : ""); UI.modal = null; },
+  builder: (f, form) => {
+    const ids = [...form.querySelectorAll('input[name="j"]:checked')].map((x) => x.value);
+    const extra = f.extra && f.extraAmt ? [{ d: f.extra, q: 1, u: +f.extraAmt }] : [];
+    if (!ids.length && !extra.length) { toast("Nothing to bill", "Tick at least one run or add a charge."); return false; }
+    const inv = { id: uid("n"), num: Math.max(...S.invoices.map((x) => x.num)) + 1, client: form.dataset.client, from: atDay(-14), to: atDay(0), status: "DRAFT", issued: null, due: null, lines: null, extra };
+    ids.forEach((id) => (S.jobs.find((j) => j.id === id).invoice = inv.id));
+    if (extra.length) inv.lines = [...S.jobs.filter((j) => j.invoice === inv.id).map((j) => ({ d: `${dmy(jobDate(j))} — ${RUN(j.run).code} ${RUN(j.run).name}${j.status === "PARTIAL" ? " (partial)" : ""}`, q: 1, u: billable(j) })), ...extra];
+    S.invoices.push(inv); toast("Draft invoice created", ref("INV", inv.num)); UI.modal = { m: "invoice", id: inv.id };
+  },
+  addClient: (f) => { S.clients.push({ id: uid("c"), name: f.name, contact: f.contact || "—", phone: f.phone || "—", terms: +f.terms || 14, slaPatrol: 95, slaAlarm: +f.sla || 10, end: atDay(365) }); toast("Client added", f.name); UI.modal = null; },
+  jobReq: (f) => { S.jobReqs.unshift({ id: uid("jr"), sub: f.sub, site: f.site, desc: f.desc, from: atDay(3), to: atDay(4), heads: +f.heads, status: "PENDING" }); toast("Job request sent", S.subs.find((s) => s.id === f.sub).name); UI.modal = null; UI.tab.subs = "requests"; },
+  // guard app
+  gPhone: () => { me().step = "code"; toast("Code sent", "Demo: use 482913"); render(); setTimeout(() => document.getElementById("gc")?.focus(), 0); return false; },
+  gCode: (f) => { if (f.code.trim() !== "482913") { document.getElementById("codeErr").textContent = "That code is wrong. Use 482913."; return false; } Object.assign(me(), { signedIn: true, page: "today" }); },
+  gStart: (f, form) => { const j = S.jobs.find((x) => x.id === me().jobId), r = RUN(j.run), v = S.vehicles.find((x) => x.id === r.vehicle); const ok = new Set([...form.querySelectorAll('input[name="ok"]:checked')].map((x) => x.value)); const failed = ["Exterior condition", "Tyres", "Lights and indicators", "First aid kit present", "Fire extinguisher present", "Radio / device charged"].filter((x) => !ok.has(x)); j.status = "ACTIVE"; j.started = new Date(); v.odo = +f.odo || v.odo; S.checks.push({ id: uid("vc"), vehicle: v.id, guard: "g1", at: new Date(), odo: v.odo, fuel: f.fuel, failed, notes: "" }); log("PATROL", `${r.code} started by Liam Nguyen`); toast("Patrol started", failed.length ? `Vehicle check: ${failed.length} item failed` : "Vehicle check passed"); },
+  gMiss: (f, form) => { const j = S.jobs.find((x) => x.id === me().jobId); j.scans[form.dataset.id] = { st: "MISSED", at: new Date(), note: f.why }; me().missing = null; },
+  gIncident: (f) => { const i = { id: uid("i"), ref: Math.max(...S.incidents.map((x) => x.ref)) + 1, site: f.site, type: f.type, sev: f.sev, status: "OPEN", zone: f.zone, guard: "g1", at: new Date(), who: null, story: f.story, upd: [{ at: new Date(), who: "Liam Nguyen", t: "Reported from the guard app" }] }; S.incidents.unshift(i); log("INCIDENT", `${i.type} reported at ${sname(i.site)} by Liam Nguyen`); toast("Incident reported", `${ref("INC", i.ref)} is with the control room`); me().page = "tasks"; },
+  gQuiz: (f) => { const M = me(), e = S.enrollments.find((x) => x.id === M.courseId), c = S.courses.find((x) => x.id === e.course); const right = c.qs.filter((q, i) => +f["q" + i] === q.a).length; const score = Math.round((right / c.qs.length) * 100); e.attempts = (e.attempts || 0) + 1; e.score = score; if (score >= c.pass) { Object.assign(e, { status: "PASSED", done: new Date(), exp: c.renew ? atDay(c.renew * 30) : null }); log("TRAINING", `Liam Nguyen passed ${c.title} (${score}%)`); toast("Course passed", `${score}%`); } else { e.status = "FAILED"; M.lastScore = score; toast("Not passed yet", `${score}%. Pass mark ${c.pass}%.`); } M.quiz = false; },
+  gLic: (f) => { S.licences.push({ id: uid("l"), guard: "g1", type: f.type, number: f.number, state: "VIC", exp: new Date(f.exp), ver: "UNVERIFIED", source: "GUARD", doc: true }); me().addingLic = false; log("LICENCE", `Liam Nguyen uploaded a ${LT[f.type][1]}`); toast("Sent to the office", "It's now in the console's verification queue"); },
+};
+function closeAlarm(id, outcome, isFalse) {
+  const a = S.alarms.find((x) => x.id === id);
+  S.alarms = S.alarms.filter((x) => x.id !== id);
+  S.history.unshift({ ...a, status: "RESOLVED", ver: isFalse ? "FALSE_ALARM" : a.ver, resolved: new Date(), by: "You", outcome, sms: a.tl.some((e) => e.t.startsWith("SMS to")) });
+  log("ALARM", `${ref("ALM", a.ref)} ${isFalse ? "closed as false alarm" : "resolved"}`);
+  toast(isFalse ? "Closed as false alarm" : "Alarm resolved", ref("ALM", a.ref));
+  UI.modal = null;
+}
+const CHANGE = {
+  go: (el) => go(el.value),
+  ver: (el) => { const a = S.alarms.find((x) => x.id === el.dataset.id); a.ver = el.value; alarmLog(a, "You", `Verification: ${(LABEL[el.value] || "unverified").toLowerCase()}`); render(); },
+  sop: (el) => { const a = S.alarms.find((x) => x.id === el.dataset.id), i = +el.dataset.i; a.sop = el.checked ? [...a.sop, i] : a.sop.filter((n) => n !== i); alarmLog(a, "You", `Procedure ${el.checked ? "done" : "unticked"}: ${(SOP[a.type] || SOP.default)[i]}`); render(); },
+  incStatus: (el) => { const i = S.incidents.find((x) => x.id === el.dataset.id); i.upd.push({ at: new Date(), who: "You", t: `Status: ${LABEL[i.status] || i.status.toLowerCase()} → ${LABEL[el.value] || el.value.toLowerCase()}` }); i.status = el.value; toast("Status updated"); render(); },
+  incWho: (el) => { const i = S.incidents.find((x) => x.id === el.dataset.id); i.who = el.value || null; i.upd.push({ at: new Date(), who: "You", t: el.value ? `Assigned to ${el.value}` : "Unassigned" }); render(); },
+  shiftGuard: (el) => { document.getElementById("compl").innerHTML = complCallout(el.value); },
+  attest: (el) => { document.getElementById("verifyBtn").disabled = !el.checked; },
+  builderClient: (el) => { UI.modal.client = el.value; render(); },
+  builderSum: () => { const f = document.querySelector('[data-f="builder"]'); const sub = [...f.querySelectorAll('input[name="j"]:checked')].reduce((n, x) => n + +x.closest("tr").querySelector("[data-amt]").dataset.amt, 0) + (+f.querySelector('[name="extraAmt"]').value || 0); document.getElementById("btot").innerHTML = totalsHtml(sub); },
+  gphoto: (el) => { const n = el.files?.[0]?.name; document.getElementById("gphoto").textContent = n ? `Photo attached: ${n}` : "Add a photo (optional)"; },
+};
+
+document.addEventListener("click", (e) => {
+  const el = e.target.closest("[data-a]");
+  if (!el || el.disabled) return;
+  const fn = ACT[el.dataset.a];
+  if (fn) { if (el.tagName === "A") e.preventDefault(); fn(el.dataset, el, e); }
+});
+document.addEventListener("change", (e) => { const el = e.target.closest("[data-c]"); if (el && CHANGE[el.dataset.c]) CHANGE[el.dataset.c](el); });
+document.addEventListener("input", (e) => { const el = e.target.closest('[data-c="builderSum"]'); if (el) CHANGE.builderSum(); });
+document.addEventListener("submit", (e) => {
+  const form = e.target.closest("[data-f]");
+  if (!form) return;
+  e.preventDefault();
+  const fd = new FormData(form), f = {};
+  for (const [k, v] of fd.entries()) f[k] = v;
+  if (FORM[form.dataset.f](f, form) !== false) render();
+});
+document.addEventListener("keydown", (e) => { if (e.key === "Escape" && UI.modal) ACT.close(); });
+
+// Live clocks: alarm timers, SLA countdowns and the guard's on-shift timer.
+setInterval(() => {
+  document.querySelectorAll("[data-clock]").forEach((el) => {
+    const a = S.alarms.find((x) => x.id === el.dataset.clock); if (!a) return;
+    const s = sla(a); el.textContent = (a.onScene ? "on scene in " : "") + elapsed(s.el); el.className = `clock ${s.state}-t`;
+  });
+  document.querySelectorAll("[data-left]").forEach((el) => {
+    const a = S.alarms.find((x) => x.id === el.dataset.left); if (!a) return;
+    const s = sla(a); el.textContent = s.state === "bad" ? "SLA breached" : `${elapsed(s.target - s.el)} left`; el.className = `mono small ${s.state}-t`;
+  });
+  const on = document.querySelector("[data-onshift]");
+  if (on && me().shift.in) on.textContent = clockHMS(Date.now() - new Date(me().shift.in));
+}, 1000);
+
+function fromHash() {
+  const h = location.hash.slice(1);
+  if (h === "guard-app") UI.view = "guard";
+  else if (PAGES[h]) UI.route = h;
+}
+window.addEventListener("hashchange", () => { fromHash(); render(); });
+fromHash();
+render();
+</script>

@@ -71,8 +71,8 @@ export default function SettingsPage() {
             <div className="flex items-center justify-between gap-2 flex-wrap">
               <CardTitle>SMS Provider</CardTitle>
               {data?.sms.configured
-                ? <Badge className="bg-emerald-500/15 text-emerald-300 border-emerald-500/40">LIVE — Twilio</Badge>
-                : <Badge className="bg-rose-500/15 text-rose-300 border-rose-500/40">NOT CONFIGURED</Badge>}
+                ? <Badge className="bg-emerald-500/15 text-emerald-700 border-emerald-500/40">LIVE — Twilio</Badge>
+                : <Badge className="bg-rose-500/15 text-rose-700 border-rose-500/40">NOT CONFIGURED</Badge>}
             </div>
             <CardDescription>Outbound and inbound SMS run through Twilio.</CardDescription>
           </CardHeader>
@@ -148,7 +148,7 @@ export default function SettingsPage() {
             <div className="text-xs text-muted-foreground border-t pt-3">
               NSW register lookups:{" "}
               {data?.compliance?.nswApi
-                ? <span className="text-emerald-300 font-medium">connected (API NSW)</span>
+                ? <span className="text-emerald-700 font-medium">connected (API NSW)</span>
                 : <>not connected. Set <code>NSW_API_KEY</code> and <code>NSW_API_SECRET</code> to check NSW security licences automatically. Other states are checked by an operator against the public register.</>}
             </div>
             <Button onClick={save}>Save settings</Button>
@@ -184,7 +184,7 @@ export default function SettingsPage() {
                   <TableRow key={a.id}>
                     <TableCell className="font-mono">{a.email}</TableCell>
                     <TableCell>{a.name}</TableCell>
-                    <TableCell><Badge className={a.role === "OWNER" ? "bg-amber-500/15 text-amber-300 border-amber-500/40" : "bg-muted text-muted-foreground border-border"}>{a.role}</Badge></TableCell>
+                    <TableCell><Badge className={a.role === "OWNER" ? "bg-amber-500/15 text-amber-700 border-amber-500/40" : "bg-muted text-muted-foreground border-border"}>{a.role}</Badge></TableCell>
                     <TableCell className="text-xs text-muted-foreground">{new Date(a.createdAt).toISOString().slice(0, 10)}</TableCell>
                   </TableRow>
                 ))}

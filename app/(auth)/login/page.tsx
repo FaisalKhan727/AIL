@@ -49,7 +49,7 @@ function LoginInner() {
           <VigiloWordmark className="text-xl" />
         </div>
         <div className="max-w-md">
-          <h1 className="font-display text-4xl font-extrabold leading-[1.1]">Every shift covered. Every licence current.</h1>
+          <h1 className="font-display text-4xl font-bold leading-[1.1]">Every shift covered. Every licence current.</h1>
           <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
             Rostering, SMS confirmations, licence verification and timesheets for security teams, with a mobile app your guards actually use.
           </p>
@@ -78,7 +78,7 @@ function LoginInner() {
               <Label htmlFor="password">Password</Label>
               <Input id="password" type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required />
             </div>
-            {error && <p className="text-sm text-red-300">{error}</p>}
+            {error && <p className="text-sm text-red-700">{error}</p>}
             <Button type="submit" className="w-full" disabled={loading}>
               {loading ? "Signing in…" : "Sign in"}
             </Button>

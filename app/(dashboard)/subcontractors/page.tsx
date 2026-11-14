@@ -53,7 +53,7 @@ export default function SubcontractorsPage() {
     if (!confirm(`Delete ${what}?`)) return;
     if (await act(() => api(url, { method: "DELETE" }), "Deleted")) refresh(key, "guards");
   };
-  const del = (fn: () => void) => <span onClick={(e) => e.stopPropagation()}><Button size="sm" variant="ghost" className="px-2 text-red-300" aria-label="Delete" onClick={fn}><Trash2 className="h-3.5 w-3.5" /></Button></span>;
+  const del = (fn: () => void) => <span onClick={(e) => e.stopPropagation()}><Button size="sm" variant="ghost" className="px-2 text-red-700" aria-label="Delete" onClick={fn}><Trash2 className="h-3.5 w-3.5" /></Button></span>;
   const subOptions = (subs.data ?? []).map((s) => ({ value: s.id, label: s.name }));
   const all = subs.data ?? [];
 
@@ -62,8 +62,8 @@ export default function SubcontractorsPage() {
     { h: "Contact", c: (s) => <>{s.contactName ?? "—"}<div className="text-xs text-muted-foreground">{[s.phone, s.email].filter(Boolean).join(" · ")}</div></> },
     { h: "Specialties", c: (s) => <span className="text-xs text-muted-foreground">{s.specialties ?? "—"}</span> },
     { h: "Guards supplied", c: (s) => <span className="num">{s.guards.filter((g) => g.active).length}</span> },
-    { h: "Insurance", c: (s) => <span className={s.insuranceExpiry && +new Date(s.insuranceExpiry) < Date.now() ? "text-red-300" : ""}>{auDate(s.insuranceExpiry)}</span> },
-    { h: "Rating", c: (s) => (s.rating ? <span className="flex items-center gap-1 text-amber-300"><Star className="h-3.5 w-3.5 fill-current" /><span className="num">{s.rating}</span></span> : <span className="text-muted-foreground">—</span>) },
+    { h: "Insurance", c: (s) => <span className={s.insuranceExpiry && +new Date(s.insuranceExpiry) < Date.now() ? "text-red-700" : ""}>{auDate(s.insuranceExpiry)}</span> },
+    { h: "Rating", c: (s) => (s.rating ? <span className="flex items-center gap-1 text-amber-700"><Star className="h-3.5 w-3.5 fill-current" /><span className="num">{s.rating}</span></span> : <span className="text-muted-foreground">—</span>) },
     { h: "Status", c: (s) => <StatusPill status={s.status} /> },
     { h: "", c: (s) => del(() => remove(`/api/subcontractors/${s.id}`, "subcontractors", `${s.name} and its job requests and invoices`)) },
   ];
@@ -93,7 +93,7 @@ export default function SubcontractorsPage() {
       <span className="flex justify-end gap-1" onClick={(e) => e.stopPropagation()}>
         {i.status === "PENDING" && <Button size="sm" variant="outline" onClick={() => setStatus(`/api/sub-invoices/${i.id}`, "APPROVED", "sub-invoices")}>Approve</Button>}
         {i.status === "APPROVED" && <Button size="sm" variant="outline" onClick={() => setStatus(`/api/sub-invoices/${i.id}`, "PAID", "sub-invoices")}>Mark paid</Button>}
-        {(i.status === "PENDING" || i.status === "APPROVED") && <Button size="sm" variant="ghost" className="text-red-300" onClick={() => setStatus(`/api/sub-invoices/${i.id}`, "DISPUTED", "sub-invoices")}>Dispute</Button>}
+        {(i.status === "PENDING" || i.status === "APPROVED") && <Button size="sm" variant="ghost" className="text-red-700" onClick={() => setStatus(`/api/sub-invoices/${i.id}`, "DISPUTED", "sub-invoices")}>Dispute</Button>}
         {del(() => remove(`/api/sub-invoices/${i.id}`, "sub-invoices", `invoice ${i.number}`))}
       </span>
     ) },

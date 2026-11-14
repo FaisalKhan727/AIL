@@ -278,3 +278,12 @@ React Hook Form · date-fns + date-fns-tz · Twilio Node SDK · Vitest.
 /tests
   parser.test.ts  hours.test.ts
 ```
+
+---
+
+## Clickable demo
+
+`docs/vigilo-demo.html` is a self-contained, no-backend demo of the console and
+the guard app side by side, using sample data held in the page. It is for
+showing the product; it does not talk to the API. Rebuild it from the
+sources it was generated from if the screens change substantially.

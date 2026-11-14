@@ -318,7 +318,7 @@ export function CopyRosterDialog({ open, onOpenChange, initialSourceId }: Props)
 
             {plan.unassignedCount > 0 && (
               <section className="space-y-1">
-                <h3 className="text-sm font-semibold text-amber-300">
+                <h3 className="text-sm font-semibold text-amber-700">
                   Unassigned placeholders ({plan.unassignedCount})
                 </h3>
                 <div className="rounded border bg-amber-500/10 max-h-40 overflow-y-auto">
@@ -329,7 +329,7 @@ export function CopyRosterDialog({ open, onOpenChange, initialSourceId }: Props)
                         <li key={p.sourceShiftId} className="px-2 py-1.5">
                           <div>{plannedRowLabel(p)}</div>
                           {p.warnings.length > 0 && (
-                            <div className="text-amber-300/80 mt-0.5">
+                            <div className="text-amber-700/80 mt-0.5">
                               {p.warnings.join("; ")}
                             </div>
                           )}
@@ -342,7 +342,7 @@ export function CopyRosterDialog({ open, onOpenChange, initialSourceId }: Props)
 
             {plan.skipped.length > 0 && (
               <section className="space-y-1">
-                <h3 className="text-sm font-semibold text-red-300">
+                <h3 className="text-sm font-semibold text-red-700">
                   Skipped ({plan.skipped.length})
                 </h3>
                 <div className="rounded border bg-red-500/10 max-h-40 overflow-y-auto">
@@ -350,7 +350,7 @@ export function CopyRosterDialog({ open, onOpenChange, initialSourceId }: Props)
                     {plan.skipped.map((s) => (
                       <li key={s.sourceShiftId} className="px-2 py-1.5">
                         <div>{shiftLabel.get(s.sourceShiftId) ?? s.sourceShiftId}</div>
-                        <div className="text-red-300/80 mt-0.5">{s.reason}</div>
+                        <div className="text-red-700/80 mt-0.5">{s.reason}</div>
                       </li>
                     ))}
                   </ul>
@@ -394,7 +394,7 @@ export function CopyRosterDialog({ open, onOpenChange, initialSourceId }: Props)
           )}
 
           {emptySource && (
-            <div className="rounded border bg-amber-500/10 p-2 text-xs text-amber-300">
+            <div className="rounded border bg-amber-500/10 p-2 text-xs text-amber-700">
               The selected roster has no shifts to copy. Pick a different source.
             </div>
           )}
@@ -445,8 +445,8 @@ export function CopyRosterDialog({ open, onOpenChange, initialSourceId }: Props)
 
               {plan.skipped.length > 0 && (
                 <div className="rounded border bg-amber-500/10 p-2 text-xs">
-                  <div className="font-medium text-amber-300 mb-1">Skipped ({plan.skipped.length})</div>
-                  <ul className="list-disc pl-4 text-amber-300/90 space-y-0.5">
+                  <div className="font-medium text-amber-700 mb-1">Skipped ({plan.skipped.length})</div>
+                  <ul className="list-disc pl-4 text-amber-700/90 space-y-0.5">
                     {plan.skipped.map((s) => (
                       <li key={s.sourceShiftId}>
                         {shiftLabel.get(s.sourceShiftId) ?? s.sourceShiftId} — {s.reason}
@@ -458,8 +458,8 @@ export function CopyRosterDialog({ open, onOpenChange, initialSourceId }: Props)
 
               {plan.planned.some((p) => p.warnings.length > 0) && (
                 <div className="rounded border bg-amber-500/10 p-2 text-xs">
-                  <div className="font-medium text-amber-300 mb-1">Warnings</div>
-                  <ul className="list-disc pl-4 text-amber-300/90 space-y-0.5">
+                  <div className="font-medium text-amber-700 mb-1">Warnings</div>
+                  <ul className="list-disc pl-4 text-amber-700/90 space-y-0.5">
                     {plan.planned
                       .filter((p) => p.warnings.length > 0)
                       .map((p) => (

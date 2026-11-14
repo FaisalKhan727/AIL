@@ -67,7 +67,7 @@ export function BottomTabs() {
     <>
       {moreOpen && (
         <div
-          className="fixed inset-0 z-50 bg-black/60 md:hidden"
+          className="fixed inset-0 z-50 bg-slate-900/40 md:hidden"
           onClick={() => setMoreOpen(false)}
           aria-hidden
         />
@@ -110,7 +110,7 @@ export function BottomTabs() {
             })}
             <button
               onClick={() => signOut({ callbackUrl: "/login" })}
-              className="w-full flex items-center gap-3 rounded-lg px-3 py-3 text-base text-red-300 hover:bg-red-500/10"
+              className="w-full flex items-center gap-3 rounded-lg px-3 py-3 text-base text-red-700 hover:bg-red-500/10"
             >
               <LogOut className="h-5 w-5" />
               Sign out

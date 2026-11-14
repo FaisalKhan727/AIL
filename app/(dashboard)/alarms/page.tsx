@@ -140,7 +140,7 @@ export default function AlarmsPage() {
                       <Button size="sm" variant="outline" onClick={() => setPrompt({ title: "Mark as false alarm", description: "Closes the alarm and counts it in the false-alarm rate.", confirm: "Mark false alarm", placeholder: "Cause, if known (optional)", onSubmit: (outcome) => send(a, { action: "false-alarm", outcome }, "Closed as false alarm") })}>
                         False alarm
                       </Button>
-                      <Button size="sm" variant="outline" className="border-success/50 text-emerald-300" onClick={() => setPrompt({ title: `Resolve ${refLabel("ALM", a.ref)}`, confirm: "Resolve", required: true, placeholder: "Outcome: what was found and what was done", onSubmit: (outcome) => send(a, { action: "resolve", outcome }, "Alarm resolved") })}>
+                      <Button size="sm" variant="outline" className="border-success/50 text-emerald-700" onClick={() => setPrompt({ title: `Resolve ${refLabel("ALM", a.ref)}`, confirm: "Resolve", required: true, placeholder: "Outcome: what was found and what was done", onSubmit: (outcome) => send(a, { action: "resolve", outcome }, "Alarm resolved") })}>
                         Resolve
                       </Button>
                     </div>
@@ -202,7 +202,7 @@ export default function AlarmsPage() {
                     </div>
                     <div className="mt-2 flex gap-1.5">
                       {a.status !== "ON_SCENE" && <Button size="sm" variant="outline" onClick={() => send(a, { action: "on-scene" }, "Marked on scene")}>Mark on scene</Button>}
-                      <Button size="sm" variant="ghost" className="text-red-300" onClick={() => { if (confirm(`Recall ${a.guardName}?`)) send(a, { action: "recall" }, "Guard recalled"); }}>Recall</Button>
+                      <Button size="sm" variant="ghost" className="text-red-700" onClick={() => { if (confirm(`Recall ${a.guardName}?`)) send(a, { action: "recall" }, "Guard recalled"); }}>Recall</Button>
                     </div>
                   </li>
                 );
@@ -402,7 +402,7 @@ function ContactsDialog({ open, onOpenChange, contacts, onDone }: { open: boolea
             <div key={i} className="grid grid-cols-[1fr_10.5rem_auto] gap-2">
               <Input placeholder="Name / role" value={r.name} onChange={(e) => set(i, "name", e.target.value)} />
               <Input placeholder="+61412345678" className="font-mono" value={r.phone} onChange={(e) => set(i, "phone", e.target.value)} />
-              <Button type="button" variant="ghost" className="px-2 text-red-300" aria-label="Remove contact" onClick={() => setRows((x) => x.filter((_, j) => j !== i))}>✕</Button>
+              <Button type="button" variant="ghost" className="px-2 text-red-700" aria-label="Remove contact" onClick={() => setRows((x) => x.filter((_, j) => j !== i))}>✕</Button>
             </div>
           ))}
           <Button type="button" variant="outline" size="sm" onClick={() => setRows((r) => [...r, { name: "", phone: "" }])}><Plus className="h-3.5 w-3.5" /> Add contact</Button>

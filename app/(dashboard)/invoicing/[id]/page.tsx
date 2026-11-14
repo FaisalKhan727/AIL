@@ -53,7 +53,7 @@ export default function InvoicePage() {
             </>
           )}
           {(inv.status === "DRAFT" || inv.status === "SENT") && (
-            <Button variant="outline" className="text-red-300" onClick={() => { if (confirm(`Void ${label}? Its patrol jobs become billable again.`)) run("void", `${label} voided`); }}>Void</Button>
+            <Button variant="outline" className="text-red-700" onClick={() => { if (confirm(`Void ${label}? Its patrol jobs become billable again.`)) run("void", `${label} voided`); }}>Void</Button>
           )}
           <Button variant="outline" onClick={() => window.print()}><Printer className="h-4 w-4" /> Print / PDF</Button>
         </span>

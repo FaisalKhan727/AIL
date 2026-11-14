@@ -35,7 +35,7 @@ export default function GuardProfile() {
 
   return (
     <div className="space-y-5">
-      <h1 className="font-display text-2xl font-extrabold">Profile</h1>
+      <h1 className="font-display text-2xl font-bold">Profile</h1>
 
       <section className="rounded-[10px] border bg-card p-4">
         <div className="flex items-center gap-3">
@@ -77,7 +77,7 @@ export default function GuardProfile() {
         </p>
       </section>
 
-      <Button variant="outline" className="h-11 w-full text-red-300" onClick={() => signOut({ callbackUrl: "/m/login" })}>
+      <Button variant="outline" className="h-11 w-full text-red-700" onClick={() => signOut({ callbackUrl: "/m/login" })}>
         <LogOut className="h-4 w-4" /> Sign out
       </Button>
     </div>

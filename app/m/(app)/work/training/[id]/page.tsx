@@ -48,7 +48,7 @@ export default function GuardTraining() {
         <section className="rounded-[10px] border border-success/50 bg-success/[0.07] p-5 text-center">
           <Award className="mx-auto h-10 w-10 text-success" />
           <div className="eyebrow mt-3 !text-success">Certificate of completion</div>
-          <h1 className="mt-1 font-display text-xl font-extrabold">{c.title}</h1>
+          <h1 className="mt-1 font-display text-xl font-bold">{c.title}</h1>
           <p className="mt-2 text-sm text-muted-foreground">
             Passed with <span className="num text-foreground">{data.score}%</span> on {auDate(data.completedAt)}
             {data.expiresAt ? <>. Renew by <span className="num text-foreground">{auDate(data.expiresAt)}</span>.</> : "."}
@@ -67,7 +67,7 @@ export default function GuardTraining() {
       {back}
       <div>
         <div className="eyebrow">{c.category}</div>
-        <h1 className="mt-1 font-display text-xl font-extrabold leading-tight">{c.title}</h1>
+        <h1 className="mt-1 font-display text-xl font-bold leading-tight">{c.title}</h1>
         {c.description && <p className="mt-1 text-sm text-muted-foreground">{c.description}</p>}
       </div>
 

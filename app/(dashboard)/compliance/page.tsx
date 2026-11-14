@@ -177,9 +177,9 @@ export default function CompliancePage() {
             </Card>
             <Stat label="Valid" value={s.valid} tone="text-success" active={status === "VALID"} onClick={() => pickStatus("VALID")} />
             <Stat label="Expiring ≤ 60 days" value={s.expiring} tone="text-warning" active={status === "EXPIRING"} onClick={() => pickStatus("EXPIRING")} />
-            <Stat label="Urgent ≤ 14 days" value={s.urgent} tone="text-red-400" active={status === "URGENT"} onClick={() => pickStatus("URGENT")} />
+            <Stat label="Urgent ≤ 14 days" value={s.urgent} tone="text-red-600" active={status === "URGENT"} onClick={() => pickStatus("URGENT")} />
             <Stat label="Expired" value={s.expired} tone="text-critical" active={status === "EXPIRED"} onClick={() => pickStatus("EXPIRED")} />
-            <Stat label="To verify" value={s.unverified} tone="text-sky-300" active={tab === "queue"} onClick={() => setTab("queue")} />
+            <Stat label="To verify" value={s.unverified} tone="text-sky-700" active={tab === "queue"} onClick={() => setTab("queue")} />
           </div>
 
           <div className="mb-3 flex flex-wrap items-center gap-x-1 gap-y-2 border-b">
@@ -197,7 +197,7 @@ export default function CompliancePage() {
                 )}
               >
                 {label}
-                <span className={cn("num rounded px-1.5 text-[10.5px] leading-4", key === "queue" && n > 0 ? "bg-sky-500/20 text-sky-300" : "bg-muted text-muted-foreground")}>{n}</span>
+                <span className={cn("num rounded px-1.5 text-[10.5px] leading-4", key === "queue" && n > 0 ? "bg-sky-500/20 text-sky-700" : "bg-muted text-muted-foreground")}>{n}</span>
               </button>
             ))}
           </div>
@@ -251,7 +251,7 @@ export default function CompliancePage() {
                         <TableCell className="whitespace-nowrap">
                           <span className="num text-[13px]">{auDate(l.expiryDate)}</span>
                           {l.daysLeft !== null && l.daysLeft <= 60 && (
-                            <span className={cn("ml-2 text-xs", l.daysLeft < 0 ? "text-red-300" : l.daysLeft <= 14 ? "text-red-300" : "text-amber-300")}>{daysLabel(l.daysLeft)}</span>
+                            <span className={cn("ml-2 text-xs", l.daysLeft < 0 ? "text-red-700" : l.daysLeft <= 14 ? "text-red-700" : "text-amber-700")}>{daysLabel(l.daysLeft)}</span>
                           )}
                         </TableCell>
                         <TableCell><LicenceStatusBadge status={l.status} /></TableCell>
@@ -270,7 +270,7 @@ export default function CompliancePage() {
                             <Button size="sm" variant="ghost" className="px-2" aria-label="Edit licence" onClick={() => { setEditing(l); setFormOpen(true); }}>
                               <Pencil className="h-3.5 w-3.5" />
                             </Button>
-                            <Button size="sm" variant="ghost" className="px-2 text-red-300" aria-label="Delete licence" onClick={() => remove(l)}>
+                            <Button size="sm" variant="ghost" className="px-2 text-red-700" aria-label="Delete licence" onClick={() => remove(l)}>
                               <Trash2 className="h-3.5 w-3.5" />
                             </Button>
                           </div>
@@ -301,9 +301,9 @@ export default function CompliancePage() {
                         <TableRow key={g.id}>
                           <TableCell><Link href={`/guards/${g.id}`} className="font-medium hover:underline">{g.name}</Link></TableCell>
                           <TableCell>
-                            {g.level === "block" && <Badge className="bg-red-500/15 text-red-300 border-red-500/40">Not cleared</Badge>}
-                            {g.level === "warn" && <Badge className="bg-amber-500/15 text-amber-300 border-amber-500/40">Cleared · attention</Badge>}
-                            {g.level === "ok" && <Badge className="bg-emerald-500/15 text-emerald-300 border-emerald-500/40">Cleared</Badge>}
+                            {g.level === "block" && <Badge className="bg-red-500/15 text-red-700 border-red-500/40">Not cleared</Badge>}
+                            {g.level === "warn" && <Badge className="bg-amber-500/15 text-amber-700 border-amber-500/40">Cleared · attention</Badge>}
+                            {g.level === "ok" && <Badge className="bg-emerald-500/15 text-emerald-700 border-emerald-500/40">Cleared</Badge>}
                           </TableCell>
                           <TableCell className="text-sm text-muted-foreground">
                             {g.issues.length === 0 ? "—" : g.issues.map((i) => i.message).join(" · ")}

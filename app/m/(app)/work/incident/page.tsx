@@ -40,7 +40,7 @@ export default function GuardIncident() {
   return (
     <form onSubmit={submit} className="space-y-4">
       <Link href="/m/work" className="flex items-center gap-1 text-sm text-muted-foreground"><ArrowLeft className="h-4 w-4" /> Tasks</Link>
-      <h1 className="font-display text-2xl font-extrabold">Report an incident</h1>
+      <h1 className="font-display text-2xl font-bold">Report an incident</h1>
       <p className="text-sm text-muted-foreground">In an emergency call 000 first, then the control room.</p>
       <div className="space-y-1"><Label htmlFor="i-site">Site</Label>
         <Select id="i-site" value={form.siteId} onChange={set("siteId")} required>

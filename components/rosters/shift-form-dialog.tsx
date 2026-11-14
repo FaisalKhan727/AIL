@@ -377,7 +377,7 @@ export function ShiftFormDialog({ open, onOpenChange, rosterId, initial, onSaved
                           className={cn(
                             "rounded border px-3 py-1 text-xs",
                             recurDays.includes(d.code)
-                              ? "bg-blue-500/10 border-blue-500/40 text-blue-300"
+                              ? "bg-blue-500/10 border-blue-500/40 text-blue-700"
                               : "bg-background",
                           )}
                         >

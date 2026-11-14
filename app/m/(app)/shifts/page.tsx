@@ -41,7 +41,7 @@ export default function GuardShifts() {
 
   return (
     <div className="space-y-4">
-      <h1 className="font-display text-2xl font-extrabold">Shifts</h1>
+      <h1 className="font-display text-2xl font-bold">Shifts</h1>
 
       <div className="grid grid-cols-2 rounded-md border p-0.5 text-sm">
         {(["upcoming", "past"] as const).map((t) => (

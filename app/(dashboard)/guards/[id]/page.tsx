@@ -102,9 +102,9 @@ export default function GuardDetailPage() {
             const c = guardCompliance(data.licences.map((l) => ({ type: l.type, expiryDate: l.expiryDate, verification: l.verification })));
             return (
               <>
-                {c.level === "block" && <Badge className="bg-red-500/15 text-red-300 border-red-500/40">Not cleared to work</Badge>}
-                {c.level === "warn" && <Badge className="bg-amber-500/15 text-amber-300 border-amber-500/40">Cleared · attention</Badge>}
-                {c.level === "ok" && <Badge className="bg-emerald-500/15 text-emerald-300 border-emerald-500/40">Cleared to work</Badge>}
+                {c.level === "block" && <Badge className="bg-red-500/15 text-red-700 border-red-500/40">Not cleared to work</Badge>}
+                {c.level === "warn" && <Badge className="bg-amber-500/15 text-amber-700 border-amber-500/40">Cleared · attention</Badge>}
+                {c.level === "ok" && <Badge className="bg-emerald-500/15 text-emerald-700 border-emerald-500/40">Cleared to work</Badge>}
                 <div className="text-xs text-muted-foreground mt-2">
                   {c.issues.length ? c.issues.map((i) => i.message).join(" · ") : "Security licence verified and current."}
                 </div>
@@ -140,7 +140,7 @@ export default function GuardDetailPage() {
                   <TableCell className="font-mono text-xs whitespace-nowrap">{l.number} <span className="text-muted-foreground">{l.state}</span></TableCell>
                   <TableCell className="whitespace-nowrap">
                     <span className="num text-[13px]">{auDate(l.expiryDate)}</span>
-                    {l.daysLeft !== null && l.daysLeft <= 60 && <span className="ml-2 text-xs text-amber-300">{daysLabel(l.daysLeft)}</span>}
+                    {l.daysLeft !== null && l.daysLeft <= 60 && <span className="ml-2 text-xs text-amber-700">{daysLabel(l.daysLeft)}</span>}
                   </TableCell>
                   <TableCell><LicenceStatusBadge status={l.status} /></TableCell>
                   <TableCell className="text-right">
@@ -199,7 +199,7 @@ export default function GuardDetailPage() {
                   <TableCell className="whitespace-nowrap">{fmtDateTime(l.receivedAt)}</TableCell>
                   <TableCell>{l.direction}</TableCell>
                   <TableCell className="max-w-md whitespace-pre-wrap text-xs">{l.body}</TableCell>
-                  <TableCell>{l.status === "mock" ? <span className="text-amber-300 text-xs font-medium">MOCK</span> : l.status}</TableCell>
+                  <TableCell>{l.status === "mock" ? <span className="text-amber-700 text-xs font-medium">MOCK</span> : l.status}</TableCell>
                 </TableRow>
               ))}
             </TableBody>

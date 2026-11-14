@@ -70,18 +70,18 @@ export default function SmsLogPage() {
                 <TableCell className="whitespace-nowrap">{fmtDateTime(l.receivedAt)}</TableCell>
                 <TableCell>
                   {l.direction === "OUTBOUND"
-                    ? <Badge className="bg-blue-500/15 text-blue-300 border-blue-500/40">OUT</Badge>
-                    : <Badge className="bg-purple-500/15 text-purple-300 border-purple-500/40">IN</Badge>}
+                    ? <Badge className="bg-blue-500/15 text-blue-700 border-blue-500/40">OUT</Badge>
+                    : <Badge className="bg-purple-500/15 text-purple-700 border-purple-500/40">IN</Badge>}
                 </TableCell>
                 <TableCell>{l.guard ? `${l.guard.firstName} ${l.guard.lastName}` : <span className="text-muted-foreground">unknown</span>}</TableCell>
                 <TableCell className="font-mono text-xs whitespace-nowrap">{formatPhoneAU(l.fromNumber)} → {formatPhoneAU(l.toNumber)}</TableCell>
                 <TableCell className="max-w-md whitespace-pre-wrap text-xs">{l.body}</TableCell>
                 <TableCell>
                   {l.status === "mock"
-                    ? <Badge className="bg-amber-500/15 text-amber-300 border-amber-500/40">MOCK</Badge>
+                    ? <Badge className="bg-amber-500/15 text-amber-700 border-amber-500/40">MOCK</Badge>
                     : l.status === "received"
                       ? <Badge className="bg-muted text-muted-foreground border-border">RX</Badge>
-                      : <Badge className="bg-emerald-500/15 text-emerald-300 border-emerald-500/40">LIVE</Badge>}
+                      : <Badge className="bg-emerald-500/15 text-emerald-700 border-emerald-500/40">LIVE</Badge>}
                 </TableCell>
               </TableRow>
             ))}

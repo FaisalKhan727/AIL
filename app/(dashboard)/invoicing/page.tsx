@@ -34,7 +34,7 @@ export default function InvoicingPage() {
     { h: "Client", c: (i) => i.client.name },
     { h: "Period", c: (i) => <span className="num whitespace-nowrap text-xs">{auDate(i.periodStart)} → {auDate(i.periodEnd)}</span> },
     { h: "Issued", c: (i) => <span className="num text-xs">{auDate(i.issuedAt)}</span> },
-    { h: "Due", c: (i) => <span className={`num text-xs ${i.displayStatus === "OVERDUE" ? "text-red-300" : ""}`}>{auDate(i.dueAt)}</span> },
+    { h: "Due", c: (i) => <span className={`num text-xs ${i.displayStatus === "OVERDUE" ? "text-red-700" : ""}`}>{auDate(i.dueAt)}</span> },
     { h: "Lines", c: (i) => <span className="num">{i.lines.length}</span> },
     { h: "Total (inc. GST)", c: (i) => <span className="num">{money(i.total)}</span>, className: "text-right" },
     { h: "Status", c: (i) => <StatusPill status={i.displayStatus} /> },
@@ -137,7 +137,7 @@ function Builder({ open, onOpenChange, onDone }: { open: boolean; onOpenChange: 
                       <td className="px-3 py-1.5"><input type="checkbox" aria-label={`Include ${j.code} ${j.date}`} checked={!skip.has(j.id)} onChange={(e) => setSkip((s) => { const n = new Set(s); if (e.target.checked) n.delete(j.id); else n.add(j.id); return n; })} /></td>
                       <td className="num px-2 py-1.5 text-xs">{auDate(j.date)}</td>
                       <td className="px-2 py-1.5"><span className="font-mono">{j.code}</span> <span className="text-muted-foreground">{j.name}</span></td>
-                      <td className="num px-2 py-1.5 text-xs">{j.scanned}/{j.stopCount}{j.status === "PARTIAL" && <span className="ml-1.5 text-amber-300">partial</span>}</td>
+                      <td className="num px-2 py-1.5 text-xs">{j.scanned}/{j.stopCount}{j.status === "PARTIAL" && <span className="ml-1.5 text-amber-700">partial</span>}</td>
                       <td className="num px-2 py-1.5 text-right text-xs text-muted-foreground">{money(j.rate)}</td>
                       <td className="num px-3 py-1.5 text-right">{money(j.amount)}</td>
                     </tr>
@@ -153,7 +153,7 @@ function Builder({ open, onOpenChange, onDone }: { open: boolean; onOpenChange: 
                   <Input placeholder="Call-out fee, fuel levy, SLA credit…" value={e.description} onChange={(ev) => setExtra(i, "description", ev.target.value)} />
                   <Input type="number" min="0" step="0.01" aria-label="Quantity" value={e.quantity} onChange={(ev) => setExtra(i, "quantity", ev.target.value)} />
                   <Input type="number" step="0.01" placeholder="Unit $" aria-label="Unit price (negative for a credit)" value={e.unitPrice} onChange={(ev) => setExtra(i, "unitPrice", ev.target.value)} />
-                  <Button type="button" variant="ghost" className="px-2 text-red-300" aria-label="Remove line" onClick={() => setExtras((x) => x.filter((_, j) => j !== i))}><Trash2 className="h-3.5 w-3.5" /></Button>
+                  <Button type="button" variant="ghost" className="px-2 text-red-700" aria-label="Remove line" onClick={() => setExtras((x) => x.filter((_, j) => j !== i))}><Trash2 className="h-3.5 w-3.5" /></Button>
                 </div>
               ))}
               <Button type="button" size="sm" variant="outline" onClick={() => setExtras((x) => [...x, { description: "", quantity: "1", unitPrice: "" }])}><Plus className="h-3.5 w-3.5" /> Add line</Button>

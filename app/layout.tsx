@@ -1,13 +1,15 @@
 import type { Metadata, Viewport } from "next";
-import { DM_Mono, DM_Sans, Syne } from "next/font/google";
+import { IBM_Plex_Mono, IBM_Plex_Sans, IBM_Plex_Sans_Condensed } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
 
 // Brand typefaces, pulled from Google Fonts at build time and self-hosted by
 // Next (no layout shift, no third-party request from the browser).
-const sans = DM_Sans({ subsets: ["latin"], weight: ["400", "500", "600"], variable: "--font-sans" });
-const display = Syne({ subsets: ["latin"], weight: ["700", "800"], variable: "--font-display" });
-const mono = DM_Mono({ subsets: ["latin"], weight: ["400", "500"], variable: "--font-mono" });
+// IBM Plex: a working typeface built for dense operational screens. The
+// condensed cut carries headings and big numbers.
+const sans = IBM_Plex_Sans({ subsets: ["latin"], weight: ["400", "500", "600"], variable: "--font-sans" });
+const display = IBM_Plex_Sans_Condensed({ subsets: ["latin"], weight: ["600", "700"], variable: "--font-display" });
+const mono = IBM_Plex_Mono({ subsets: ["latin"], weight: ["400", "500"], variable: "--font-mono" });
 
 export const metadata: Metadata = {
   title: { default: "Vigilo", template: "%s · Vigilo" },
@@ -23,7 +25,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#0B1520",
+  themeColor: "#FFFFFF",
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,

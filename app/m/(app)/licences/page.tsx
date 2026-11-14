@@ -94,7 +94,7 @@ export default function GuardLicences() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="font-display text-2xl font-extrabold">Licences</h1>
+        <h1 className="font-display text-2xl font-bold">Licences</h1>
         <Button size="sm" onClick={openForm}><Plus className="h-4 w-4" /> Add</Button>
       </div>
       <p className="text-sm text-muted-foreground">
@@ -123,7 +123,7 @@ export default function GuardLicences() {
                 {l.expiryDate ? <>Expires <span className="num text-foreground">{auDate(l.expiryDate)}</span></> : "No expiry"}
               </span>
               {l.daysLeft !== null && l.daysLeft <= 60 && (
-                <span className={l.daysLeft <= 14 ? "text-red-300" : "text-amber-300"}>{daysLabel(l.daysLeft)}</span>
+                <span className={l.daysLeft <= 14 ? "text-red-700" : "text-amber-700"}>{daysLabel(l.daysLeft)}</span>
               )}
             </div>
             {l.verification === "REJECTED" && l.verifyNote && (
@@ -132,7 +132,7 @@ export default function GuardLicences() {
             {l.source === "GUARD" && l.verification === "UNVERIFIED" && (
               <div className="mt-2 flex items-center justify-between border-t pt-2 text-xs text-muted-foreground">
                 <span>With the office for checking</span>
-                <button className="text-red-300 hover:underline" onClick={() => withdraw(l)}>Remove</button>
+                <button className="text-red-700 hover:underline" onClick={() => withdraw(l)}>Remove</button>
               </div>
             )}
           </li>
