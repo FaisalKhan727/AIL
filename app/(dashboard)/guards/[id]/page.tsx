@@ -28,6 +28,8 @@ interface GuardDetail {
   licenceNumber: string | null;
   licenceExpiry: string | null;
   payRate: string | null;
+  employmentType: string;
+  payrollRef: string | null;
   notes: string | null;
   active: boolean;
   shifts: Array<{ id: string; startAt: string; endAt: string; status: string; site: { name: string }; roster: { name: string } }>;
@@ -228,6 +230,8 @@ export default function GuardDetailPage() {
           licenceNumber: data.licenceNumber ?? undefined,
           licenceExpiry: data.licenceExpiry ? new Date(data.licenceExpiry).toISOString().slice(0, 10) : undefined,
           payRate: data.payRate ? String(data.payRate) : undefined,
+          employmentType: data.employmentType,
+          payrollRef: data.payrollRef ?? undefined,
           notes: data.notes ?? undefined,
           active: data.active,
         }}

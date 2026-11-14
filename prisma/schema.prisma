@@ -56,6 +56,10 @@ model Guard {
   // Set when the guard is supplied by a subcontractor rather than employed.
   subcontractorId String?
   subcontractor   Subcontractor? @relation(fields: [subcontractorId], references: [id], onDelete: SetNull)
+  // Payroll
+  employmentType     String  @default("CASUAL") // CASUAL | PART_TIME | FULL_TIME
+  payrollRef         String? // employee code used in payroll exports
+  externalEmployeeId String? // e.g. Xero Payroll EmployeeID
 
   @@unique([companyId, phone])
   @@index([companyId])
@@ -76,6 +80,7 @@ model Site {
   shiftTemplates ShiftTemplate[]
   clientId       String?
   client         Client?         @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  billRate       Decimal? // $ per guard-hour charged to the client, ex GST
 
   @@index([companyId])
 }
@@ -142,6 +147,14 @@ model Shift {
   clockInLng      Float?
   clockOutLat     Float?
   clockOutLng     Float?
+  // Timesheet. Hours = (worked end - worked start) - unpaid break.
+  breakMins       Int       @default(0)
+  tsStatus        String    @default("PENDING") // PENDING | APPROVED | DISPUTED
+  tsNote          String?
+  tsApprovedAt    DateTime?
+  tsApprovedBy    String?
+  payRunId        String? // set once included in a pay run; the timesheet is then locked
+  invoiceId       String? // set once billed to the client on an hourly invoice
   publishedAt     DateTime?
   createdAt       DateTime  @default(now())
 
@@ -150,12 +163,15 @@ model Shift {
   site     Site           @relation(fields: [siteId], references: [id])
   template ShiftTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
   smsLogs  SmsLog[]
+  payRun   PayRun?        @relation(fields: [payRunId], references: [id], onDelete: SetNull)
 
   @@index([guardId])
   @@index([siteId])
   @@index([rosterId])
   @@index([templateId])
   @@index([startAt])
+  @@index([payRunId])
+  @@index([invoiceId])
 }
 
 model SmsLog {
@@ -297,6 +313,7 @@ model Client {
   notes            String?
   active           Boolean   @default(true)
   createdAt        DateTime  @default(now())
+  externalContactId String? // contact id in the connected accounting system
 
   sites    Site[]
   runs     PatrolRun[]
@@ -545,9 +562,13 @@ model Invoice {
   gstRate     Decimal   @default(10)
   notes       String?
   createdAt   DateTime  @default(now())
+  externalId       String? // id in the connected accounting system
+  externalProvider String?
+  syncedAt         DateTime?
 
-  client Client        @relation(fields: [clientId], references: [id])
-  lines  InvoiceLine[]
+  client   Client        @relation(fields: [clientId], references: [id])
+  lines    InvoiceLine[]
+  payments Payment[]
 
   @@unique([companyId, number])
   @@index([companyId])
@@ -560,6 +581,7 @@ model InvoiceLine {
   quantity    Decimal @default(1)
   unitPrice   Decimal
   jobId       String? // patrol job this line bills, if any
+  shiftId     String? // guard shift this line bills, if any
 
   invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
 
@@ -667,4 +689,110 @@ model SubInvoice {
   subcontractor Subcontractor @relation(fields: [subcontractorId], references: [id], onDelete: Cascade)
 
   @@index([companyId])
+}
+
+model Payment {
+  id        String   @id @default(cuid())
+  invoiceId String
+  amount    Decimal
+  paidOn    DateTime
+  method    String   @default("BANK_TRANSFER") // BANK_TRANSFER | CARD | CHEQUE | CASH | OTHER
+  reference String?
+  source    String   @default("MANUAL") // MANUAL | XERO
+  createdAt DateTime @default(now())
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId])
+}
+
+// ---------------------------------------------------------------------------
+// Payroll. Vigilo prepares pay runs (hours, award penalties, gross pay and
+// super). Tax withholding and Single Touch Payroll reporting happen in the
+// payroll system the run is exported to.
+// ---------------------------------------------------------------------------
+
+model PayRun {
+  id          String    @id @default(cuid())
+  companyId   String
+  number      Int
+  periodStart DateTime // date-only, first day of the period
+  periodEnd   DateTime // date-only, last day of the period
+  payDate     DateTime
+  status      String    @default("DRAFT") // DRAFT | FINALISED
+  superRate   Decimal // % at the time the run was calculated
+  createdBy   String
+  createdAt   DateTime  @default(now())
+  finalisedAt DateTime?
+  finalisedBy String?
+  exportedAt  DateTime?
+  exportedTo  String?
+
+  lines  PayRunLine[]
+  shifts Shift[]
+
+  @@unique([companyId, number])
+  @@index([companyId])
+}
+
+model PayRunLine {
+  id         String   @id @default(cuid())
+  payRunId   String
+  guardId    String
+  shiftId    String? // null for manual adjustments
+  workDate   DateTime // local calendar date the hours fall on (date-only)
+  category   String // ORDINARY | NIGHT | SATURDAY | SUNDAY | PUBLIC_HOLIDAY | OT_150 | OT_200 | OT_SUNDAY | OT_PUBLIC_HOLIDAY | ADJUSTMENT
+  hours      Decimal
+  baseRate   Decimal
+  multiplier Decimal
+  amount     Decimal
+  superable  Boolean // counts toward ordinary time earnings
+  note       String?
+
+  payRun PayRun @relation(fields: [payRunId], references: [id], onDelete: Cascade)
+
+  @@index([payRunId])
+  @@index([guardId])
+}
+
+model PublicHoliday {
+  id        String   @id @default(cuid())
+  companyId String
+  date      DateTime // date-only
+  name      String
+
+  @@unique([companyId, date])
+}
+
+// ---------------------------------------------------------------------------
+// Accounting / payroll system connections
+// ---------------------------------------------------------------------------
+
+model Integration {
+  id              String    @id @default(cuid())
+  companyId       String
+  provider        String // XERO
+  tenantId        String?
+  tenantName      String?
+  accessTokenEnc  String?
+  refreshTokenEnc String?
+  expiresAt       DateTime?
+  settings        Json      @default("{}")
+  connectedBy     String?
+  connectedAt     DateTime  @default(now())
+
+  @@unique([companyId, provider])
+}
+
+model SyncLog {
+  id        String   @id @default(cuid())
+  companyId String
+  provider  String
+  kind      String // INVOICE | CONTACT | PAYMENT | PAYRUN | EMPLOYEE | CONNECT
+  ref       String?
+  ok        Boolean
+  message   String
+  at        DateTime @default(now())
+
+  @@index([companyId, at])
 }

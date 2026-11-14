@@ -3,6 +3,7 @@ import * as React from "react";
 import { useForm } from "react-hook-form";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
@@ -17,6 +18,8 @@ interface FormValues {
   licenceNumber?: string;
   licenceExpiry?: string;
   payRate?: string;
+  employmentType?: string;
+  payrollRef?: string;
   notes?: string;
   active?: boolean;
 }
@@ -35,7 +38,7 @@ export function GuardFormDialog({ open, onOpenChange, initial, onSaved }: Props)
   const { toast } = useToast();
 
   React.useEffect(() => {
-    if (open) reset({ active: true, ...initial });
+    if (open) reset({ active: true, employmentType: "CASUAL", ...initial });
   }, [open, initial, reset]);
 
   const onSubmit = async (values: FormValues) => {
@@ -95,9 +98,26 @@ export function GuardFormDialog({ open, onOpenChange, initial, onSaved }: Props)
               <Input type="date" {...register("licenceExpiry")} />
             </div>
           </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <Label>Employment</Label>
+              <Select {...register("employmentType")}>
+                <option value="CASUAL">Casual</option>
+                <option value="PART_TIME">Part-time</option>
+                <option value="FULL_TIME">Full-time</option>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label>Base pay rate ($/hr)</Label>
+              <Input type="number" step="0.01" {...register("payRate")} />
+            </div>
+          </div>
+          <p className="-mt-1 text-xs text-muted-foreground">
+            Before casual loading and penalties. Award minimum from 1 July 2026: Level 1 $28.42, Level 3 $29.73. Payroll adds loadings from the pay rules.
+          </p>
           <div className="space-y-1">
-            <Label>Pay rate ($/hr)</Label>
-            <Input type="number" step="0.01" {...register("payRate")} />
+            <Label>Payroll ID (optional)</Label>
+            <Input placeholder="Employee code in your payroll system" {...register("payrollRef")} />
           </div>
           <div className="space-y-1">
             <Label>Notes</Label>

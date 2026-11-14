@@ -1,81 +1,37 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin } from "@/lib/api";
-import { startOfWeekMon, endOfWeekSun, APP_TZ } from "@/lib/date";
-import { shiftHours, totalHours, totalPay } from "@/lib/hours";
+import { jsonError, requireAdmin } from "@/lib/api";
+import { periodFor } from "@/lib/payroll";
+import { getPaySettings, periodBounds, serialiseTimesheet, timesheetInclude } from "@/lib/server/payroll";
 
-// Returns a computed (not persisted) timesheet view for the requested week.
-// Each guard with payable shifts in the week appears once.
+// Timesheets for one pay period: every assigned shift in the period that has
+// started, with worked times, flags and approval state.
 export async function GET(req: Request) {
   const auth = await requireAdmin();
   if ("error" in auth) return auth.error;
-  const { searchParams } = new URL(req.url);
-  const weekParam = searchParams.get("week"); // yyyy-MM-dd of any day in the week
-  const baseDate = weekParam ? new Date(weekParam) : new Date();
+  const settings = await getPaySettings(auth.companyId);
+  const sp = new URL(req.url).searchParams;
+  const today = new Date().toISOString().slice(0, 10);
+  const def = periodFor(today, settings.frequency, settings.anchor);
+  const start = sp.get("start") ?? def.start;
+  const end = sp.get("end") ?? def.end;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(start) || !/^\d{4}-\d{2}-\d{2}$/.test(end) || end < start) return jsonError("Invalid period", 400);
+  const { from, to } = periodBounds(start, end, settings.tz);
+  const now = new Date();
 
-  // Week boundaries must use the company's configured timezone, not the
-  // server's — otherwise shifts near the edge of the week (e.g. just after
-  // midnight Monday, Melbourne time) land in the wrong week's totals when
-  // this runs on a UTC server.
-  const tzRow = await prisma.setting.findUnique({
-    where: { companyId_key: { companyId: auth.companyId, key: "timezone" } },
-  });
-  const tz = tzRow?.value || APP_TZ;
-  const weekStart = startOfWeekMon(baseDate, tz);
-  const weekEnd = endOfWeekSun(baseDate, tz);
-
-  const allShifts = await prisma.shift.findMany({
+  const shifts = await prisma.shift.findMany({
     where: {
       roster: { companyId: auth.companyId },
-      startAt: { gte: weekStart, lte: weekEnd },
+      guardId: { not: null },
       status: { in: ["CONFIRMED", "WORKED"] },
+      startAt: { gte: from, lt: to, lte: now },
     },
-    include: { guard: true, site: true },
-    orderBy: { startAt: "asc" },
+    include: timesheetInclude,
+    orderBy: [{ startAt: "asc" }],
   });
-  // Unassigned placeholder shifts can't be in CONFIRMED/WORKED status, but
-  // narrow the type so the rest of this function can treat guard as non-null.
-  const shifts = allShifts.filter(
-    (s): s is typeof s & { guardId: string; guard: NonNullable<typeof s.guard> } =>
-      s.guardId != null && s.guard != null,
-  );
-
-  const byGuard = new Map<string, typeof shifts>();
-  for (const s of shifts) {
-    const list = byGuard.get(s.guardId) ?? [];
-    list.push(s);
-    byGuard.set(s.guardId, list);
-  }
-
-  const rows = Array.from(byGuard.entries()).map(([guardId, list]) => {
-    const guard = list[0].guard;
-    const rate = guard.payRate ? Number(guard.payRate.toString()) : 0;
-    const hrs = totalHours(list);
-    const pay = totalPay(list, rate);
-    return {
-      guardId,
-      guardName: `${guard.firstName} ${guard.lastName}`,
-      payRate: rate,
-      shifts: list.map((s) => ({
-        id: s.id,
-        startAt: s.startAt,
-        endAt: s.endAt,
-        workedStart: s.workedStart,
-        workedEnd: s.workedEnd,
-        status: s.status,
-        siteName: s.site.name,
-        // Per-shift hours, computed the same way totalHours does, so the UI
-        // and exports can show a breakdown that always sums to the total.
-        hours: shiftHours(s),
-      })),
-      totalHours: hrs,
-      totalPay: pay,
-    };
-  });
-
   return NextResponse.json({
-    weekStart: weekStart.toISOString(),
-    weekEnd: weekEnd.toISOString(),
-    rows,
+    period: { start, end },
+    frequency: settings.frequency,
+    timesheets: shifts.map((s) => serialiseTimesheet(s, now)),
   });
 }

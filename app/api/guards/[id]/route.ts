@@ -47,6 +47,8 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
         licenceNumber: data.licenceNumber,
         licenceExpiry: data.licenceExpiry ? new Date(data.licenceExpiry) : undefined,
         payRate: data.payRate?.toString(),
+        employmentType: data.employmentType,
+        payrollRef: data.payrollRef,
         notes: data.notes,
         active: data.active,
       },

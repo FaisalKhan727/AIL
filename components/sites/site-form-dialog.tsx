@@ -14,6 +14,7 @@ interface FormValues {
   address: string;
   contactName?: string;
   contactPhone?: string;
+  billRate?: string | null;
   notes?: string;
   active?: boolean;
 }
@@ -58,6 +59,11 @@ export function SiteFormDialog({ open, onOpenChange, initial, onSaved }: Props) 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1"><Label>Contact name</Label><Input {...register("contactName")} /></div>
             <div className="space-y-1"><Label>Contact phone</Label><Input {...register("contactPhone")} /></div>
+          </div>
+          <div className="space-y-1">
+            <Label>Bill rate ($ per guard-hour, ex GST)</Label>
+            <Input type="number" step="0.01" min="0" placeholder="e.g. 58.00" {...register("billRate")} />
+            <p className="text-xs text-muted-foreground">Used to invoice the client for approved hours at this site. Leave blank if the site isn&apos;t billed hourly.</p>
           </div>
           <div className="space-y-1"><Label>Notes</Label><Textarea rows={2} {...register("notes")} /></div>
           <label className="flex items-center gap-2 text-sm"><input type="checkbox" {...register("active")} /> Active</label>

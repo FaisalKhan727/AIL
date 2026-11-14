@@ -48,6 +48,9 @@ export async function GET() {
     prisma.incident.count({ where: { companyId, status: { in: ["OPEN", "UNDER_REVIEW", "ESCALATED"] } } }),
     prisma.patrolJob.count({ where: { companyId, status: "ACTIVE" } }),
   ]);
+  const timesheetsToApprove = await prisma.shift.count({
+    where: { roster: { companyId }, guardId: { not: null }, status: { in: ["CONFIRMED", "WORKED"] }, tsStatus: { not: "APPROVED" }, payRunId: null, startAt: { lte: now } },
+  });
 
   // Anything an admin has to act on: lapsed, about to lapse, or unverified.
   const complianceAlerts = licences.filter((l) => {
@@ -56,7 +59,7 @@ export async function GET() {
   }).length;
 
   return NextResponse.json({
-    kpis: { shiftsThisWeek, pendingCount, rejectedCount, activeGuards, complianceAlerts, activeAlarms, openIncidents, activePatrols },
+    kpis: { shiftsThisWeek, pendingCount, rejectedCount, activeGuards, complianceAlerts, activeAlarms, openIncidents, activePatrols, timesheetsToApprove },
     todayShifts,
     recentSms,
   });

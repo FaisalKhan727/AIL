@@ -25,6 +25,8 @@ import {
   Handshake,
   BarChart3,
   CreditCard,
+  Wallet,
+  PlugZap,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -44,7 +46,9 @@ const MORE = [
   { href: "/sms-log",    label: "SMS Log",    icon: MessageSquare },
   { href: "/training", label: "Training", icon: GraduationCap },
   { href: "/vehicles", label: "Vehicles & Equipment", icon: Truck },
-  { href: "/invoicing", label: "Patrol Invoicing", icon: Receipt },
+  { href: "/invoicing", label: "Invoicing", icon: Receipt },
+  { href: "/payroll", label: "Payroll", icon: Wallet },
+  { href: "/integrations", label: "Integrations", icon: PlugZap },
   { href: "/clients", label: "Clients", icon: Briefcase },
   { href: "/subcontractors", label: "Subcontractors", icon: Handshake },
   { href: "/analytics", label: "Analytics", icon: BarChart3 },

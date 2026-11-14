@@ -13,6 +13,8 @@ export const guardCreateSchema = z.object({
   licenceNumber: z.string().trim().optional().or(z.literal("").transform(() => undefined)),
   licenceExpiry: z.string().optional().or(z.literal("").transform(() => undefined)),
   payRate: z.coerce.number().nonnegative().optional(),
+  employmentType: z.enum(["CASUAL", "PART_TIME", "FULL_TIME"]).optional(),
+  payrollRef: z.string().trim().max(40).optional().or(z.literal("").transform(() => undefined)),
   notes: z.string().optional().or(z.literal("").transform(() => undefined)),
   active: z.boolean().optional(),
 });
@@ -24,6 +26,8 @@ export const siteCreateSchema = z.object({
   address: z.string().trim().min(1),
   contactName: z.string().trim().optional().or(z.literal("").transform(() => undefined)),
   contactPhone: z.string().trim().optional().or(z.literal("").transform(() => undefined)),
+  // Hourly rate charged to the client; empty clears it.
+  billRate: z.union([z.number(), z.string()]).nullish().transform((v) => (v === undefined ? undefined : v === null || v === "" ? null : Number(v))).refine((v) => v === undefined || v === null || (Number.isFinite(v) && v >= 0), "Bill rate must be a positive number"),
   notes: z.string().optional().or(z.literal("").transform(() => undefined)),
   active: z.boolean().optional(),
 });

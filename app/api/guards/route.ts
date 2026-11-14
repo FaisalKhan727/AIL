@@ -53,6 +53,8 @@ export async function POST(req: Request) {
         licenceNumber: data.licenceNumber,
         licenceExpiry: data.licenceExpiry ? new Date(data.licenceExpiry) : null,
         payRate: data.payRate?.toString(),
+        employmentType: data.employmentType,
+        payrollRef: data.payrollRef,
         notes: data.notes,
         active: data.active ?? true,
         companyId: auth.companyId,

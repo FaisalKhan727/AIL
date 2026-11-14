@@ -27,10 +27,12 @@ import {
   Handshake,
   BarChart3,
   CreditCard,
+  Wallet,
+  PlugZap,
   type LucideIcon,
 } from "lucide-react";
 
-type BadgeKey = "compliance" | "alarms" | "incidents" | "patrols";
+type BadgeKey = "compliance" | "alarms" | "incidents" | "patrols" | "timesheets";
 interface NavItem { href: string; label: string; icon: LucideIcon; badge?: BadgeKey }
 
 const NAV: { section: string; items: NavItem[] }[] = [
@@ -47,7 +49,8 @@ const NAV: { section: string; items: NavItem[] }[] = [
     items: [
       { href: "/guards", label: "Guards", icon: Users },
       { href: "/rosters", label: "Rosters", icon: CalendarDays },
-      { href: "/timesheets", label: "Timesheets", icon: ClipboardList },
+      { href: "/timesheets", label: "Timesheets", icon: ClipboardList, badge: "timesheets" },
+      { href: "/payroll", label: "Payroll", icon: Wallet },
       { href: "/compliance", label: "Licences & Compliance", icon: BadgeCheck, badge: "compliance" },
       { href: "/training", label: "Training", icon: GraduationCap },
     ],
@@ -57,13 +60,13 @@ const NAV: { section: string; items: NavItem[] }[] = [
     items: [
       { href: "/patrols", label: "Patrol Runs", icon: Route, badge: "patrols" },
       { href: "/vehicles", label: "Vehicles & Equipment", icon: Truck },
-      { href: "/invoicing", label: "Patrol Invoicing", icon: Receipt },
     ],
   },
   {
     section: "Business",
     items: [
       { href: "/clients", label: "Clients", icon: Briefcase },
+      { href: "/invoicing", label: "Invoicing", icon: Receipt },
       { href: "/sites", label: "Sites", icon: Building2 },
       { href: "/subcontractors", label: "Subcontractors", icon: Handshake },
       { href: "/analytics", label: "Analytics", icon: BarChart3 },
@@ -73,6 +76,7 @@ const NAV: { section: string; items: NavItem[] }[] = [
     section: "Platform",
     items: [
       { href: "/sms-log", label: "SMS Log", icon: MessageSquare },
+      { href: "/integrations", label: "Integrations", icon: PlugZap },
       { href: "/billing", label: "Billing", icon: CreditCard },
       { href: "/settings", label: "Settings", icon: Settings },
     ],
@@ -81,7 +85,7 @@ const NAV: { section: string; items: NavItem[] }[] = [
 
 /** Shared with the dashboard page, so this costs no extra request there. */
 export function useShellStatus() {
-  const dash = useQuery<{ kpis: { complianceAlerts?: number; activeAlarms?: number; openIncidents?: number; activePatrols?: number } }>({
+  const dash = useQuery<{ kpis: { complianceAlerts?: number; activeAlarms?: number; openIncidents?: number; activePatrols?: number; timesheetsToApprove?: number } }>({
     queryKey: ["dashboard"],
     queryFn: () => api(`/api/dashboard`),
     staleTime: 30_000,
@@ -97,6 +101,7 @@ export function useShellStatus() {
       alarms: dash.data?.kpis.activeAlarms ?? 0,
       incidents: dash.data?.kpis.openIncidents ?? 0,
       patrols: dash.data?.kpis.activePatrols ?? 0,
+      timesheets: dash.data?.kpis.timesheetsToApprove ?? 0,
     } as Record<BadgeKey, number>,
     smsLive: settings.data?.sms.configured,
   };

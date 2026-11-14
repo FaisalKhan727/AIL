@@ -51,15 +51,21 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       if (!smsSent) return jsonError("The SMS could not be sent.", 502);
       break;
     case "paid":
+      // Records a payment for whatever is still owing.
       if (inv.status !== "SENT") return jsonError("Only a sent invoice can be marked paid.", 409);
-      await prisma.invoice.update({ where: { id: inv.id }, data: { status: "PAID", paidAt: now } });
+      await prisma.$transaction([
+        ...(s.balance > 0 ? [prisma.payment.create({ data: { invoiceId: inv.id, amount: s.balance, paidOn: now } })] : []),
+        prisma.invoice.update({ where: { id: inv.id }, data: { status: "PAID", paidAt: now } }),
+      ]);
       break;
     case "void":
       if (inv.status === "PAID") return jsonError("A paid invoice can't be voided.", 409);
-      // Voiding releases its patrol jobs so they can be billed again.
+      if (s.amountPaid > 0) return jsonError("This invoice has payments recorded. Remove them before voiding it.", 409);
+      // Voiding releases its patrol jobs and timesheets so they can be billed again.
       await prisma.$transaction([
         prisma.invoice.update({ where: { id: inv.id }, data: { status: "VOID" } }),
         prisma.patrolJob.updateMany({ where: { invoiceId: inv.id }, data: { invoiceId: null } }),
+        prisma.shift.updateMany({ where: { invoiceId: inv.id }, data: { invoiceId: null } }),
       ]);
       break;
   }

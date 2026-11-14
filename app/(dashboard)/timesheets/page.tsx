@@ -1,260 +1,327 @@
 "use client";
 import * as React from "react";
+import Link from "next/link";
 import * as XLSX from "xlsx";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Download, FileDown, FileSpreadsheet, CheckCircle2 } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, Download, FileSpreadsheet, Lock, Pencil, TriangleAlert } from "lucide-react";
 import { PageHeader } from "@/components/shell/page-header";
-import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { api } from "@/lib/fetcher";
-import { fmtDate, fmtTime, fmtIso, startOfWeekMon } from "@/lib/date";
-import { useToast } from "@/components/ui/toast";
+import { fmtDate, fmtTime, localInputToUtc, utcToLocalInput } from "@/lib/date";
+import { cn } from "@/lib/utils";
+import { shiftPeriod } from "@/lib/payroll";
+import { downloadCsv } from "@/lib/csv-client";
+import { Pill, Stat, StatusPill, Tabs, useAct } from "@/components/ops/kit";
 
-interface ShiftRow {
+interface Timesheet {
   id: string;
-  startAt: string;
-  endAt: string;
-  status: string;
-  siteName: string;
-  /** Payable hours for this one shift — worked times if set, else scheduled
-   *  times. Computed server-side (lib/hours.ts) so it always agrees with
-   *  the guard's totalHours below. */
-  hours: number;
-}
-
-interface Row {
   guardId: string;
   guardName: string;
-  payRate: number;
-  totalHours: number;
-  totalPay: number;
-  shifts: ShiftRow[];
+  siteName: string;
+  role: string | null;
+  rosteredStart: string;
+  rosteredEnd: string;
+  clockInAt: string | null;
+  start: string;
+  end: string;
+  source: "CLOCK" | "EDITED" | "ROSTER";
+  breakMins: number;
+  hours: number;
+  status: "PENDING" | "APPROVED" | "DISPUTED";
+  note: string | null;
+  approvedBy: string | null;
+  flags: { code: string; label: string }[];
+  payRun: { id: string; number: number; status: string } | null;
+  invoiced: boolean;
 }
+interface Resp { period: { start: string; end: string }; frequency: string; timesheets: Timesheet[] }
+type Filter = "all" | "todo" | "flagged" | "disputed" | "approved";
 
-interface Resp { weekStart: string; weekEnd: string; rows: Row[]; }
-
-function rowsToCsv(rows: Row[], weekStart: string): string {
-  const lines = ["Guard,Shifts,Hours,Rate,Pay,WeekStart"];
-  for (const r of rows) {
-    lines.push(`"${r.guardName}",${r.shifts.length},${r.totalHours},${r.payRate.toFixed(2)},${r.totalPay.toFixed(2)},${fmtIso(weekStart)}`);
-  }
-  return lines.join("\n");
-}
-
-function downloadFile(name: string, content: BlobPart, type = "text/csv") {
-  const blob = new Blob([content], { type });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = name;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-}
-
-/**
- * Build an .xlsx workbook with two sheets:
- *   - Summary: one row per guard (shift count, hours, rate, pay).
- *   - Shift detail: one row per individual shift, with its own hours —
- *     so the export shows exactly how each guard's total was made up, not
- *     just the final number.
- * Both sheets are derived from the same per-shift `hours` the API computes,
- * so the two always reconcile.
- */
-function buildTimesheetWorkbook(rows: Row[], weekStart: string, weekEnd: string): XLSX.WorkBook {
-  const wb = XLSX.utils.book_new();
-
-  interface SummaryRow {
-    Guard: string;
-    Shifts: number;
-    Hours: number;
-    "Rate ($/hr)": number | string;
-    "Pay ($)": number;
-  }
-  const summaryData: SummaryRow[] = rows.map((r) => ({
-    Guard: r.guardName,
-    Shifts: r.shifts.length,
-    Hours: r.totalHours,
-    "Rate ($/hr)": r.payRate,
-    "Pay ($)": r.totalPay,
-  }));
-  summaryData.push({
-    Guard: "TOTAL",
-    Shifts: rows.reduce((sum, r) => sum + r.shifts.length, 0),
-    Hours: Math.round(rows.reduce((sum, r) => sum + r.totalHours, 0) * 100) / 100,
-    "Rate ($/hr)": "",
-    "Pay ($)": Math.round(rows.reduce((sum, r) => sum + r.totalPay, 0) * 100) / 100,
-  });
-  const summarySheet = XLSX.utils.json_to_sheet(summaryData);
-  summarySheet["!cols"] = [{ wch: 24 }, { wch: 8 }, { wch: 10 }, { wch: 12 }, { wch: 12 }];
-  XLSX.utils.book_append_sheet(wb, summarySheet, "Summary");
-
-  const detailData = rows.flatMap((r) =>
-    r.shifts.map((s) => ({
-      Guard: r.guardName,
-      Date: fmtDate(s.startAt),
-      Start: fmtTime(s.startAt),
-      End: fmtTime(s.endAt),
-      Site: s.siteName,
-      Status: s.status,
-      Hours: s.hours,
-      "Rate ($/hr)": r.payRate,
-      "Pay ($)": Math.round(s.hours * r.payRate * 100) / 100,
-    })),
-  );
-  const detailSheet = XLSX.utils.json_to_sheet(detailData);
-  detailSheet["!cols"] = [
-    { wch: 24 }, { wch: 12 }, { wch: 8 }, { wch: 8 },
-    { wch: 20 }, { wch: 10 }, { wch: 8 }, { wch: 12 }, { wch: 10 },
-  ];
-  XLSX.utils.book_append_sheet(wb, detailSheet, "Shift detail");
-
-  const infoSheet = XLSX.utils.aoa_to_sheet([
-    ["Week start", fmtIso(weekStart)],
-    ["Week end", fmtIso(weekEnd)],
-    ["Generated", new Date().toLocaleString()],
-  ]);
-  infoSheet["!cols"] = [{ wch: 14 }, { wch: 24 }];
-  XLSX.utils.book_append_sheet(wb, infoSheet, "Week");
-
-  return wb;
-}
-
-// Guard names and site names are free-text fields entered by admins, so they
-// must be escaped before going into an HTML string that's handed to
-// document.write() — otherwise a name like `<img src=x onerror=...>` would
-// execute as script in the print window (stored XSS).
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
-
-function buildPrintableTimesheet(row: Row, weekStart: string, weekEnd: string): string {
-  const guardName = escapeHtml(row.guardName);
-  const rows = row.shifts
-    .map((s) => `<tr><td>${fmtDate(s.startAt)}</td><td>${fmtTime(s.startAt)}–${fmtTime(s.endAt)}</td><td>${escapeHtml(s.siteName)}</td><td>${escapeHtml(s.status)}</td></tr>`)
-    .join("");
-  return `<!doctype html><html><head><meta charset="utf-8"><title>Timesheet — ${guardName}</title>
-    <style>body{font-family:system-ui,sans-serif;margin:2rem;color:#0B1E3F}
-    h1{margin:0}table{width:100%;border-collapse:collapse;margin-top:1rem}
-    th,td{padding:8px;border-bottom:1px solid #ddd;text-align:left;font-size:14px}
-    .totals{margin-top:1rem;font-size:1.1rem}</style></head><body>
-    <h1>Timesheet</h1>
-    <p><strong>${guardName}</strong> · Week ${fmtIso(weekStart)} → ${fmtIso(weekEnd)}</p>
-    <table><thead><tr><th>Date</th><th>Time</th><th>Site</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table>
-    <p class="totals">Hours: <strong>${row.totalHours}</strong> · Rate: $${row.payRate.toFixed(2)} · Pay: <strong>$${row.totalPay.toFixed(2)}</strong></p>
-    <script>window.onload=()=>setTimeout(()=>window.print(),250)</script>
-  </body></html>`;
-}
+const dmy = (iso: string) => iso.split("-").reverse().join("/");
+const SOURCE: Record<Timesheet["source"], [string, "green" | "blue" | "grey"]> = {
+  CLOCK: ["Clocked", "green"],
+  EDITED: ["Edited", "blue"],
+  ROSTER: ["Roster", "grey"],
+};
 
 export default function TimesheetsPage() {
   const qc = useQueryClient();
-  const { toast } = useToast();
-  const [week, setWeek] = React.useState<string>(fmtIso(startOfWeekMon(new Date())));
+  const act = useAct();
+  const [period, setPeriod] = React.useState<{ start: string; end: string } | null>(null);
+  const qs = period ? `?start=${period.start}&end=${period.end}` : "";
+  const { data, isLoading } = useQuery<Resp>({ queryKey: ["timesheets", qs], queryFn: () => api(`/api/timesheets${qs}`), refetchInterval: 30_000 });
+  const [filter, setFilter] = React.useState<Filter>("todo");
+  const [sel, setSel] = React.useState<Set<string>>(new Set());
+  const [editing, setEditing] = React.useState<Timesheet | null>(null);
+  const [disputing, setDisputing] = React.useState<Timesheet | null>(null);
 
-  const { data, isLoading } = useQuery<Resp>({
-    queryKey: ["timesheets", week],
-    queryFn: () => api(`/api/timesheets?week=${week}`),
-  });
+  React.useEffect(() => { setSel(new Set()); }, [qs, filter]);
+  const refresh = () => qc.invalidateQueries({ queryKey: ["timesheets"] });
+  const all = data?.timesheets ?? [];
+  const cur = data?.period;
+  const open = (t: Timesheet) => !t.payRun;
+  const rows = all.filter((t) =>
+    filter === "all" ? true
+    : filter === "todo" ? t.status === "PENDING"
+    : filter === "flagged" ? t.flags.length > 0 && t.status !== "APPROVED"
+    : filter === "disputed" ? t.status === "DISPUTED"
+    : t.status === "APPROVED",
+  );
+  const selectable = rows.filter((t) => open(t) && t.status !== "APPROVED");
+  const approvedHours = all.filter((t) => t.status === "APPROVED").reduce((n, t) => n + t.hours, 0);
+  const clean = all.filter((t) => open(t) && t.status === "PENDING" && t.flags.length === 0);
 
-  async function markAllWorked() {
-    if (!data) return;
-    const ids = data.rows.flatMap((r) => r.shifts.filter((s) => s.status === "CONFIRMED").map((s) => s.id));
-    if (ids.length === 0) {
-      toast({ title: "No CONFIRMED shifts to mark." });
-      return;
-    }
-    try {
-      const r = await api<{ updated: number }>(`/api/timesheets/mark-worked`, { method: "POST", body: JSON.stringify({ shiftIds: ids }) });
-      toast({ title: `Marked ${r.updated} shift(s) as worked`, variant: "success" });
-      qc.invalidateQueries({ queryKey: ["timesheets"] });
-    } catch (e: unknown) {
-      toast({ title: "Failed", description: e instanceof Error ? e.message : "", variant: "error" });
-    }
-  }
+  const patch = (t: Timesheet, body: Record<string, unknown>, ok?: string) =>
+    act(async () => { await api(`/api/timesheets/${t.id}`, { method: "PATCH", body: JSON.stringify(body) }); await refresh(); }, ok);
+  const approveMany = (ids: string[]) =>
+    act(async () => {
+      const r = await api<{ approved: number }>(`/api/timesheets/approve`, { method: "POST", body: JSON.stringify({ ids }) });
+      setSel(new Set());
+      await refresh();
+      return r;
+    }, `${ids.length} timesheet${ids.length === 1 ? "" : "s"} approved`);
 
-  function exportAllCsv() {
-    if (!data) return;
-    downloadFile(`timesheets-${fmtIso(data.weekStart)}.csv`, rowsToCsv(data.rows, data.weekStart));
-  }
-
-  function exportAllExcel() {
-    if (!data) return;
-    if (data.rows.length === 0) {
-      toast({ title: "Nothing to export", description: "No payable shifts in this week." });
-      return;
-    }
-    const wb = buildTimesheetWorkbook(data.rows, data.weekStart, data.weekEnd);
-    const buf = XLSX.write(wb, { bookType: "xlsx", type: "array" });
-    downloadFile(
-      `timesheets-${fmtIso(data.weekStart)}.xlsx`,
-      buf,
-      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    );
-  }
-
-  function printOne(row: Row) {
-    if (!data) return;
-    const w = window.open("", "_blank", "width=900,height=900");
-    if (!w) return;
-    w.document.write(buildPrintableTimesheet(row, data.weekStart, data.weekEnd));
-    w.document.close();
+  function exportRows(kind: "csv" | "xlsx") {
+    const out = all.map((t) => ({
+      Guard: t.guardName,
+      Date: fmtDate(t.start),
+      Site: t.siteName,
+      Role: t.role ?? "",
+      "Rostered start": fmtTime(t.rosteredStart),
+      "Rostered end": fmtTime(t.rosteredEnd),
+      "Worked start": fmtTime(t.start),
+      "Worked end": fmtTime(t.end),
+      "Break (min)": t.breakMins,
+      Hours: t.hours,
+      Source: SOURCE[t.source][0],
+      Status: t.status,
+      "Approved by": t.approvedBy ?? "",
+      Flags: t.flags.map((f) => f.label).join("; "),
+      "Pay run": t.payRun ? `#${t.payRun.number}` : "",
+    }));
+    const name = `timesheets-${cur?.start}-to-${cur?.end}`;
+    if (kind === "csv") return downloadCsv(`${name}.csv`, out);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(out), "Timesheets");
+    const byGuard = Object.values(all.reduce<Record<string, { Guard: string; Shifts: number; Hours: number; Approved: number }>>((m, t) => {
+      const r = (m[t.guardId] ??= { Guard: t.guardName, Shifts: 0, Hours: 0, Approved: 0 });
+      r.Shifts++; r.Hours = Math.round((r.Hours + t.hours) * 100) / 100;
+      if (t.status === "APPROVED") r.Approved = Math.round((r.Approved + t.hours) * 100) / 100;
+      return m;
+    }, {}));
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(byGuard), "By guard");
+    XLSX.writeFile(wb, `${name}.xlsx`);
   }
 
   return (
     <>
       <PageHeader
         title="Timesheets"
-        description={data ? `Week ${fmtIso(data.weekStart)} → ${fmtIso(data.weekEnd)}` : "Select week"}
+        description="Hours come from guards clocking in and out in the app. Approve them here; approved hours go to payroll and hourly invoices."
         actions={
           <>
-            <Input type="date" value={week} onChange={(e) => setWeek(e.target.value)} className="w-40" />
-            <Button variant="outline" onClick={markAllWorked}><CheckCircle2 className="h-4 w-4" /> Mark all worked</Button>
-            <Button variant="outline" onClick={exportAllCsv} disabled={!data}><Download className="h-4 w-4" /> Export CSV</Button>
-            <Button onClick={exportAllExcel} disabled={!data}><FileSpreadsheet className="h-4 w-4" /> Export Excel</Button>
+            <Button variant="outline" disabled={!all.length} onClick={() => exportRows("csv")}><Download className="h-4 w-4" /> CSV</Button>
+            <Button variant="outline" disabled={!all.length} onClick={() => exportRows("xlsx")}><FileSpreadsheet className="h-4 w-4" /> Excel</Button>
+            <Button asChild><Link href="/payroll">Go to payroll</Link></Button>
           </>
         }
       />
-      <Card><CardContent className="p-0">
+
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <Button variant="outline" size="icon" aria-label="Previous period" disabled={!cur} onClick={() => cur && setPeriod(shiftPeriod(cur, -1))}><ChevronLeft className="h-4 w-4" /></Button>
+        <div className="min-w-[13rem] rounded-md border bg-card px-3 py-1.5 text-center">
+          <div className="eyebrow">{data?.frequency === "FORTNIGHTLY" ? "Fortnight" : "Week"}</div>
+          <div className="num text-sm font-medium">{cur ? `${dmy(cur.start)} – ${dmy(cur.end)}` : "…"}</div>
+        </div>
+        <Button variant="outline" size="icon" aria-label="Next period" disabled={!cur} onClick={() => cur && setPeriod(shiftPeriod(cur, 1))}><ChevronRight className="h-4 w-4" /></Button>
+        {period && <Button variant="ghost" size="sm" onClick={() => setPeriod(null)}>This period</Button>}
+      </div>
+
+      <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-5">
+        <Stat label="Timesheets" value={all.length} />
+        <Stat label="To approve" value={all.filter((t) => t.status === "PENDING").length} tone="text-warning" />
+        <Stat label="Flagged" value={all.filter((t) => t.flags.length && t.status !== "APPROVED").length} tone="text-warning" sub="Late, missing clock, long shift" />
+        <Stat label="Disputed" value={all.filter((t) => t.status === "DISPUTED").length} tone="text-red-700" />
+        <Stat label="Approved hours" value={Math.round(approvedHours * 10) / 10} />
+      </div>
+
+      <Tabs<Filter>
+        value={filter}
+        onChange={setFilter}
+        tabs={[
+          { key: "todo", label: "To approve", count: all.filter((t) => t.status === "PENDING").length },
+          { key: "flagged", label: "Flagged", count: all.filter((t) => t.flags.length && t.status !== "APPROVED").length },
+          { key: "disputed", label: "Disputed", count: all.filter((t) => t.status === "DISPUTED").length },
+          { key: "approved", label: "Approved", count: all.filter((t) => t.status === "APPROVED").length },
+          { key: "all", label: "All", count: all.length },
+        ]}
+      />
+
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <Button size="sm" disabled={sel.size === 0} onClick={() => approveMany(Array.from(sel))}><Check className="h-4 w-4" /> Approve selected ({sel.size})</Button>
+        <Button size="sm" variant="outline" disabled={clean.length === 0} onClick={() => approveMany(clean.map((t) => t.id))}>
+          Approve all without flags ({clean.length})
+        </Button>
+      </div>
+
+      <div className="overflow-hidden rounded-[10px] border bg-card">
         <Table>
-          <TableHeader><TableRow>
-            <TableHead>Guard</TableHead><TableHead>Shifts</TableHead><TableHead>Hours</TableHead>
-            <TableHead>Rate</TableHead><TableHead>Pay</TableHead><TableHead></TableHead>
-          </TableRow></TableHeader>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-8">
+                <input
+                  type="checkbox"
+                  aria-label="Select all"
+                  checked={selectable.length > 0 && selectable.every((t) => sel.has(t.id))}
+                  onChange={(e) => setSel(e.target.checked ? new Set(selectable.map((t) => t.id)) : new Set())}
+                />
+              </TableHead>
+              <TableHead>Guard</TableHead>
+              <TableHead>Date</TableHead>
+              <TableHead>Site</TableHead>
+              <TableHead>Rostered</TableHead>
+              <TableHead>Worked</TableHead>
+              <TableHead className="text-right">Break</TableHead>
+              <TableHead className="text-right">Hours</TableHead>
+              <TableHead>Checks</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead className="text-right">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
           <TableBody>
-            {isLoading && <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">Loading…</TableCell></TableRow>}
-            {!isLoading && data && data.rows.length === 0 && <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">No payable shifts in this week.</TableCell></TableRow>}
-            {data?.rows.map((r) => (
-              <React.Fragment key={r.guardId}>
-                <TableRow>
-                  <TableCell className="font-medium">{r.guardName}</TableCell>
-                  <TableCell>{r.shifts.length}</TableCell>
-                  <TableCell>{r.totalHours}</TableCell>
-                  <TableCell>${r.payRate.toFixed(2)}</TableCell>
-                  <TableCell className="font-medium">${r.totalPay.toFixed(2)}</TableCell>
+            {isLoading && <TableRow><TableCell colSpan={11} className="py-10 text-center text-muted-foreground">Loading…</TableCell></TableRow>}
+            {!isLoading && rows.length === 0 && (
+              <TableRow><TableCell colSpan={11} className="py-10 text-center text-muted-foreground">
+                {all.length === 0 ? "No worked shifts in this period yet." : filter === "todo" ? "Nothing waiting for approval in this period." : "Nothing in this view."}
+              </TableCell></TableRow>
+            )}
+            {rows.map((t) => {
+              const locked = !open(t);
+              return (
+                <TableRow key={t.id} className={cn(t.status === "DISPUTED" && "bg-red-500/[0.04]")}>
                   <TableCell>
-                    <Button size="sm" variant="outline" onClick={() => printOne(r)}>
-                      <FileDown className="h-3 w-3" /> PDF
-                    </Button>
+                    {!locked && t.status !== "APPROVED" && (
+                      <input type="checkbox" aria-label={`Select ${t.guardName} ${fmtDate(t.start)}`} checked={sel.has(t.id)}
+                        onChange={(e) => setSel((s) => { const n = new Set(s); if (e.target.checked) n.add(t.id); else n.delete(t.id); return n; })} />
+                    )}
+                  </TableCell>
+                  <TableCell className="font-medium whitespace-nowrap">{t.guardName}</TableCell>
+                  <TableCell className="whitespace-nowrap text-[13px]">{fmtDate(t.start)}</TableCell>
+                  <TableCell className="max-w-[12rem] truncate" title={t.siteName}>{t.siteName}</TableCell>
+                  <TableCell className="num whitespace-nowrap text-xs text-muted-foreground">{fmtTime(t.rosteredStart)}–{fmtTime(t.rosteredEnd)}</TableCell>
+                  <TableCell className="whitespace-nowrap">
+                    <span className="num text-[13px]">{fmtTime(t.start)}–{fmtTime(t.end)}</span>{" "}
+                    <Pill tone={SOURCE[t.source][1]} className="ml-1">{SOURCE[t.source][0]}</Pill>
+                  </TableCell>
+                  <TableCell className="num text-right text-xs">{t.breakMins ? `${t.breakMins}m` : "—"}</TableCell>
+                  <TableCell className="num text-right font-medium">{t.hours.toFixed(2)}</TableCell>
+                  <TableCell className="max-w-[14rem]">
+                    {t.flags.length === 0 ? <span className="text-xs text-muted-foreground">—</span> : (
+                      <span className="flex flex-wrap gap-1">
+                        {t.flags.map((f) => <span key={f.code} className="inline-flex items-center gap-1 text-xs text-amber-700"><TriangleAlert className="h-3 w-3" />{f.label}</span>)}
+                      </span>
+                    )}
+                    {t.note && <div className="mt-0.5 truncate text-xs text-muted-foreground" title={t.note}>“{t.note}”</div>}
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap">
+                    <StatusPill status={t.status === "PENDING" ? "PENDING" : t.status === "APPROVED" ? "APPROVED" : "DISPUTED"} />
+                    {t.payRun && <Link href={`/payroll/${t.payRun.id}`} className="ml-1.5 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"><Lock className="h-3 w-3" />Run {t.payRun.number}</Link>}
+                  </TableCell>
+                  <TableCell>
+                    {locked ? <span className="block text-right text-xs text-muted-foreground">Locked</span> : (
+                      <div className="flex justify-end gap-1">
+                        {t.status !== "APPROVED" && <Button size="sm" onClick={() => patch(t, { action: "approve" }, "Approved")}>Approve</Button>}
+                        <Button size="sm" variant="ghost" className="px-2" aria-label="Edit times" onClick={() => setEditing(t)}><Pencil className="h-3.5 w-3.5" /></Button>
+                        {t.status === "APPROVED"
+                          ? <Button size="sm" variant="ghost" onClick={() => patch(t, { action: "reopen" }, "Moved back to approval")}>Reopen</Button>
+                          : t.status !== "DISPUTED" && <Button size="sm" variant="ghost" className="text-red-700" onClick={() => setDisputing(t)}>Dispute</Button>}
+                      </div>
+                    )}
                   </TableCell>
                 </TableRow>
-                <TableRow className="bg-muted/20">
-                  <TableCell colSpan={6} className="text-xs text-muted-foreground py-2">
-                    {r.shifts.map((s) => `${fmtDate(s.startAt)} ${fmtTime(s.startAt)}–${fmtTime(s.endAt)} · ${s.siteName} · ${s.hours}h (${s.status})`).join("  ·  ")}
-                  </TableCell>
-                </TableRow>
-              </React.Fragment>
-            ))}
+              );
+            })}
           </TableBody>
         </Table>
-      </CardContent></Card>
+      </div>
+
+      <EditDialog t={editing} onClose={() => setEditing(null)} onSave={async (body, approve) => {
+        if (!editing) return false;
+        const ok = await patch(editing, { action: "edit", ...body }, approve ? undefined : "Timesheet updated");
+        if (ok && approve) await patch(editing, { action: "approve" }, "Updated and approved");
+        return ok;
+      }} />
+      <DisputeDialog t={disputing} onClose={() => setDisputing(null)} onSave={(note) => disputing ? patch(disputing, { action: "dispute", note }, "Marked as disputed") : Promise.resolve(false)} />
     </>
+  );
+}
+
+function EditDialog({ t, onClose, onSave }: { t: Timesheet | null; onClose: () => void; onSave: (body: Record<string, unknown>, approve: boolean) => Promise<boolean> }) {
+  const [start, setStart] = React.useState("");
+  const [end, setEnd] = React.useState("");
+  const [brk, setBrk] = React.useState("0");
+  const [note, setNote] = React.useState("");
+  const [busy, setBusy] = React.useState(false);
+  React.useEffect(() => {
+    if (!t) return;
+    setStart(utcToLocalInput(t.start)); setEnd(utcToLocalInput(t.end)); setBrk(String(t.breakMins)); setNote(t.note ?? ""); setBusy(false);
+  }, [t]);
+  if (!t) return null;
+  const hrs = start && end ? Math.max(0, (localInputToUtc(end).getTime() - localInputToUtc(start).getTime()) / 3_600_000 - (Number(brk) || 0) / 60) : 0;
+  const save = async (approve: boolean) => {
+    setBusy(true);
+    const ok = await onSave({ start: localInputToUtc(start).toISOString(), end: localInputToUtc(end).toISOString(), breakMins: Number(brk) || 0, note: note.trim() || undefined }, approve);
+    setBusy(false);
+    if (ok) onClose();
+  };
+  return (
+    <Dialog open onOpenChange={(v) => { if (!v) onClose(); }}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Edit timesheet</DialogTitle>
+          <DialogDescription>{t.guardName} · {t.siteName} · rostered {fmtTime(t.rosteredStart)}–{fmtTime(t.rosteredEnd)}{t.clockInAt ? ` · clocked in ${fmtTime(t.clockInAt)}` : ""}</DialogDescription>
+        </DialogHeader>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1"><Label htmlFor="ts-start">Started</Label><Input id="ts-start" type="datetime-local" value={start} onChange={(e) => setStart(e.target.value)} /></div>
+          <div className="space-y-1"><Label htmlFor="ts-end">Finished</Label><Input id="ts-end" type="datetime-local" value={end} onChange={(e) => setEnd(e.target.value)} /></div>
+          <div className="space-y-1"><Label htmlFor="ts-break">Unpaid break (minutes)</Label><Input id="ts-break" type="number" min={0} max={600} value={brk} onChange={(e) => setBrk(e.target.value)} /></div>
+          <div className="space-y-1"><div className="label">Paid hours</div><div className="num pt-2 text-lg font-semibold">{hrs.toFixed(2)}</div></div>
+        </div>
+        <div className="space-y-1"><Label htmlFor="ts-note">Reason for the change</Label><Textarea id="ts-note" rows={2} value={note} onChange={(e) => setNote(e.target.value)} placeholder="Forgot to clock out; supervisor confirmed finish at 02:10" /></div>
+        <DialogFooter className="dialog-footer-sticky">
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button variant="outline" disabled={busy} onClick={() => save(false)}>Save</Button>
+          <Button disabled={busy} onClick={() => save(true)}>Save and approve</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function DisputeDialog({ t, onClose, onSave }: { t: Timesheet | null; onClose: () => void; onSave: (note: string) => Promise<boolean> }) {
+  const [note, setNote] = React.useState("");
+  React.useEffect(() => { setNote(""); }, [t]);
+  if (!t) return null;
+  return (
+    <Dialog open onOpenChange={(v) => { if (!v) onClose(); }}>
+      <DialogContent>
+        <form className="space-y-3" onSubmit={async (e) => { e.preventDefault(); if (await onSave(note.trim())) onClose(); }}>
+          <DialogHeader>
+            <DialogTitle>Dispute timesheet</DialogTitle>
+            <DialogDescription>{t.guardName} · {fmtDate(t.start)} · {t.siteName}. It stays out of payroll until it&apos;s fixed and approved.</DialogDescription>
+          </DialogHeader>
+          <Textarea rows={3} autoFocus required minLength={3} value={note} onChange={(e) => setNote(e.target.value)} placeholder="What's wrong: e.g. site manager says guard left at 23:00" aria-label="Reason" />
+          <DialogFooter className="dialog-footer-sticky">
+            <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
+            <Button type="submit" variant="destructive">Mark disputed</Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }

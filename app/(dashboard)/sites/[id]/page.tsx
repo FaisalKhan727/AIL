@@ -17,6 +17,7 @@ interface SiteDetail {
   id: string;
   name: string;
   address: string;
+  billRate: string | null;
   contactName: string | null;
   contactPhone: string | null;
   notes: string | null;
@@ -105,6 +106,7 @@ export default function SiteDetailPage() {
           id: data.id, name: data.name, address: data.address,
           contactName: data.contactName ?? undefined, contactPhone: data.contactPhone ?? undefined,
           notes: data.notes ?? undefined, active: data.active,
+          billRate: data.billRate ?? undefined,
         }}
         onSaved={() => qc.invalidateQueries({ queryKey: ["site", id] })}
       />

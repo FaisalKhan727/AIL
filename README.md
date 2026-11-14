@@ -64,6 +64,11 @@ npm run db:reset    # wipe DB and reseed
 | Subcontractors, job requests, invoices    | ✅ |
 | Analytics                                 | ✅ |
 | Billing (plan + usage)                    | ✅ read-only, no payment processing |
+| Timesheet approval (from guard clock-ins) | ✅ |
+| Payroll: pay runs, award penalties, super | ✅ gross pay only; tax and STP in your payroll system |
+| Invoicing: hourly + patrol, payments      | ✅ |
+| Xero (invoices, payments, payroll)        | ⚠️ built to Xero's docs, tested against a mock only |
+| MYOB / QuickBooks / Employment Hero files | ✅ |
 
 ---
 
@@ -196,6 +201,88 @@ incidents, alarms, patrol completion and revenue, guard hours, compliance and
 training over 7–365 days. **Billing** (`/billing`) shows the company's plan
 and usage against it; the plan is a column on `Company` set by you, and no
 payment is taken in the app.
+
+---
+
+## Timesheets, payroll and invoicing
+
+**Timesheets** (`/timesheets`) show every assigned shift that has started in
+a pay period, with the worked times from the guard app's clock-in and
+clock-out (or the roster when there are none). Each one is flagged when the
+guard started more than 15 minutes late, finished early or late, has no
+clock-in or clock-out, or worked more than 12 hours. Approve one at a time,
+in bulk, or "all without flags"; edit times and the unpaid break (an edit
+needs approving again); or dispute one, which keeps it out of payroll.
+
+**Payroll** (`/payroll`) turns approved timesheets into pay runs:
+
+1. *New pay run* picks the last complete pay period (weekly or fortnightly,
+   set under Pay rules) and takes every approved timesheet in it that hasn't
+   been paid. Those timesheets are locked to the draft.
+2. Each shift is split by day and time band and paid at the guard's base
+   rate times the multiplier for that band: weekday ordinary or night,
+   Saturday, Sunday, public holiday, and overtime once a shift passes 10 hours
+   or a week passes 38 (both configurable). Casuals use their own table,
+   which includes the 25% loading. The unpaid break comes off pro rata.
+3. Super is worked out on ordinary time earnings (overtime excluded) at the
+   configured rate (12%).
+4. Add adjustments (allowances, reimbursements, corrections), recalculate
+   after changing rules or rates, then **Finalise**. A finalised run can't be
+   changed or deleted.
+5. Send it to Xero Payroll, or download it for Employment Hero, MYOB or as a
+   summary CSV.
+
+Defaults follow the Security Services Industry Award 2020 (MA000016) as
+confirmed from Fair Work sources in November 2026: weekday 6pm–6am 121.7%
+(casual 146.7%), Saturday 150/175%, Sunday 200/225%, public holiday
+250/275%, overtime 150% for two hours then 200% (Sunday 200%, public holiday
+250%). **Casual overtime rates and the 130% permanent-night loading were not
+confirmed and are not modelled; check every rate against the current Fair
+Work pay guide before the first real pay run.** Victorian public holidays for
+2026–27 can be added in one click; other states add their own.
+
+Vigilo does **not** calculate PAYG withholding, produce payslips or lodge
+Single Touch Payroll. Those need ATO-registered payroll software, so they
+stay in Xero, MYOB or Employment Hero, which take the exported run.
+
+**Invoicing** (`/invoicing`) builds client invoices from approved hours at
+each site's bill rate (set on the site), finished patrol runs, and manual
+lines. Each timesheet and patrol run can be billed once; voiding an invoice
+releases them. Record part or full payments; an invoice is paid when nothing
+is owing. Sent invoices can be pushed to Xero or downloaded as Xero, MYOB or
+QuickBooks import files.
+
+## Accounting integrations (`/integrations`)
+
+| System | Invoices | Payments | Payroll |
+|--------|----------|----------|---------|
+| Xero | Pushed as sales invoices (draft or approved), contacts matched or created | Brought back from Xero | Draft timesheets in Xero Payroll AU, by earnings rate |
+| MYOB | Service-sale import file (tab-separated) | Manual | Timesheet import file |
+| QuickBooks Online | Invoice import CSV (no credit lines) | Manual | — |
+| Employment Hero | — | — | Timesheet file with raw start/finish times |
+
+**Setting up Xero.** Register a free "Web app" at developer.xero.com with the
+redirect URI `https://<your-domain>/api/integrations/xero/callback`, set
+`XERO_CLIENT_ID` and `XERO_CLIENT_SECRET`, then press Connect on the
+Integrations page (owners only). Link guards to Xero employees (matched by
+name or email) and map each pay category to a Xero earnings rate before
+sending a pay run. Tokens are encrypted at rest with `INTEGRATIONS_KEY`.
+
+Notes and limits:
+
+- The Xero adapter follows Xero's documentation (OAuth 2.0, granular scopes
+  required for apps created after 2 March 2026, Accounting API, Payroll AU
+  v1.0). It has been tested end to end against a mock server, **not against
+  a live Xero organisation.** Try it on Xero's demo company first.
+- Payroll AU v1.0 timesheets retire on 1 November 2027. Move to the v2.0
+  timesheets endpoint before then.
+- Xero only accepts timesheets that match an employee's payroll calendar, so
+  set the Vigilo pay period to match the Xero calendar.
+- Once an invoice is in Xero, payments are recorded in Xero and brought
+  across; Vigilo blocks manual payments on it to avoid double counting.
+- MYOB, QuickBooks and Employment Hero let you map columns on import. The
+  files use their field names, but the exact templates weren't all
+  confirmed, so check the first import.
 
 ---
 
